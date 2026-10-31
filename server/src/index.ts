@@ -1,0 +1,130 @@
+import { existsSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Fastify from 'fastify';
+import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import { config, paths, tokenFingerprint } from './config.js';
+import { closeDb } from './db.js';
+import { authRoutes } from './routes/auth.js';
+import { libraryRoutes } from './routes/library.js';
+import { playlistRoutes } from './routes/playlists.js';
+import { scanLibrary } from './scanner.js';
+
+export async function buildServer() {
+  const app = Fastify({
+    logger: { level: process.env.LOG_LEVEL || 'info' },
+    bodyLimit: 1_048_576,
+    trustProxy: true,
+  });
+
+  await app.register(cookie);
+  await app.register(cors, {
+    origin: (origin, callback) => {
+      if (!origin || config.corsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Origin not allowed'), false);
+    },
+    credentials: true,
+  });
+
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Referrer-Policy', 'no-referrer');
+    reply.header('X-Frame-Options', 'DENY');
+  });
+
+  app.setErrorHandler((error, request, reply) => {
+    const status =
+      typeof error === 'object' && error !== null && 'statusCode' in error && typeof error.statusCode === 'number'
+        ? error.statusCode
+        : 500;
+    const message = error instanceof Error ? error.message : 'Bilinmeyen hata';
+    if (status >= 500) request.log.error({ err: error }, 'request failed');
+    else request.log.warn({ err: error }, 'request rejected');
+    reply.code(status).send({
+      error: {
+        code: status === 500 ? 'internal_error' : 'bad_request',
+        message: status === 500 ? 'Beklenmeyen bir sunucu hatası oluştu.' : message,
+      },
+    });
+  });
+
+  await app.register(authRoutes);
+  await app.register(libraryRoutes);
+  await app.register(playlistRoutes);
+
+  if (existsSync(paths.webIndex)) {
+    await app.register(fastifyStatic, {
+      root: paths.webAssets,
+      prefix: '/',
+      wildcard: false,
+      index: false,
+    });
+  }
+
+  app.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith('/api/')) {
+      return reply.code(404).send({ error: { code: 'not_found', message: 'Uç nokta bulunamadı.' } });
+    }
+    if (existsSync(paths.webIndex)) {
+      return reply.sendFile('index.html');
+    }
+    return reply
+      .code(503)
+      .type('text/plain')
+      .send('SenroMusic web arayüzü henüz derlenmedi. `pnpm build` çalıştırın.');
+  });
+
+  return app;
+}
+
+async function main(): Promise<void> {
+  mkdirSync(config.musicDir, { recursive: true });
+  const app = await buildServer();
+
+  if (config.demoToken) {
+    app.log.warn(
+      `MUSIC_TOKEN ayarlanmadı. Geliştirme anahtarı kullanılıyor: "senro-demo" (${tokenFingerprint}). ` +
+        'Üretimde .env içinde güçlü bir MUSIC_TOKEN belirleyin.',
+    );
+  }
+
+  await app.listen({ host: config.host, port: config.port });
+  app.log.info(`Music directory: ${resolve(config.musicDir)}`);
+  app.log.info(`Data directory: ${resolve(config.dataDir)}`);
+
+  if (config.scanOnStart) {
+    void scanLibrary()
+      .then((result) => {
+        app.log.info(
+          `Library scan complete: ${result.scanned} files, ${result.added} added, ` +
+            `${result.updated} updated, ${result.removed} removed, ${result.failed} failed ` +
+            `in ${result.durationMs} ms`,
+        );
+      })
+      .catch((error) => app.log.error({ err: error }, 'initial library scan failed'));
+  }
+
+  const shutdown = async (signal: string) => {
+    app.log.info(`Received ${signal}, shutting down`);
+    try {
+      await app.close();
+    } finally {
+      closeDb();
+    }
+    process.exit(0);
+  };
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

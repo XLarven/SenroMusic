@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-electron/
+release/
+.env
+.env.local
+data/
+music/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+coverage/
+playwright-report/
+test-results/

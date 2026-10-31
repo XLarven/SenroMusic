@@ -1,0 +1,880 @@
+@media (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .page {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+
+  .player-bar {
+    grid-template-columns: minmax(180px, 1fr) minmax(280px, 1.45fr) minmax(155px, 0.8fr);
+    gap: 10px;
+  }
+
+  .volume-control {
+    min-width: 102px;
+  }
+
+  .volume-range {
+    width: 64px;
+  }
+}
+
+@media (max-width: 1020px) {
+  .home-hero {
+    grid-template-columns: minmax(0, 1.12fr) minmax(240px, 0.88fr);
+    gap: 1rem;
+  }
+
+  .library-stat {
+    padding: 0.7rem;
+  }
+
+  .settings-grid {
+    gap: 11px;
+  }
+
+  .login-copy h1 {
+    font-size: clamp(3rem, 5.3vw, 4.8rem);
+  }
+}
+
+@media (max-width: 940px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    gap: 0;
+    padding: 0;
+  }
+
+  .shell-sidebar {
+    display: none;
+  }
+
+  .shell-main {
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .shell-player {
+    grid-column: 1;
+    padding: 6px 8px 4px;
+  }
+
+  .shell-mobile-nav {
+    display: flex;
+  }
+
+  .toaster {
+    bottom: 154px;
+  }
+}
+
+@media (max-width: 900px) {
+  .login-page {
+    display: block;
+    height: 100dvh;
+    overflow-y: auto;
+  }
+
+  .login-story {
+    min-height: auto;
+    padding: 28px 24px 32px;
+  }
+
+  .login-copy {
+    margin-top: 34px;
+  }
+
+  .login-copy h1 {
+    font-size: clamp(2.7rem, 8vw, 4.2rem);
+  }
+
+  .login-copy > p {
+    max-width: 62ch;
+  }
+
+  .login-visual,
+  .login-story-foot {
+    display: none;
+  }
+
+  .login-panel {
+    min-height: auto;
+    padding: 36px 24px 52px;
+    overflow: visible;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .login-form-wrap {
+    width: min(430px, 100%);
+    margin: 0 auto;
+    padding: 0;
+  }
+
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-card-wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 820px) {
+  .home-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.4rem;
+    padding: 32px;
+  }
+
+  .home-hero-copy h1 {
+    font-size: clamp(2.8rem, 7.5vw, 4.2rem);
+  }
+
+  .home-feature {
+    min-height: 250px;
+    margin-top: 0.5rem;
+  }
+
+  .home-feature-card {
+    width: 232px;
+  }
+
+  .home-feature-disc {
+    width: 278px;
+  }
+
+  .detail-hero,
+  .artist-detail-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .detail-art {
+    width: min(250px, 58vw);
+  }
+
+  .artist-detail-art {
+    width: min(190px, 48vw);
+  }
+
+  .detail-copy {
+    width: 100%;
+  }
+
+  .detail-copy h1 {
+    font-size: clamp(2.65rem, 8vw, 4rem);
+  }
+
+  .artist-detail-hero .detail-copy h1 {
+    font-size: clamp(2.65rem, 8vw, 4rem);
+  }
+
+  .detail-tracks {
+    margin-top: 0.4rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 25px 16px 42px;
+  }
+
+  .page-heading h1 {
+    font-size: clamp(2rem, 8.5vw, 2.8rem);
+  }
+
+  .content-section {
+    margin-top: 34px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+  }
+
+  .section-heading h2 {
+    font-size: 1.24rem;
+  }
+
+  .section-heading p {
+    font-size: 0.73rem;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 17px 12px;
+  }
+
+  .artist-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  }
+
+  .playlist-grid {
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  }
+
+  .create-playlist-card {
+    min-height: 175px;
+    padding: 0.8rem;
+  }
+
+  .create-playlist-card small {
+    display: none;
+  }
+
+  .player-bar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px;
+    min-height: 70px;
+    padding: 8px 10px;
+    border-radius: 16px;
+  }
+
+  .player-cover {
+    width: 46px;
+    height: 46px;
+    border-radius: 8px;
+  }
+
+  .player-track {
+    gap: 0.58rem;
+  }
+
+  .player-meta {
+    gap: 0.05rem;
+  }
+
+  .player-title {
+    font-size: 0.79rem;
+  }
+
+  .player-artist {
+    font-size: 0.65rem;
+  }
+
+  .player-add {
+    display: none;
+  }
+
+  .player-center {
+    width: auto;
+    gap: 0;
+  }
+
+  .player-controls {
+    gap: 0;
+  }
+
+  .player-controls .player-tool:first-child,
+  .player-controls .player-tool:last-child {
+    display: none;
+  }
+
+  .player-play {
+    width: 40px;
+    height: 40px;
+    margin: 0 0.06rem;
+  }
+
+  .player-tool {
+    width: 32px;
+    height: 32px;
+  }
+
+  .player-progress {
+    display: none;
+  }
+
+  .player-right {
+    gap: 0;
+  }
+
+  .volume-control {
+    display: none;
+  }
+
+  .queue-toggle {
+    margin-right: 0;
+  }
+
+  .queue-count {
+    top: -1px;
+    right: -3px;
+  }
+
+  .track-list-header,
+  .track-row,
+  .track-list.no-album .track-list-header,
+  .track-list.no-album .track-row {
+    grid-template-columns: 30px minmax(0, 1fr) 50px 66px;
+    gap: 6px;
+  }
+
+  .track-list-header > span:nth-child(3),
+  .track-row > .track-album {
+    display: none;
+  }
+
+  .track-list-header {
+    padding-right: 0.4rem;
+    padding-left: 0.4rem;
+  }
+
+  .track-row {
+    min-height: 56px;
+    padding: 0.4rem;
+  }
+
+  .track-cover {
+    width: 38px;
+    height: 38px;
+  }
+
+  .track-title {
+    font-size: 0.84rem;
+  }
+
+  .track-artist {
+    font-size: 0.68rem;
+  }
+
+  .track-duration {
+    padding-right: 0;
+    font-size: 0.64rem;
+  }
+
+  .track-actions {
+    gap: 0;
+    opacity: 1;
+  }
+
+  .track-action {
+    width: 28px;
+    height: 28px;
+  }
+
+  .surface-panel {
+    padding: 0.28rem 0.38rem;
+    border-radius: 15px;
+  }
+
+  .track-list-header > :nth-child(4) {
+    padding-right: 0.1rem;
+  }
+
+  .empty-state {
+    padding: 3.2rem 1.2rem;
+  }
+
+  .library-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1.35rem;
+  }
+
+  .library-stat {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .library-stat strong {
+    font-size: 0.74rem;
+  }
+
+  .library-tabs {
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .library-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .library-heading-actions {
+    width: 100%;
+    margin-top: 0.15rem;
+  }
+
+  .library-heading-actions .button {
+    width: 100%;
+  }
+
+  .search-box {
+    min-height: 54px;
+    border-radius: 15px;
+  }
+
+  .search-box input {
+    font-size: 0.92rem;
+  }
+
+  .search-hint {
+    display: none;
+  }
+
+  .genre-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .genre-card {
+    min-height: 96px;
+  }
+
+  .search-tabs {
+    gap: 0.35rem;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.3rem;
+  }
+
+  .filter-chip {
+    flex: 0 0 auto;
+  }
+
+  .home-hero {
+    padding: 25px 21px;
+    border-radius: 21px;
+  }
+
+  .home-hero-copy h1 {
+    font-size: clamp(2.55rem, 10.5vw, 3.6rem);
+  }
+
+  .home-hero-copy > p {
+    font-size: 0.83rem;
+  }
+
+  .home-stats {
+    margin-top: 1.15rem;
+  }
+
+  .home-feature {
+    min-height: 222px;
+  }
+
+  .home-feature-card {
+    width: 205px;
+  }
+
+  .home-feature-disc {
+    width: 245px;
+  }
+
+  .home-feature-play .play-button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .home-feature-play {
+    right: 9px;
+    bottom: 69px;
+  }
+
+  .playlist-empty-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.2rem;
+  }
+
+  .playlist-empty-banner .button {
+    width: 100%;
+  }
+
+  .detail-topline {
+    margin-bottom: 12px;
+  }
+
+  .detail-back {
+    margin-bottom: 16px;
+  }
+
+  .detail-hero,
+  .artist-detail-hero {
+    padding-bottom: 1.8rem;
+  }
+
+  .detail-art {
+    width: min(220px, 62vw);
+  }
+
+  .artist-detail-art {
+    width: min(165px, 45vw);
+  }
+
+  .detail-copy h1,
+  .artist-detail-hero .detail-copy h1 {
+    font-size: clamp(2.3rem, 10.5vw, 3.2rem);
+  }
+
+  .detail-actions .button {
+    flex: 1 1 auto;
+  }
+
+  .detail-tracks > .surface-panel {
+    margin-right: -6px;
+    margin-left: -6px;
+  }
+
+  .settings-card {
+    padding: 1.15rem;
+  }
+
+  .install-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.9rem;
+  }
+
+  .install-tip {
+    max-width: none;
+    text-align: left;
+  }
+
+  .platform-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toaster {
+    right: 10px;
+    bottom: 148px;
+    left: 10px;
+    width: auto;
+  }
+
+  .queue-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    padding-top: env(safe-area-inset-top);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    justify-items: stretch;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 91dvh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 22px 22px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .not-found-page {
+    min-height: calc(100dvh - 210px);
+  }
+}
+
+@media (max-width: 620px) {
+  .login-story {
+    padding: 24px 20px 28px;
+  }
+
+  .login-story-badge {
+    display: none;
+  }
+
+  .login-copy {
+    margin-top: 28px;
+  }
+
+  .login-copy h1 {
+    font-size: clamp(2.45rem, 11vw, 3.5rem);
+  }
+
+  .login-copy > p {
+    margin-top: 1rem;
+    font-size: 0.82rem;
+  }
+
+  .login-features {
+    margin-top: 1.1rem;
+  }
+
+  .login-features span {
+    padding: 0.36rem 0.58rem;
+    font-size: 0.63rem;
+  }
+
+  .login-panel {
+    padding: 30px 20px 46px;
+  }
+
+  .login-form-heading h2 {
+    font-size: 2rem;
+  }
+
+  .login-footer {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .platform-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .not-found-art {
+    font-size: 6.4rem;
+  }
+
+  .home-hero-actions .button {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-right: 13px;
+    padding-left: 13px;
+  }
+
+  .home-topline {
+    margin-bottom: 12px;
+  }
+
+  .home-hero {
+    padding: 22px 17px;
+  }
+
+  .home-hero-copy h1 {
+    font-size: clamp(2.25rem, 11.5vw, 3rem);
+  }
+
+  .home-hero-actions {
+    gap: 0.5rem;
+  }
+
+  .home-hero-actions .button {
+    min-height: 40px;
+    padding: 0 0.9rem;
+    font-size: 0.8rem;
+  }
+
+  .home-stats {
+    gap: 0.45rem 0.9rem;
+    font-size: 0.62rem;
+  }
+
+  .home-feature {
+    min-height: 200px;
+  }
+
+  .home-feature-card {
+    width: 180px;
+  }
+
+  .home-feature-disc {
+    width: 218px;
+  }
+
+  .home-feature-meta strong {
+    font-size: 0.9rem;
+  }
+
+  .home-feature-play {
+    bottom: 65px;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .player-bar {
+    padding: 7px 8px;
+  }
+
+  .player-cover {
+    width: 42px;
+    height: 42px;
+  }
+
+  .player-title {
+    font-size: 0.76rem;
+  }
+
+  .player-artist {
+    font-size: 0.62rem;
+  }
+
+  .player-play {
+    width: 38px;
+    height: 38px;
+  }
+
+  .player-tool {
+    width: 30px;
+    height: 30px;
+  }
+
+  .track-list-header,
+  .track-row,
+  .track-list.no-album .track-list-header,
+  .track-list.no-album .track-row {
+    grid-template-columns: 26px minmax(0, 1fr) 42px 60px;
+    gap: 4px;
+  }
+
+  .track-cover {
+    width: 35px;
+    height: 35px;
+  }
+
+  .track-main {
+    gap: 0.5rem;
+  }
+
+  .track-title {
+    font-size: 0.8rem;
+  }
+
+  .track-artist {
+    font-size: 0.64rem;
+  }
+
+  .track-duration {
+    font-size: 0.6rem;
+  }
+
+  .track-action {
+    width: 27px;
+    height: 27px;
+  }
+
+  .detail-actions {
+    gap: 0.45rem;
+  }
+
+  .detail-actions .button {
+    min-height: 39px;
+    padding: 0 0.9rem;
+    font-size: 0.79rem;
+  }
+
+  .detail-meta {
+    font-size: 0.66rem;
+  }
+
+  .detail-byline {
+    font-size: 0.82rem;
+  }
+
+  .library-stat-icon {
+    width: 29px;
+    height: 29px;
+  }
+
+  .library-stat {
+    gap: 0.5rem;
+  }
+
+  .search-tabs {
+    margin-top: 1.15rem;
+  }
+
+  .genre-card {
+    min-height: 88px;
+    padding: 0.7rem;
+  }
+
+  .genre-card strong {
+    font-size: 0.8rem;
+  }
+
+  .settings-card {
+    padding: 1rem;
+  }
+
+  .settings-card-head {
+    gap: 0.6rem;
+  }
+
+  .settings-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .settings-list > div {
+    gap: 0.6rem;
+    font-size: 0.68rem;
+  }
+
+  .settings-list dd {
+    font-size: 0.66rem;
+  }
+
+  .settings-stat-grid {
+    gap: 6px;
+  }
+
+  .app-error-card {
+    padding: 1.5rem 1.1rem;
+  }
+
+  .app-error-actions {
+    width: 100%;
+  }
+
+  .app-error-actions .button {
+    width: 100%;
+  }
+
+  .empty-state {
+    padding: 2.8rem 1rem;
+  }
+
+  .empty-state p {
+    font-size: 0.78rem;
+  }
+
+  .modal-header {
+    padding: 1.15rem 1.1rem 0.75rem;
+  }
+
+  .modal-body {
+    padding: 0.55rem 1.1rem 0.9rem;
+  }
+
+  .modal-footer {
+    padding: 0.9rem 1.1rem 1.1rem;
+  }
+
+  .inline-field {
+    flex-direction: column;
+  }
+
+  .inline-field .button {
+    width: 100%;
+  }
+
+  .not-found-art {
+    font-size: 5.6rem;
+  }
+
+  .not-found-actions {
+    width: 100%;
+  }
+
+  .not-found-actions .button {
+    flex: 1;
+  }
+}

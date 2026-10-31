@@ -1,0 +1,15 @@
+services:
+  senromusic:
+    build: .
+    image: senromusic:latest
+    container_name: senromusic
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      MUSIC_TOKEN: ${MUSIC_TOKEN:-change-this-token-before-exposing}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8787}
+    volumes:
+      - ./music:/music
+      - ./data:/data
+    restart: unless-stopped

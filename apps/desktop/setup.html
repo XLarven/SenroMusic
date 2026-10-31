@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SenroMusic — Sunucu bağlantısı</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(ellipse at 20% 10%, rgba(255,129,95,.12), transparent 42%), #07080a;
+        color: #f4f1ea;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+      }
+      .card {
+        width: min(520px, 92vw);
+        padding: 32px;
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: 20px;
+        background: rgba(17,19,23,.92);
+        box-shadow: 0 24px 60px rgba(0,0,0,.4);
+      }
+      h1 { margin: 0 0 8px; font-size: 1.6rem; letter-spacing: -.03em; }
+      p { margin: 0 0 18px; color: #aaa49b; font-size: .9rem; line-height: 1.6; }
+      label { display: block; margin-bottom: 6px; color: #c8c3b9; font-size: .8rem; font-weight: 600; }
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 12px;
+        background: rgba(255,255,255,.05);
+        color: #f4f1ea;
+        font-size: .95rem;
+      }
+      input:focus { outline: 2px solid #ff815f; outline-offset: 2px; }
+      .actions { display: flex; gap: 10px; margin-top: 18px; }
+      button {
+        flex: 1;
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        font-weight: 650;
+        cursor: pointer;
+      }
+      .primary { background: linear-gradient(135deg, #ff936e, #ff6742); color: #1d0c07; }
+      .ghost { background: rgba(255,255,255,.06); color: #f4f1ea; }
+      .status { margin-top: 14px; min-height: 20px; font-size: .8rem; color: #aaa49b; }
+      .status.error { color: #fb7185; }
+      .status.success { color: #6ee7b7; }
+      code { font-family: 'Cascadia Code', Consolas, monospace; font-size: .85em; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>SenroMusic</h1>
+      <p>SenroMusic sunucunuzun adresini girin. Örneğin <code>http://192.168.1.20:8787</code> veya <code>http://localhost:8787</code>.</p>
+      <label for="url">Sunucu adresi</label>
+      <input id="url" type="url" placeholder="http://localhost:8787" autocomplete="off" spellcheck="false" />
+      <div class="actions">
+        <button class="ghost" id="default" type="button">Varsayılanı kullan</button>
+        <button class="primary" id="connect" type="button">Bağlan</button>
+      </div>
+      <div class="status" id="status"></div>
+    </main>
+    <script>
+      const input = document.getElementById('url');
+      const status = document.getElementById('status');
+      const api = window.senroDesktop;
+      (async () => {
+        try { input.value = await api.getServerUrl(); } catch {}
+      })();
+
+      async function connect(url) {
+        status.className = 'status';
+        status.textContent = 'Bağlanılıyor…';
+        try {
+          const saved = await api.setServerUrl(url);
+          window.location.href = saved;
+        } catch (error) {
+          status.className = 'status error';
+          status.textContent = error && error.message ? error.message : 'Bağlantı kurulamadı.';
+        }
+      }
+
+      document.getElementById('connect').addEventListener('click', () => {
+        connect(input.value.trim());
+      });
+      document.getElementById('default').addEventListener('click', () => {
+        connect('http://localhost:8787');
+      });
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') connect(input.value.trim());
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "@senro/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "demo": "tsx scripts/make-demo.ts",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/static": "^10.1.8",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.9",
+    "fastify": "^5.12.7",
+    "music-metadata": "^12.3.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

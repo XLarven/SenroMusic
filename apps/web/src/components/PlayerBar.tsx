@@ -1,0 +1,190 @@
+import type { CSSProperties } from 'react';
+import {
+  ListMusic,
+  Loader2,
+  Pause,
+  Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
+import clsx from 'clsx';
+import { AddToPlaylistMenu } from './AddToPlaylistMenu';
+import { Cover } from './Cover';
+import { usePlayer } from '../store/player';
+import { formatDuration } from '../lib/format';
+
+export function PlayerBar() {
+  const current = usePlayer((state) => state.current);
+  const queue = usePlayer((state) => state.queue);
+  const playing = usePlayer((state) => state.playing);
+  const loading = usePlayer((state) => state.loading);
+  const currentTime = usePlayer((state) => state.currentTime);
+  const duration = usePlayer((state) => state.duration);
+  const volume = usePlayer((state) => state.volume);
+  const muted = usePlayer((state) => state.muted);
+  const shuffle = usePlayer((state) => state.shuffle);
+  const repeat = usePlayer((state) => state.repeat);
+  const queueOpen = usePlayer((state) => state.queueOpen);
+
+  const toggle = usePlayer((state) => state.toggle);
+  const next = usePlayer((state) => state.next);
+  const previous = usePlayer((state) => state.previous);
+  const seek = usePlayer((state) => state.seek);
+  const setVolume = usePlayer((state) => state.setVolume);
+  const toggleMute = usePlayer((state) => state.toggleMute);
+  const toggleShuffle = usePlayer((state) => state.toggleShuffle);
+  const cycleRepeat = usePlayer((state) => state.cycleRepeat);
+  const setQueueOpen = usePlayer((state) => state.setQueueOpen);
+
+  const safeDuration = Math.max(duration || current?.duration || 0, 0);
+  const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
+  const volumeValue = muted ? 0 : volume;
+  const progressStyle = { '--fill': `${progress}%` } as CSSProperties;
+  const volumeStyle = { '--fill': `${volumeValue * 100}%` } as CSSProperties;
+
+  return (
+    <section className={clsx('player-bar', !current && 'is-empty')} aria-label="Müzik oynatıcı">
+      <div className="player-track">
+        {current ? (
+          <Cover
+            src={current.coverUrl}
+            alt=""
+            seed={`${current.albumArtist}-${current.album}`}
+            className="player-cover"
+            iconSize={18}
+            eager
+          />
+        ) : (
+          <div className="player-cover player-cover-empty" aria-hidden="true">
+            <ListMusic size={18} />
+          </div>
+        )}
+        <div className="player-meta">
+          <span className="player-title">{current?.title ?? 'Bir şarkı seç'}</span>
+          <span className="player-artist">{current?.artist ?? 'Kitaplığın seni bekliyor'}</span>
+        </div>
+        {current ? <AddToPlaylistMenu track={current} className="player-add" /> : null}
+      </div>
+
+      <div className="player-center">
+        <div className="player-controls">
+          <button
+            type="button"
+            className={clsx('player-tool', shuffle && 'is-active')}
+            onClick={toggleShuffle}
+            aria-label="Karıştır"
+            aria-pressed={shuffle}
+            title="Karıştır"
+          >
+            <Shuffle size={17} />
+          </button>
+          <button
+            type="button"
+            className="player-tool"
+            onClick={previous}
+            disabled={!current}
+            aria-label="Önceki parça"
+            title="Önceki"
+          >
+            <SkipBack size={19} fill="currentColor" />
+          </button>
+          <button
+            type="button"
+            className="player-play"
+            onClick={toggle}
+            disabled={!current}
+            aria-label={playing ? 'Duraklat' : 'Oynat'}
+          >
+            {current && loading ? (
+              <Loader2 size={22} className="spin" />
+            ) : playing ? (
+              <Pause size={22} fill="currentColor" />
+            ) : (
+              <Play size={22} fill="currentColor" />
+            )}
+          </button>
+          <button
+            type="button"
+            className="player-tool"
+            onClick={next}
+            disabled={!current}
+            aria-label="Sonraki parça"
+            title="Sonraki"
+          >
+            <SkipForward size={19} fill="currentColor" />
+          </button>
+          <button
+            type="button"
+            className={clsx('player-tool', repeat !== 'off' && 'is-active')}
+            onClick={cycleRepeat}
+            aria-label={
+              repeat === 'off' ? 'Tekrar kapalı' : repeat === 'all' ? 'Tümünü tekrar et' : 'Tek parçayı tekrar et'
+            }
+            aria-pressed={repeat !== 'off'}
+            title={repeat === 'off' ? 'Tekrar kapalı' : repeat === 'all' ? 'Tümünü tekrar et' : 'Tek parça'}
+          >
+            {repeat === 'one' ? <Repeat1 size={17} /> : <Repeat size={17} />}
+          </button>
+        </div>
+
+        <div className="player-progress">
+          <span className="player-time">{formatDuration(currentTime)}</span>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(safeDuration, 0.1)}
+            step={0.1}
+            value={Math.min(currentTime, Math.max(safeDuration, 0.1))}
+            onChange={(event) => seek(Number(event.target.value))}
+            className="range player-range"
+            style={progressStyle}
+            disabled={!current || safeDuration <= 0}
+            aria-label="Parça ilerlemesi"
+          />
+          <span className="player-time">{formatDuration(safeDuration)}</span>
+        </div>
+      </div>
+
+      <div className="player-right">
+        <button
+          type="button"
+          className={clsx('player-tool queue-toggle', queueOpen && 'is-active')}
+          onClick={() => setQueueOpen(!queueOpen)}
+          aria-label={`Sırayı aç (${queue.length} parça)`}
+          aria-pressed={queueOpen}
+          title="Sırada ne var?"
+        >
+          <ListMusic size={18} />
+          {queue.length > 0 ? <span className="queue-count">{queue.length}</span> : null}
+        </button>
+        <div className="volume-control">
+          <button
+            type="button"
+            className="player-tool"
+            onClick={toggleMute}
+            aria-label={muted ? 'Sesi aç' : 'Sesi kapat'}
+            title={muted ? 'Sesi aç' : 'Sesi kapat'}
+          >
+            {muted || volumeValue === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volumeValue}
+            onChange={(event) => setVolume(Number(event.target.value))}
+            className="range volume-range"
+            style={volumeStyle}
+            aria-label="Ses seviyesi"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
