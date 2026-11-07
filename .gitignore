@@ -17,3 +17,6 @@ test-results/
 *.zip
 apps/web/android/
 apps/web/ios/
+.build/
+.xtool/
+build/

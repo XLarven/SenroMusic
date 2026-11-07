@@ -214,7 +214,7 @@ export function LoginPage() {
           ) : null}
 
           <footer className="login-footer">
-            <span>SenroMusic 0.1</span>
+            <span>SenroMusic 0.2</span>
             <span>Yerel öncelikli · Açık arayüz</span>
           </footer>
         </div>

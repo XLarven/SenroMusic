@@ -1,12 +1,16 @@
 {
   "name": "@senro/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "commonjs",
   "main": "main.cjs",
   "scripts": {
     "dev": "electron .",
-    "build": "electron-builder --win nsis"
+    "build": "electron-builder --win nsis",
+    "build:win": "electron-builder --win nsis portable",
+    "build:mac": "electron-builder --mac dmg",
+    "build:linux": "electron-builder --linux AppImage deb",
+    "build:all": "electron-builder --win nsis portable --mac dmg --linux AppImage deb"
   },
   "build": {
     "appId": "com.senromusic.desktop",
@@ -21,8 +25,19 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ],
+      "icon": "../web/public/icon-512.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.music",
+      "icon": "../web/public/icon-512.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Audio",
       "icon": "../web/public/icon-512.png"
     },
     "nsis": {

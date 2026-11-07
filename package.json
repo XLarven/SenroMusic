@@ -1,6 +1,6 @@
 {
   "name": "senromusic",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Self-hosted, cross-platform music library and player",
   "scripts": {
@@ -10,7 +10,12 @@
     "demo": "pnpm --filter @senro/server demo",
     "test": "pnpm --filter @senro/server test",
     "desktop": "pnpm --filter @senro/desktop dev",
-    "desktop:build": "pnpm --filter @senro/desktop build"
+    "desktop:build": "pnpm --filter @senro/desktop build",
+    "desktop:build:win": "pnpm --filter @senro/desktop build:win",
+    "mobile:android:build": "pnpm --filter @senro/web cap:build:android",
+    "build:all": "powershell -ExecutionPolicy Bypass -File scripts/build-all-windows.ps1",
+    "build:web": "pnpm --filter @senro/web build",
+    "build:server": "pnpm --filter @senro/server build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

@@ -1,0 +1,97 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+  build-desktop-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @senro/desktop build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: apps/desktop/release
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: npx cap sync android
+        working-directory: apps/web
+      - run: ./gradlew assembleDebug
+        working-directory: apps/web/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug
+          path: apps/web/android/app/build/outputs/apk/debug/*.apk
+
+  build-ios-macos:
+    # iOS için macOS + Xcode gerekir — Windows'tan push ile çalışır
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: npx cap sync ios
+        working-directory: apps/web
+        continue-on-error: true
+      - run: xcodebuild -project apps/web/ios/App/App.xcodeproj -scheme App -sdk iphoneos -archivePath build/SenroMusic.xcarchive archive
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build
+          path: |
+            apps/web/ios
+            apps/ios-swiftpm
+            build/
