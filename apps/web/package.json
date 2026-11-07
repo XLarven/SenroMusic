@@ -6,9 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:init": "npx cap init SenroMusic com.senro.music --web-dir dist",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:android": "npm run cap:sync && npx cap run android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "@tanstack/react-query": "^5.105.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.66.0",

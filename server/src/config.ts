@@ -34,11 +34,23 @@ if (!configuredToken && isProduction) {
   );
 }
 
+if (configuredToken && isProduction && configuredToken.length < 32) {
+  throw new Error(
+    'MUSIC_TOKEN too short in production. Use at least 32 characters (e.g. openssl rand -base64 32).',
+  );
+}
+
+if (isProduction && !process.env.MUSIC_SESSION_SECRET?.trim()) {
+  throw new Error(
+    'MUSIC_SESSION_SECRET is required in production. Set a random 32+ character value.',
+  );
+}
+
 const musicToken = configuredToken || 'senro-demo';
 
 export const config = {
   isProduction,
-  host: process.env.HOST?.trim() || '0.0.0.0',
+  host: process.env.HOST?.trim() || (isProduction ? '127.0.0.1' : '0.0.0.0'),
   port: envInt('PORT', 8787),
   musicDir: envPath('MUSIC_DIR', resolve(serverRoot, 'music')),
   dataDir: envPath('DATA_DIR', resolve(serverRoot, 'data')),
@@ -56,7 +68,8 @@ export const config = {
         secureCookiesRaw === 'true' ||
         secureCookiesRaw === 'yes' ||
         secureCookiesRaw === 'on',
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+  corsOrigins: (process.env.CORS_ORIGINS ||
+    'http://localhost:5173,http://127.0.0.1:5173,capacitor://localhost,http://localhost,ionic://localhost')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),

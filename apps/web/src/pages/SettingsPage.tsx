@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { useMusicData } from '../MusicDataContext';
+import { getServerUrl, setServerUrl } from '../lib/serverUrl';
 import { useAuthStore } from '../store/auth';
 import { useToastStore } from '../store/toast';
 import {
@@ -50,6 +51,8 @@ export function SettingsPage() {
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(isStandalone);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState(getServerUrl());
+  const [serverUrlSaving, setServerUrlSaving] = useState(false);
 
   const healthQuery = useQuery({
     queryKey: ['health'],
@@ -117,6 +120,19 @@ export function SettingsPage() {
     }
   };
 
+  const handleSaveServerUrl = () => {
+    setServerUrlSaving(true);
+    try {
+      setServerUrl(serverUrlInput);
+      pushToast('Sunucu adresi kaydedildi. Sayfa yenileniyor…', 'success');
+      window.setTimeout(() => window.location.reload(), 600);
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'Kaydedilemedi.', 'error');
+    } finally {
+      setServerUrlSaving(false);
+    }
+  };
+
   const health = healthQuery.data;
   const online = Boolean(health && !healthQuery.isError);
   const lastScan = health?.lastScanAt ?? library.stats.lastScanAt;
@@ -156,11 +172,33 @@ export function SettingsPage() {
             {health ? <small>v{health.version}</small> : null}
           </div>
 
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input
+              type="url"
+              value={serverUrlInput}
+              onChange={(e) => setServerUrlInput(e.target.value)}
+              placeholder="http://192.168.1.10:8787"
+              style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #333)', background: 'var(--surface, #111)', color: 'inherit' }}
+            />
+            <button
+              type="button"
+              className="button primary"
+              onClick={handleSaveServerUrl}
+              disabled={serverUrlSaving}
+            >
+              {serverUrlSaving ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
+              Kaydet
+            </button>
+          </div>
+          <p className="settings-hint" style={{ marginTop: 0 }}>
+            Mobil veya uzak cihazdan bağlanırken sunucunun adresini gir. Örn: http://192.168.1.10:8787
+          </p>
+
           <dl className="settings-list">
             <div>
               <dt>Sunucu adresi</dt>
               <dd>
-                <code>{window.location.origin}</code>
+                <code>{getServerUrl()}</code>
               </dd>
             </div>
             <div>

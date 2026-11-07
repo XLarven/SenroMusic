@@ -10,6 +10,7 @@ import { closeDb } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { libraryRoutes } from './routes/library.js';
 import { playlistRoutes } from './routes/playlists.js';
+import { youtubeRoutes } from './routes/youtube.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -31,10 +32,15 @@ export async function buildServer() {
     credentials: true,
   });
 
-  app.addHook('onSend', async (_request, reply) => {
+  app.addHook('onSend', async (request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('X-Frame-Options', 'DENY');
+    reply.header('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'");
+    reply.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    if (request.protocol === 'https' || config.secureCookies) {
+      reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
   });
 
   app.setErrorHandler((error, request, reply) => {
@@ -56,6 +62,7 @@ export async function buildServer() {
   await app.register(authRoutes);
   await app.register(libraryRoutes);
   await app.register(playlistRoutes);
+  await app.register(youtubeRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {

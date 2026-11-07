@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import {
   ListMusic,
   Loader2,
+  Moon,
   Pause,
   Play,
   Repeat,
@@ -30,6 +31,7 @@ export function PlayerBar() {
   const shuffle = usePlayer((state) => state.shuffle);
   const repeat = usePlayer((state) => state.repeat);
   const queueOpen = usePlayer((state) => state.queueOpen);
+  const sleepTimer = usePlayer((state) => state.sleepTimer);
 
   const toggle = usePlayer((state) => state.toggle);
   const next = usePlayer((state) => state.next);
@@ -40,10 +42,17 @@ export function PlayerBar() {
   const toggleShuffle = usePlayer((state) => state.toggleShuffle);
   const cycleRepeat = usePlayer((state) => state.cycleRepeat);
   const setQueueOpen = usePlayer((state) => state.setQueueOpen);
+  const setSleepTimer = usePlayer((state) => state.setSleepTimer);
 
   const safeDuration = Math.max(duration || current?.duration || 0, 0);
   const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
   const volumeValue = muted ? 0 : volume;
+  const cycleSleep = () => {
+    const options = [null, 15, 30, 45, 60] as const;
+    const idx = options.indexOf(sleepTimer as (typeof options)[number]);
+    const next = options[(idx + 1) % options.length];
+    setSleepTimer(next);
+  };
   const progressStyle = { '--fill': `${progress}%` } as CSSProperties;
   const volumeStyle = { '--fill': `${volumeValue * 100}%` } as CSSProperties;
 
@@ -151,6 +160,16 @@ export function PlayerBar() {
       </div>
 
       <div className="player-right">
+        <button
+          type="button"
+          className={clsx('player-tool', sleepTimer && 'is-active')}
+          onClick={cycleSleep}
+          aria-label={sleepTimer ? `Uyku zamanlayıcı: ${sleepTimer} dakika` : 'Uyku zamanlayıcı kapalı'}
+          title={sleepTimer ? `Uyku: ${sleepTimer} dk` : 'Uyku zamanlayıcı'}
+        >
+          <Moon size={18} />
+          {sleepTimer ? <span className="queue-count">{sleepTimer}</span> : null}
+        </button>
         <button
           type="button"
           className={clsx('player-tool queue-toggle', queueOpen && 'is-active')}

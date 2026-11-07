@@ -33,7 +33,7 @@ export function verifySession(value: string | undefined): boolean {
 export function setSessionCookie(reply: FastifyReply, secure = config.secureCookies ?? false): void {
   reply.setCookie(SESSION_COOKIE, issueSession(), {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: secure ? 'none' : 'lax',
     path: '/',
     secure,
     maxAge: config.sessionDays * 86_400,

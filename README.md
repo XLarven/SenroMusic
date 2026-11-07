@@ -76,6 +76,31 @@ docker compose up -d --build
 - Veri: `./data` → `/data`
 - Adres: http://localhost:8787
 
+## Mobil (Android / iOS)
+
+Web arayüzü Capacitor ile native mobil uygulamaya sarılabilir.
+
+### Android (Windows/macOS/Linux)
+```bash
+pnpm --filter @senro/web build
+pnpm --filter @senro/web cap:add:android   # ilk seferde
+pnpm --filter @senro/web cap:sync
+pnpm --filter @senro/web cap:open:android   # Android Studio'da aç
+```
+Android Studio'dan APK/AAB derleyip Play Store'a yükleyin. Sunucu adresini uygulama içi Ayarlar → Sunucu adresi alanından girin.
+
+### iOS (yalnızca macOS)
+```bash
+pnpm --filter @senro/web build
+pnpm --filter @senro/web cap:add:ios      # ilk seferde (macOS gerekir)
+pnpm --filter @senro/web cap:sync
+pnpm --filter @senro/web cap:open:ios     # Xcode'da aç
+```
+Xcode ile archive alıp App Store Connect'e yükleyin. Apple Developer hesabı ($99/yıl) gerekir.
+
+### Sunucu adresi
+Mobil uygulama ilk açılışta `http://127.0.0.1:8787` varsayar. Ayarlar sayfasından kendi sunucunuzun adresini (örn. `https://muzik.example.com`) girin ve kaydedin.
+
 ## Windows masaüstü (Electron)
 
 ```bash

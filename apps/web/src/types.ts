@@ -79,6 +79,15 @@ export type ScanResult = {
   alreadyRunning?: boolean;
 };
 
+export type YouTubeResult = {
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  thumbnail: string;
+  url: string;
+};
+
 export type Health = {
   status: 'ok';
   name: string;

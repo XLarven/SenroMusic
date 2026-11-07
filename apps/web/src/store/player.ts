@@ -17,6 +17,7 @@ type PlayerState = {
   repeat: RepeatMode;
   queueOpen: boolean;
   error: string | null;
+  sleepTimer: number | null;
 
   playTrack: (track: Track, sourceTracks?: Track[]) => void;
   playQueue: (tracks: Track[], startIndex?: number) => void;
@@ -32,6 +33,7 @@ type PlayerState = {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   setQueueOpen: (open: boolean) => void;
+  setSleepTimer: (minutes: number | null) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   handleEnded: () => void;
@@ -39,6 +41,7 @@ type PlayerState = {
 
 let audio: HTMLAudioElement | null = null;
 let listenersAttached = false;
+let sleepTimerHandle: ReturnType<typeof setTimeout> | null = null;
 
 function getAudio(): HTMLAudioElement {
   if (!audio) {
@@ -104,6 +107,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   repeat: 'off',
   queueOpen: false,
   error: null,
+  sleepTimer: null,
 
   playTrack: (track, sourceTracks) => {
     attachAudioListeners();
@@ -232,6 +236,25 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     })),
 
   setQueueOpen: (open) => set({ queueOpen: open }),
+
+  setSleepTimer: (minutes) => {
+    if (sleepTimerHandle) {
+      clearTimeout(sleepTimerHandle);
+      sleepTimerHandle = null;
+    }
+    if (minutes === null) {
+      set({ sleepTimer: null });
+      return;
+    }
+    const ms = Math.max(1, minutes) * 60 * 1000;
+    sleepTimerHandle = setTimeout(() => {
+      const element = getAudio();
+      element.pause();
+      usePlayer.setState({ playing: false, sleepTimer: null });
+      sleepTimerHandle = null;
+    }, ms);
+    set({ sleepTimer: minutes });
+  },
 
   removeFromQueue: (index) => {
     const { queue, index: currentIndex } = get();

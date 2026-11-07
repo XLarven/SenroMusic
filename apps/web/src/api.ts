@@ -4,7 +4,9 @@ import type {
   Playlist,
   PlaylistSummary,
   ScanResult,
+  YouTubeResult,
 } from './types';
+import { getServerUrl } from './lib/serverUrl';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -22,7 +24,7 @@ type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
-  const response = await fetch(path, {
+  const response = await fetch(`${getServerUrl()}${path}`, {
     credentials: 'include',
     ...rest,
     headers: {
@@ -62,6 +64,15 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
   library: () => request<Library>('/api/library'),
+  youtubeSearch: (q: string, limit?: number) =>
+    request<{ results: YouTubeResult[] }>(
+      `/api/youtube/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`,
+    ),
+  youtubeDownload: (input: { id: string; title?: string; uploader?: string; thumbnail?: string }) =>
+    request<{ ok: boolean; path: string }>(
+      '/api/youtube/download',
+      { method: 'POST', body: input },
+    ),
   scan: () => request<ScanResult>('/api/scan', { method: 'POST' }),
   playlists: () => request<{ playlists: PlaylistSummary[] }>('/api/playlists'),
   playlist: (id: string) => request<Playlist>(`/api/playlists/${encodeURIComponent(id)}`),

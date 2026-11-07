@@ -1,0 +1,32 @@
+# SenroMusic – Caddy ters proxy (Windows VDS)
+# muzik.ornek.com yerine kendi alan adınızı yazın.
+# Caddy sertifikayı (Let's Encrypt) otomatik alır.
+
+https://muzik.ornek.com {
+    encode gzip zstd
+
+    # Uygulama yalnızca localhost'ta dinlenir (HOST=127.0.0.1, PORT=8787)
+    reverse_proxy 127.0.0.1:8787 {
+        # Güvenlik başlıkları sunucuda da var, burada ek koruma:
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Log
+    log {
+        output file C:\Caddy\logs\senro.log {
+            roll_size 10mb
+            roll_keep 10
+        }
+        format json
+    }
+
+    # Basit kaynak IP kısıtı isterseniz (sadece kendi IP'nize açmak için):
+    # @allowed src 203.0.113.42
+    # handle @allowed {
+    #     reverse_proxy 127.0.0.1:8787
+    # }
+    # handle {
+    #     abort
+    # }
+}

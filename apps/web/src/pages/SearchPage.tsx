@@ -1,14 +1,18 @@
+import { useEffect, useState } from 'react';
 import { useDeferredValue, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Disc3, Search, SearchX, Sparkles, X } from 'lucide-react';
+import { Disc3, Download, Loader2, Music, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
 import clsx from 'clsx';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistCard } from '../components/ArtistCard';
 import { EmptyState } from '../components/EmptyState';
 import { TrackList } from '../components/TrackList';
 import { useMusicData } from '../MusicDataContext';
+import { api } from '../api';
+import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
-import { formatCount } from '../lib/format';
+import { formatCount, formatDuration } from '../lib/format';
+import type { YouTubeResult } from '../types';
 
 type SearchTab = 'all' | 'tracks' | 'albums' | 'artists';
 const TABS: Array<{ id: SearchTab; label: string }> = [
@@ -23,12 +27,18 @@ function normalize(value: string | null | undefined): string {
 }
 
 export function SearchPage() {
-  const { library } = useMusicData();
+  const { library, refreshLibrary } = useMusicData();
+  const pushToast = useToastStore((state) => state.push);
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const rawTab = params.get('tab');
   const tab: SearchTab = TABS.some((item) => item.id === rawTab) ? (rawTab as SearchTab) : 'all';
   const deferredQuery = useDeferredValue(query.trim());
+
+  const [ytResults, setYtResults] = useState<YouTubeResult[]>([]);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const setQuery = (value: string) => {
     const next = new URLSearchParams(params);
@@ -64,6 +74,47 @@ export function SearchPage() {
 
   const total = results.tracks.length + results.albums.length + results.artists.length;
 
+  useEffect(() => {
+    const needle = deferredQuery;
+    if (!needle || needle.length < 2) {
+      setYtResults([]);
+      setYtError(null);
+      return;
+    }
+    let cancelled = false;
+    setYtLoading(true);
+    setYtError(null);
+    api
+      .youtubeSearch(needle, 12)
+      .then((payload) => {
+        if (cancelled) return;
+        setYtResults(payload.results);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setYtError(error instanceof Error ? error.message : 'YouTube araması başarısız.');
+      })
+      .finally(() => {
+        if (!cancelled) setYtLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deferredQuery]);
+
+  const handleDownload = async (item: YouTubeResult) => {
+    setDownloadingId(item.id);
+    try {
+      await api.youtubeDownload({ id: item.id, title: item.title, uploader: item.uploader, thumbnail: item.thumbnail });
+      pushToast(`“${item.title}” indirildi ve kütüphaneye eklendi.`, 'success');
+      await refreshLibrary();
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'İndirme başarısız.', 'error');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const genres = useMemo(() => {
     const map = new Map<string, { count: number; coverUrl: string | null }>();
     for (const track of library.tracks) {
@@ -84,6 +135,73 @@ export function SearchPage() {
     albums: results.albums.length,
     artists: results.artists.length,
   };
+
+  const renderYouTube = () => (
+    <section className="content-section">
+      <div className="section-heading">
+        <div>
+          <h2>YouTube sonuçları</h2>
+          <p>İstediğin parçayı MP3 olarak indir ve kütüphanene ekle.</p>
+        </div>
+      </div>
+
+      {ytLoading ? (
+        <div className="surface-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Loader2 size={18} className="spin" />
+          <span>YouTube'da aranıyor…</span>
+        </div>
+      ) : ytError ? (
+        <EmptyState icon={SearchX} title="YouTube araması başarısız" description={ytError} />
+      ) : ytResults.length === 0 ? (
+        <EmptyState icon={Music} title="Sonuç yok" description="Farklı bir ifade deneyebilirsin." />
+      ) : (
+        <div className="surface-panel">
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {ytResults.map((item) => (
+              <li key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--border, #333)' }}>
+                <img
+                  src={item.thumbnail}
+                  alt=""
+                  width={48}
+                  height={48}
+                  style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                  loading="lazy"
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.title}
+                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.uploader}
+                    {item.duration ? ` · ${formatDuration(item.duration)}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={downloadingId === item.id}
+                  onClick={() => void handleDownload(item)}
+                  style={{ flexShrink: 0 }}
+                >
+                  {downloadingId === item.id ? (
+                    <>
+                      <Loader2 size={16} className="spin" />
+                      İndiriliyor…
+                    </>
+                  ) : (
+                    <>
+                      <Download size={16} />
+                      İndir
+                    </>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
 
   return (
     <div className="page search-page">
@@ -264,6 +382,8 @@ export function SearchPage() {
               ) : null}
             </div>
           )}
+
+          {renderYouTube()}
         </>
       )}
     </div>
