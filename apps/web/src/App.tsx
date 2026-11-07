@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell';
 import { Logo } from './components/Logo';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useAuthStore } from './store/auth';
+import { AdminPage } from './pages/AdminPage';
 import { AlbumPage } from './pages/AlbumPage';
 import { ArtistPage } from './pages/ArtistPage';
 import { HomePage } from './pages/HomePage';
@@ -61,6 +62,7 @@ export function App() {
         <Route path="artist/:id" element={<ArtistPage />} />
         <Route path="playlist/:id" element={<PlaylistPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="admin" element={<AdminPage />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

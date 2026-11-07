@@ -27,6 +27,11 @@ export async function buildServer() {
         callback(null, true);
         return;
       }
+      // Geliştirme: localhost/127.0.0.1 her portu (5173, 5174, ...) izin ver
+      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        callback(null, true);
+        return;
+      }
       callback(new Error('Origin not allowed'), false);
     },
     credentials: true,

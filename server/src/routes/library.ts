@@ -50,7 +50,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     return {
       status: 'ok',
       name: 'SenroMusic',
-      version: '0.3.0',
+      version: '0.4.0',
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,

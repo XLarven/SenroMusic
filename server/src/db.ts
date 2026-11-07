@@ -95,6 +95,22 @@ export function getDb(): Database.Database {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_login_at TEXT,
+      last_active_at TEXT,
+      last_ip TEXT DEFAULT '',
+      user_agent TEXT DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at DESC);
   `);
   return database;
 }

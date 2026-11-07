@@ -10,10 +10,10 @@ test('configured token matches itself but not a wrong token', () => {
 
 test('issued sessions verify and expire', () => {
   const now = Date.now();
-  const session = issueSession(now);
-  assert.equal(verifySession(session), true);
-  assert.equal(verifySession(`${session}x`), false);
-  assert.equal(verifySession('not-a-session'), false);
-  const expired = issueSession(now - 40 * 86_400 * 1000);
-  assert.equal(verifySession(expired), false);
+  const session = issueSession('user-123', now);
+  assert.equal(verifySession(session), 'user-123');
+  assert.equal(verifySession(`${session}x`), null);
+  assert.equal(verifySession('not-a-session'), null);
+  const expired = issueSession('user-123', now - 40 * 86_400 * 1000);
+  assert.equal(verifySession(expired), null);
 });

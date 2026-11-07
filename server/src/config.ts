@@ -28,17 +28,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 const configuredToken = process.env.MUSIC_TOKEN?.trim();
 const secureCookiesRaw = process.env.SECURE_COOKIES?.trim().toLowerCase();
 
-if (!configuredToken && isProduction) {
+if (configuredToken && isProduction && configuredToken.length < 12) {
   throw new Error(
-    'MUSIC_TOKEN is required in production. Copy .env.example to .env and set a strong token.',
+    'MUSIC_TOKEN (legacy) too short in production. Use at least 12 characters.',
   );
 }
-
-if (configuredToken && isProduction && configuredToken.length < 32) {
-  throw new Error(
-    'MUSIC_TOKEN too short in production. Use at least 32 characters (e.g. openssl rand -base64 32).',
-  );
-}
+// v0.4+: login/register is primary auth. MUSIC_TOKEN is kept as legacy master-key fallback only.
 
 if (isProduction && !process.env.MUSIC_SESSION_SECRET?.trim()) {
   throw new Error(
@@ -50,6 +45,8 @@ const musicToken = configuredToken || 'senro-demo';
 
 export const config = {
   isProduction,
+  allowRegistration: envFlag('ALLOW_REGISTRATION', true),
+  supabaseUrl: process.env.SUPABASE_URL?.trim() || '',
   host: process.env.HOST?.trim() || (isProduction ? '127.0.0.1' : '0.0.0.0'),
   port: envInt('PORT', 8787),
   musicDir: envPath('MUSIC_DIR', resolve(serverRoot, 'music')),
@@ -69,7 +66,7 @@ export const config = {
         secureCookiesRaw === 'yes' ||
         secureCookiesRaw === 'on',
   corsOrigins: (process.env.CORS_ORIGINS ||
-    'http://localhost:5173,http://127.0.0.1:5173,capacitor://localhost,http://localhost,ionic://localhost')
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,capacitor://localhost,http://localhost,ionic://localhost')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),

@@ -97,3 +97,21 @@ export type Health = {
   demoToken?: boolean;
   lastScanAt?: string | null;
 };
+
+export type User = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'user';
+  createdAt: string;
+  lastLoginAt: string | null;
+  lastActiveAt: string | null;
+};
+
+export type AdminStats = {
+  totalUsers: number;
+  onlineNow: number;
+  activeToday: number;
+  newLast7d: number;
+  users: Array<User & { lastIp: string; userAgent: string; online: boolean }>;
+};

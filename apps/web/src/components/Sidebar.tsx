@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   Settings2,
+  ShieldCheck,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Cover } from './Cover';
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const { library, playlists } = useMusicData();
+  const user = useAuthStore((state) => state.user);
   const openCreatePlaylist = useUiStore((state) => state.openCreatePlaylist);
   const logout = useAuthStore((state) => state.logout);
   const pushToast = useToastStore((state) => state.push);
@@ -139,6 +141,15 @@ export function Sidebar() {
             <Settings2 size={17} />
             Ayarlar
           </NavLink>
+          {user?.role === 'admin' ? (
+            <NavLink
+              to="/admin"
+              className={({ isActive }) => clsx('side-utility-link', isActive && 'is-active')}
+            >
+              <ShieldCheck size={17} />
+              Kullanıcılar
+            </NavLink>
+          ) : null}
           <button
             type="button"
             className="side-utility-link"

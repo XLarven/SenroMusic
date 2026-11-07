@@ -1,11 +1,20 @@
 import type { FastifyInstance } from 'fastify';
-import { clearSessionCookie, SESSION_COOKIE, setSessionCookie, tokensMatch, verifySession } from '../auth.js';
+import {
+  clearSessionCookie,
+  requireAdmin,
+  requireAuth,
+  setSessionCookie,
+  tokensMatch,
+  verifySession,
+} from '../auth.js';
 import { config } from '../config.js';
+import { mirrorPresence } from '../supabase.js';
+import { adminStats, createUser, findUserByEmail, findUserById, toPublicUser, touchLogin, verifyPassword } from '../users.js';
 
-type LoginBody = { token?: unknown };
+type RegisterBody = { email?: unknown; password?: unknown; displayName?: unknown; name?: unknown };
+type LoginBody = { email?: unknown; password?: unknown; token?: unknown };
 
-// In-memory brute-force protection for login
-const MAX_ATTEMPTS = 10;
+const MAX_ATTEMPTS = 20;
 const WINDOW_MS = 15 * 60 * 1000;
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -15,19 +24,68 @@ function clientKey(request: { ip: string; headers: Record<string, string | strin
   return (first || request.ip || 'unknown').slice(0, 128);
 }
 
-function isRateLimited(key: string): boolean {
+function checkRateLimit(key: string): boolean {
   const now = Date.now();
   const entry = attempts.get(key);
-  if (!entry || entry.resetAt <= now) {
-    attempts.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  if (entry.count > MAX_ATTEMPTS) return true;
+  if (entry && entry.resetAt > now && entry.count > MAX_ATTEMPTS) return true;
+  if (!entry || entry.resetAt <= now) attempts.set(key, { count: 1, resetAt: now + WINDOW_MS });
+  else entry.count += 1;
   return false;
 }
 
+function validEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
+}
+
+function clientIp(request: { headers: Record<string, string | string[] | undefined>; ip?: string }): string {
+  const forwarded = request.headers['x-forwarded-for'];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]?.trim();
+  return (first || request.ip || '').slice(0, 64);
+}
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
+  // GET /api/auth/status — public, tells frontend which auth mode is active
+  app.get('/api/auth/status', async () => ({
+    registrationOpen: config.allowRegistration,
+    supabaseEnabled: Boolean(config.supabaseUrl),
+  }));
+
+  // POST /api/auth/register
+  app.post<{ Body: RegisterBody }>('/api/auth/register', async (request, reply) => {
+    if (!config.allowRegistration) {
+      return reply.code(403).send({ error: { code: 'registration_closed', message: 'Yeni kullanıcı kaydı kapalıdır.' } });
+    }
+    const emailRaw = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
+    const password = typeof request.body?.password === 'string' ? request.body.password : '';
+    const displayName =
+      (typeof request.body?.displayName === 'string' && request.body.displayName) ||
+      (typeof request.body?.name === 'string' && request.body.name) ||
+      '';
+    if (!validEmail(emailRaw)) {
+      return reply.code(400).send({ error: { code: 'invalid_email', message: 'Geçerli bir e-posta girin.' } });
+    }
+    if (password.length < 8 || password.length > 200) {
+      return reply.code(400).send({ error: { code: 'weak_password', message: 'Parola en az 8 karakter olmalı.' } });
+    }
+    if (findUserByEmail(emailRaw)) {
+      return reply.code(409).send({ error: { code: 'email_taken', message: 'Bu e-posta zaten kayıtlı.' } });
+    }
+    let user;
+    try {
+      const isFirstUser = adminStats().totalUsers === 0;
+      user = createUser(emailRaw, password, displayName, isFirstUser ? 'admin' : 'user');
+    } catch (e) {
+      request.log.error({ err: e }, 'register failed');
+      return reply.code(500).send({ error: { code: 'register_failed', message: 'Kayıt oluşturulamadı.' } });
+    }
+    const ip = clientIp(request as never);
+    touchLogin(user.id, ip, String(request.headers['user-agent'] || ''));
+    void mirrorPresence(user.id, user.email, user.display_name);
+    setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
+    return reply.code(201).send({ ok: true, user: toPublicUser(user) });
+  });
+
+  // POST /api/auth/login — email/password (yeni) veya token (eski master-key, geriye uyumlu)
   app.post<{ Body: LoginBody }>('/api/auth/login', async (request, reply) => {
     const key = clientKey(request as never);
     const now = Date.now();
@@ -39,30 +97,61 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
+    // Legacy token path
     const token = typeof request.body?.token === 'string' ? request.body.token.trim() : '';
-    if (!token || token.length > 512 || !tokensMatch(token)) {
-      isRateLimited(key);
+    const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
+    const password = typeof request.body?.password === 'string' ? request.body.password : '';
+
+    if (token) {
+      if (token.length > 512 || !tokensMatch(token)) {
+        checkRateLimit(key);
+        return reply.code(401).send({ error: { code: 'invalid_token', message: 'Sunucu anahtarı hatalı.' } });
+      }
+      attempts.delete(key);
+      let admin = findUserByEmail('admin@senro.local');
+      if (!admin) {
+        admin = createUser('admin@senro.local', `legacy-${token}`, 'Sunucu Yöneticisi', 'admin');
+      }
+      setSessionCookie(reply, admin.id, config.secureCookies ?? request.protocol === 'https');
+      return { ok: true, user: toPublicUser(admin), legacy: true };
+    }
+
+    if (!validEmail(email) || !password) {
+      checkRateLimit(key);
+      return reply.code(400).send({ error: { code: 'invalid_credentials', message: 'E-posta ve parola gerekli.' } });
+    }
+    const user = findUserByEmail(email);
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      checkRateLimit(key);
       request.log.warn({ key }, 'failed login attempt');
-      return reply.code(401).send({
-        error: { code: 'invalid_token', message: 'Sunucu anahtarı hatalı.' },
-      });
+      return reply.code(401).send({ error: { code: 'invalid_credentials', message: 'E-posta veya parola hatalı.' } });
     }
     attempts.delete(key);
-    setSessionCookie(reply, config.secureCookies ?? request.protocol === 'https');
-    return { ok: true, demoToken: config.demoToken };
+    touchLogin(user.id, clientIp(request as never), String(request.headers['user-agent'] || ''));
+    void mirrorPresence(user.id, user.email, user.display_name);
+    setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
+    return { ok: true, user: toPublicUser(user) };
   });
 
+  // GET /api/auth/me
   app.get('/api/auth/me', async (request, reply) => {
-    if (!verifySession(request.cookies[SESSION_COOKIE])) {
-      return reply.code(401).send({
-        error: { code: 'unauthorized', message: 'Oturum bulunamadı.' },
-      });
+    const userId = verifySession(request.cookies['senro_session']);
+    if (!userId) {
+      return reply.code(401).send({ error: { code: 'unauthorized', message: 'Oturum bulunamadı.' } });
     }
-    return { authenticated: true, demoToken: config.demoToken };
+    const user = findUserById(userId);
+    if (!user) {
+      return reply.code(401).send({ error: { code: 'unauthorized', message: 'Kullanıcı bulunamadı.' } });
+    }
+    return { authenticated: true, user: toPublicUser(user) };
   });
 
   app.post('/api/auth/logout', async (_request, reply) => {
     clearSessionCookie(reply);
     return { ok: true };
   });
+
+  // Admin — yalnızca yöneticiler
+  app.get('/api/admin/stats', { preHandler: requireAdmin }, async () => adminStats());
+  app.get('/api/admin/users', { preHandler: requireAdmin }, async () => ({ users: adminStats().users }));
 }

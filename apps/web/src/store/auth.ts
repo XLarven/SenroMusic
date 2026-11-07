@@ -1,14 +1,18 @@
 import { create } from 'zustand';
 import { api } from '../api';
+import type { User } from '../types';
 
 type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
 
 type AuthState = {
   status: AuthStatus;
   demoToken: boolean;
+  user: User | null;
   error: string | null;
   check: () => Promise<void>;
-  login: (token: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string) => Promise<void>;
+  tokenLogin: (token: string) => Promise<void>;
   logout: () => Promise<void>;
   setAnonymous: () => void;
   clearError: () => void;
@@ -17,22 +21,47 @@ type AuthState = {
 export const useAuthStore = create<AuthState>((set) => ({
   status: 'checking',
   demoToken: false,
+  user: null,
   error: null,
 
   check: async () => {
     try {
       const result = await api.me();
-      set({ status: 'authenticated', demoToken: result.demoToken, error: null });
+      set({ status: 'authenticated', user: result.user ?? null, error: null });
     } catch {
-      set({ status: 'anonymous' });
+      set({ status: 'anonymous', user: null });
     }
   },
 
-  login: async (token) => {
+  login: async (email, password) => {
     set({ error: null });
     try {
-      const result = await api.login(token);
-      set({ status: 'authenticated', demoToken: result.demoToken, error: null });
+      const result = await api.login(email, password);
+      set({ status: 'authenticated', user: result.user, error: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Giriş yapılamadı.';
+      set({ error: message });
+      throw error;
+    }
+  },
+
+  register: async (email, password, displayName) => {
+    set({ error: null });
+    try {
+      const result = await api.register(email, password, displayName);
+      set({ status: 'authenticated', user: result.user, error: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kayıt oluşturulamadı.';
+      set({ error: message });
+      throw error;
+    }
+  },
+
+  tokenLogin: async (token) => {
+    set({ error: null });
+    try {
+      const result = await api.tokenLogin(token);
+      set({ status: 'authenticated', user: result.user, error: null });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Giriş yapılamadı.';
       set({ error: message });
@@ -44,10 +73,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await api.logout();
     } finally {
-      set({ status: 'anonymous', error: null });
+      set({ status: 'anonymous', user: null, error: null });
     }
   },
 
-  setAnonymous: () => set({ status: 'anonymous' }),
+  setAnonymous: () => set({ status: 'anonymous', user: null }),
   clearError: () => set({ error: null }),
 }));

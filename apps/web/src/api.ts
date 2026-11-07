@@ -5,6 +5,8 @@ import type {
   PlaylistSummary,
   ScanResult,
   YouTubeResult,
+  User,
+  AdminStats,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -56,13 +58,25 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 export const api = {
   health: () => request<Health>('/api/health'),
-  me: () => request<{ authenticated: boolean; demoToken: boolean }>('/api/auth/me'),
-  login: (token: string) =>
-    request<{ ok: boolean; demoToken: boolean }>('/api/auth/login', {
+  authStatus: () => request<{ registrationOpen: boolean; supabaseEnabled: boolean }>('/api/auth/status'),
+  me: () => request<{ authenticated: boolean; user?: User }>('/api/auth/me'),
+  login: (email: string, password: string) =>
+    request<{ ok: boolean; user: User }>('/api/auth/login', {
+      method: 'POST',
+      body: { email, password },
+    }),
+  register: (email: string, password: string, displayName: string) =>
+    request<{ ok: boolean; user: User }>('/api/auth/register', {
+      method: 'POST',
+      body: { email, password, displayName },
+    }),
+  tokenLogin: (token: string) =>
+    request<{ ok: boolean; user: User }>('/api/auth/login', {
       method: 'POST',
       body: { token },
     }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+  adminStats: () => request<AdminStats>('/api/admin/stats'),
   library: () => request<Library>('/api/library'),
   youtubeSearch: (q: string, limit?: number) =>
     request<{ results: YouTubeResult[] }>(
