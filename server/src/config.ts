@@ -66,7 +66,7 @@ export const config = {
         secureCookiesRaw === 'yes' ||
         secureCookiesRaw === 'on',
   corsOrigins: (process.env.CORS_ORIGINS ||
-    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,capacitor://localhost,http://localhost,ionic://localhost')
+    'https://music.norie.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,capacitor://localhost,http://localhost,ionic://localhost')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
