@@ -25,15 +25,7 @@ function envInt(name: string, fallback: number): number {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
-const configuredToken = process.env.MUSIC_TOKEN?.trim();
 const secureCookiesRaw = process.env.SECURE_COOKIES?.trim().toLowerCase();
-
-if (configuredToken && isProduction && configuredToken.length < 12) {
-  throw new Error(
-    'MUSIC_TOKEN (legacy) too short in production. Use at least 12 characters.',
-  );
-}
-// v0.4+: login/register is primary auth. MUSIC_TOKEN is kept as legacy master-key fallback only.
 
 if (isProduction && !process.env.MUSIC_SESSION_SECRET?.trim()) {
   throw new Error(
@@ -41,22 +33,25 @@ if (isProduction && !process.env.MUSIC_SESSION_SECRET?.trim()) {
   );
 }
 
-const musicToken = configuredToken || 'Norie-demo';
+const sessionSecret =
+  process.env.MUSIC_SESSION_SECRET?.trim() ||
+  createHash('sha256').update(`Norie-session:${randomBytes(16).toString('hex')}`).digest('hex');
 
 export const config = {
   isProduction,
   allowRegistration: envFlag('ALLOW_REGISTRATION', true),
-  supabaseUrl: process.env.SUPABASE_URL?.trim() || '',
+  mysqlHost: process.env.MYSQL_HOST?.trim() || '',
+  mysqlPort: envInt('MYSQL_PORT', 3306),
+  mysqlUser: process.env.MYSQL_USER?.trim() || '',
+  mysqlPassword: process.env.MYSQL_PASSWORD || '',
+  mysqlDatabase: process.env.MYSQL_DATABASE?.trim() || 'norie_music',
   host: process.env.HOST?.trim() || (isProduction ? '127.0.0.1' : '0.0.0.0'),
   port: envInt('PORT', 8787),
   musicDir: envPath('MUSIC_DIR', resolve(serverRoot, 'music')),
   dataDir: envPath('DATA_DIR', resolve(serverRoot, 'data')),
   webDist: envPath('WEB_DIST', resolve(projectRoot, 'apps/web/dist')),
-  musicToken,
-  demoToken: !configuredToken,
-  sessionSecret:
-    process.env.MUSIC_SESSION_SECRET?.trim() ||
-    createHash('sha256').update(`Norie-session:${musicToken}`).digest('hex'),
+  demoToken: false,
+  sessionSecret,
   sessionDays: envInt('SESSION_DAYS', 30),
   secureCookies:
     secureCookiesRaw === undefined || secureCookiesRaw === ''
@@ -125,6 +120,4 @@ export const COVER_NAMES = [
   'albumart.webp',
 ];
 
-// Kept for diagnostics without leaking the token itself.
-export const tokenFingerprint = createHash('sha256').update(musicToken).digest('hex').slice(0, 8);
 export const instanceId = randomBytes(8).toString('hex');

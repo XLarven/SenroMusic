@@ -4,22 +4,20 @@ Norie Music, kendi barındırdığınız müzik arşivini telefon, tablet ve bil
 
 ## Özellikler
 
-- Fastify + SQLite tabanlı kendi kendine barındırılan sunucu
+- Fastify + SQLite yerel kopya + MySQL senkronu (kayıtlar, şarkılar, playlistler)
+- E-posta + parola ile kayıt/giriş, yönetici paneli (çevrimiçi + son aktif)
+- Arama her zaman YouTube'da da arar; Spotify bağlantısını playlist olarak içe aktarır
 - Metadata ve kapak resmi otomatik tarama
 - Albüm, sanatçı, parça ve çalma listesi yönetimi
-- Çalma listeleri: oluşturma, düzenleme, silme, parça ekleme/çıkarma
 - Queue, karışık çalma, tekrar, ses, medya tuşları ve Media Session
 - Range istekleri ile kesintisiz akış ve indirme
 - PWA: ana ekrana ekleme, çevrimdışı arayüz, Service Worker
 - Windows için Electron sarmalayıcı
-- Docker ve docker-compose ile tek komutla dağıtım
 - Türkçe arayüz, koyu tema, duyarlı tasarım
 
 ## Yasal kullanım
 
-Norie Music yalnızca **hak sahibi olduğunuz veya kullanım lisansına sahip olduğunuz** dosyalar için tasarlanmıştır.
-Uygulama YouTube, SoundCloud veya benzeri platformlardan içerik indirmez, rip etmez ve bunu kolaylaştırmaz.
-Lütfen yalnızca kendi arşivinizdeki veya lisanslı müzik dosyalarınızı kullanın.
+Norie Music yalnızca **hak sahibi olduğunuz veya kullanım lisansına sahip olduğunuz** dosyalar için tasarlanmıştır. Lütfen yalnızca kendi arşivinizdeki veya lisanslı müzik dosyalarınızı kullanın. Kütüphane dosyaları SQLite'da, MySQL senkronu opsiyoneldir.
 
 ## Gereksinimler
 
@@ -36,9 +34,9 @@ pnpm demo          # demo kütüphane oluşturur (9 parça)
 pnpm dev           # sunucu + web arayüzü
 ```
 
-- Web arayüzü: http://localhost:5173
+- Web arayüzü: http://localhost:5174
 - API: http://127.0.0.1:8787
-- Geliştirme anahtarı: `Norie-demo` (yalnızca geliştirme)
+- İlk kayıt yönetici olur; sonrası normal kullanıcı
 
 ## Üretim derlemesi
 
@@ -47,7 +45,7 @@ pnpm build
 pnpm start
 ```
 
-Üretimde `.env` dosyasında güçlü bir `MUSIC_TOKEN` belirleyin. `MUSIC_TOKEN` boş bırakılırsa uygulama geliştirme modunda çalışır ve demo anahtarı kullanılır.
+Üretimde `server/.env` içinde `MUSIC_SESSION_SECRET` (32+ karakter) ve `SECURE_COOKIES=true` + `CORS_ORIGINS=https://music.norie.app` kullanın. MySQL için `mysql/schema.sql` dosyasını çalıştırıp `MYSQL_*` değişkenlerini doldurun.
 
 ## Yapılandırma
 

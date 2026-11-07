@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { getDb } from './db.js';
+import { mirrorUsers } from './mysqldb.js';
 
 export type UserRow = {
   id: string;
@@ -66,6 +67,7 @@ export function createUser(email: string, password: string, displayName: string,
        VALUES (@id, @email, @password_hash, @display_name, @role, @created_at, @updated_at, @last_login_at, @last_active_at, @last_ip, @user_agent)`,
     )
     .run(row);
+  void mirrorUsers();
   return row;
 }
 

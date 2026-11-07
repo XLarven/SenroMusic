@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config.js';
 import { findUserById, touchUserActive, type UserRow } from './users.js';
@@ -10,14 +10,6 @@ declare module 'fastify' {
   interface FastifyRequest {
     user?: UserRow | null;
   }
-}
-
-function digest(value: string): Buffer {
-  return createHash('sha256').update(value).digest();
-}
-
-export function tokensMatch(candidate: string): boolean {
-  return timingSafeEqual(digest(candidate), digest(config.musicToken));
 }
 
 // Session format: userId.expiresAt.signature

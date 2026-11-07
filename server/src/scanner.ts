@@ -266,6 +266,11 @@ async function performScan(): Promise<ScanResult> {
   setMeta('last_scan_at', lastScanAt);
   setMeta('track_count', String(validRows.length));
 
+  // MySQL aynası (opsiyonel)
+  import('./mysqldb.js')
+    .then((m) => m.mirrorTracksPlaylists())
+    .catch(() => undefined);
+
   return {
     scanned: files.length,
     added,

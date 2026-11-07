@@ -15,7 +15,6 @@ import {
   WifiOff,
   HardDrive,
 } from 'lucide-react';
-import clsx from 'clsx';
 import { api } from '../api';
 import { Logo } from '../components/Logo';
 import { useAuthStore } from '../store/auth';
@@ -29,14 +28,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showToken, setShowToken] = useState(false);
-  const [token, setToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const status = useAuthStore((state) => state.status);
   const error = useAuthStore((state) => state.error);
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
-  const tokenLogin = useAuthStore((state) => state.tokenLogin);
   const clearError = useAuthStore((state) => state.clearError);
 
   const { data: health, isError: healthError, isPending: healthPending, refetch } = useQuery({
@@ -46,12 +42,7 @@ export function LoginPage() {
     staleTime: 20_000,
   });
 
-  const { data: authStatus } = useQuery({
-    queryKey: ['auth-status'],
-    queryFn: api.authStatus,
-    retry: false,
-    staleTime: 60_000,
-  });
+
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -63,19 +54,6 @@ export function LoginPage() {
       } else {
         await register(email.trim(), password, displayName.trim());
       }
-    } catch {
-      // store handles error
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const submitToken = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!token.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      await tokenLogin(token.trim());
     } catch {
       // store handles error
     } finally {
@@ -121,26 +99,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="login-visual" aria-hidden="true">
-          <div className="login-disc login-disc-back" />
-          <div className="login-disc login-disc-front" />
-          <div className="login-player-card">
-            <div className="login-cover">
-              <span className="login-cover-ring" />
-              <Music2 size={36} strokeWidth={1.4} />
-            </div>
-            <div className="login-track-copy">
-              <span className="eyebrow">Şimdi çalıyor</span>
-              <strong>Midnight Drive</strong>
-              <small>Nova Lane · Neon Nights</small>
-              <div className="login-wave">
-                {Array.from({ length: 22 }, (_, index) => (
-                  <span key={index} style={{ animationDelay: `${(index % 7) * -0.14}s` }} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+
 
         <p className="login-story-foot">
           Norie Music, yalnızca hak sahibi olduğun veya lisansa sahip olduğun dosyaları oynatmak için
@@ -281,39 +240,11 @@ export function LoginPage() {
           </form>
 
           <p className="login-privacy">
-            Oturumun bu cihazda 30 gün boyunca güvenli bir çerezle saklanır. Parolan scrypt ile hashlenir.
-            {authStatus?.supabaseEnabled ? ' Supabase hesabın senkronize ediliyor.' : ''}
+            Oturum 30 gün boyunca güvenli bir çerezle saklanır. Parolan güçlü bir şekilde saklanır.
           </p>
 
-          <div style={{ marginTop: 18 }}>
-            <button type="button" className="text-button" onClick={() => setShowToken((v) => !v)}>
-              {showToken ? 'Anahtar girişini gizle' : 'Eski sunucu anahtarı ile gir (geliştirici)'}
-            </button>
-          </div>
-          {showToken ? (
-            <form className="login-form" onSubmit={submitToken} style={{ marginTop: 8 }}>
-              <label htmlFor="music-token">Sunucu anahtarı (MUSIC_TOKEN)</label>
-              <div className="token-field">
-                <KeyRound size={18} aria-hidden="true" />
-                <input
-                  id="music-token"
-                  type="password"
-                  value={token}
-                  onChange={(event) => { setToken(event.target.value); if (error) clearError(); }}
-                  placeholder="MUSIC_TOKEN"
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={512}
-                />
-              </div>
-              <button type="submit" className="button secondary login-submit" disabled={!token.trim() || busy}>
-                Anahtar ile gir
-              </button>
-            </form>
-          ) : null}
-
           <footer className="login-footer">
-            <span>Norie Music 0.5</span>
+            <span>Norie Music 0.7</span>
             <span>Yerel öncelikli · Açık arayüz</span>
           </footer>
         </div>

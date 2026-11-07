@@ -22,6 +22,9 @@ Mimari: `İnternet → Cloudflare Tunnel (443/HTTPS) → 127.0.0.1:8787 (Norie M
    pip install -U yt-dlp imageio-ffmpeg
    python -m yt_dlp --version
    ```
+4. MySQL (kayıtlar + şarkılar için):
+   - MySQL Server kurup `mysql/schema.sql` çalıştırın. Detay: `MYSQL-SETUP.md`
+   - `.env` içinde `MYSQL_HOST=127.0.0.1` vb. doldurun. Boş bırakırsanız yalnızca SQLite kullanılır.
 
 ## 2) Kodu getirip kur (pnpm workspace)
 ```powershell

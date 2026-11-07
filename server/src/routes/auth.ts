@@ -4,15 +4,14 @@ import {
   requireAdmin,
   requireAuth,
   setSessionCookie,
-  tokensMatch,
   verifySession,
 } from '../auth.js';
 import { config } from '../config.js';
-import { mirrorPresence } from '../supabase.js';
+import { mirrorUsers } from '../mysqldb.js';
 import { adminStats, createUser, findUserByEmail, findUserById, toPublicUser, touchLogin, verifyPassword } from '../users.js';
 
 type RegisterBody = { email?: unknown; password?: unknown; displayName?: unknown; name?: unknown };
-type LoginBody = { email?: unknown; password?: unknown; token?: unknown };
+type LoginBody = { email?: unknown; password?: unknown };
 
 const MAX_ATTEMPTS = 20;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -44,13 +43,11 @@ function clientIp(request: { headers: Record<string, string | string[] | undefin
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/auth/status — public, tells frontend which auth mode is active
   app.get('/api/auth/status', async () => ({
     registrationOpen: config.allowRegistration,
-    supabaseEnabled: Boolean(config.supabaseUrl),
+    mysqlEnabled: Boolean(config.mysqlHost),
   }));
 
-  // POST /api/auth/register
   app.post<{ Body: RegisterBody }>('/api/auth/register', async (request, reply) => {
     if (!config.allowRegistration) {
       return reply.code(403).send({ error: { code: 'registration_closed', message: 'Yeni kullanıcı kaydı kapalıdır.' } });
@@ -80,12 +77,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     const ip = clientIp(request as never);
     touchLogin(user.id, ip, String(request.headers['user-agent'] || ''));
-    void mirrorPresence(user.id, user.email, user.display_name);
+    void mirrorUsers();
     setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
     return reply.code(201).send({ ok: true, user: toPublicUser(user) });
   });
 
-  // POST /api/auth/login — email/password (yeni) veya token (eski master-key, geriye uyumlu)
   app.post<{ Body: LoginBody }>('/api/auth/login', async (request, reply) => {
     const key = clientKey(request as never);
     const now = Date.now();
@@ -97,24 +93,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Legacy token path
-    const token = typeof request.body?.token === 'string' ? request.body.token.trim() : '';
     const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
     const password = typeof request.body?.password === 'string' ? request.body.password : '';
-
-    if (token) {
-      if (token.length > 512 || !tokensMatch(token)) {
-        checkRateLimit(key);
-        return reply.code(401).send({ error: { code: 'invalid_token', message: 'Sunucu anahtarı hatalı.' } });
-      }
-      attempts.delete(key);
-      let admin = findUserByEmail('admin@Norie.local');
-      if (!admin) {
-        admin = createUser('admin@Norie.local', `legacy-${token}`, 'Sunucu Yöneticisi', 'admin');
-      }
-      setSessionCookie(reply, admin.id, config.secureCookies ?? request.protocol === 'https');
-      return { ok: true, user: toPublicUser(admin), legacy: true };
-    }
 
     if (!validEmail(email) || !password) {
       checkRateLimit(key);
@@ -128,12 +108,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     attempts.delete(key);
     touchLogin(user.id, clientIp(request as never), String(request.headers['user-agent'] || ''));
-    void mirrorPresence(user.id, user.email, user.display_name);
+    void mirrorUsers();
     setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
     return { ok: true, user: toPublicUser(user) };
   });
 
-  // GET /api/auth/me
   app.get('/api/auth/me', async (request, reply) => {
     const userId = verifySession(request.cookies['Norie_session']);
     if (!userId) {
@@ -151,7 +130,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  // Admin — yalnızca yöneticiler
   app.get('/api/admin/stats', { preHandler: requireAdmin }, async () => adminStats());
   app.get('/api/admin/users', { preHandler: requireAdmin }, async () => ({ users: adminStats().users }));
 }

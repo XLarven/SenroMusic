@@ -5,8 +5,9 @@ import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
-import { config, paths, tokenFingerprint } from './config.js';
+import { config, paths } from './config.js';
 import { closeDb } from './db.js';
+import { closeMysql, initMysqlSchema } from './mysqldb.js';
 import { authRoutes } from './routes/auth.js';
 import { libraryRoutes } from './routes/library.js';
 import { playlistRoutes } from './routes/playlists.js';
@@ -100,11 +101,9 @@ async function main(): Promise<void> {
   mkdirSync(config.musicDir, { recursive: true });
   const app = await buildServer();
 
-  if (config.demoToken) {
-    app.log.warn(
-      `MUSIC_TOKEN ayarlanmadı. Geliştirme anahtarı kullanılıyor: "Norie-demo" (${tokenFingerprint}). ` +
-        'Üretimde .env içinde güçlü bir MUSIC_TOKEN belirleyin.',
-    );
+  if (config.mysqlHost) {
+    const ok = await initMysqlSchema();
+    app.log.info(`MySQL ${ok ? 'bağlantısı kuruldu' : 'bağlanamadı'} (${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase})`);
   }
 
   await app.listen({ host: config.host, port: config.port });
@@ -128,6 +127,7 @@ async function main(): Promise<void> {
     try {
       await app.close();
     } finally {
+      await closeMysql();
       closeDb();
     }
     process.exit(0);
