@@ -79,6 +79,18 @@ export type ScanResult = {
   alreadyRunning?: boolean;
 };
 
+export type SpotifyItem = {
+  title: string;
+  artist: string;
+  youtubeQuery: string;
+};
+
+export type SpotifyResolved = {
+  type: string;
+  title: string;
+  items: SpotifyItem[];
+};
+
 export type YouTubeResult = {
   id: string;
   title: string;

@@ -177,26 +177,31 @@ export function LoginPage() {
             ) : null}
           </div>
 
-          <div className="search-tabs" role="tablist" aria-label="Giriş / Kayıt" style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'login'}
-              className={clsx('filter-chip', mode === 'login' && 'is-active')}
-              onClick={() => { setMode('login'); clearError(); }}
-            >
-              Giriş yap
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'register'}
-              className={clsx('filter-chip', mode === 'register' && 'is-active')}
-              onClick={() => { setMode('register'); clearError(); }}
-            >
-              Kayıt ol
-            </button>
-          </div>
+          <p style={{ marginTop: 6, fontSize: '0.85rem', color: 'var(--muted)' }}>
+            {mode === 'login' ? (
+              <>
+                Hesabın yok mu?{' '}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => { setMode('register'); clearError(); }}
+                >
+                  Kayıt ol
+                </button>
+              </>
+            ) : (
+              <>
+                Zaten hesabın var mı?{' '}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => { setMode('login'); clearError(); }}
+                >
+                  Giriş yap
+                </button>
+              </>
+            )}
+          </p>
 
           <form className="login-form" onSubmit={submit}>
             {mode === 'register' ? (

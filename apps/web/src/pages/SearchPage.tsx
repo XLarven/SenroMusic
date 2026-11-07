@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDeferredValue, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Disc3, Download, Loader2, Music, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
+import { Disc3, Download, Link2, Loader2, Music, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
 import clsx from 'clsx';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistCard } from '../components/ArtistCard';
@@ -12,7 +12,8 @@ import { api } from '../api';
 import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
 import { formatCount, formatDuration } from '../lib/format';
-import type { YouTubeResult } from '../types';
+import type { YouTubeResult, SpotifyResolved } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 type SearchTab = 'all' | 'tracks' | 'albums' | 'artists';
 const TABS: Array<{ id: SearchTab; label: string }> = [
@@ -35,10 +36,16 @@ export function SearchPage() {
   const tab: SearchTab = TABS.some((item) => item.id === rawTab) ? (rawTab as SearchTab) : 'all';
   const deferredQuery = useDeferredValue(query.trim());
 
+  const navigate = useNavigate();
   const [ytResults, setYtResults] = useState<YouTubeResult[]>([]);
   const [ytLoading, setYtLoading] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const isSpotifyUrl = deferredQuery.includes('open.spotify.com');
+  const [spotify, setSpotify] = useState<SpotifyResolved | null>(null);
+  const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const [spotifyError, setSpotifyError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const setQuery = (value: string) => {
     const next = new URLSearchParams(params);
@@ -76,6 +83,19 @@ export function SearchPage() {
 
   useEffect(() => {
     const needle = deferredQuery;
+    if (isSpotifyUrl) {
+      setYtResults([]);
+      setYtError(null);
+      let cancelled = false;
+      setSpotifyLoading(true);
+      setSpotifyError(null);
+      setSpotify(null);
+      api.spotifyResolve(needle)
+        .then((r) => { if (!cancelled) setSpotify(r); })
+        .catch((e) => { if (!cancelled) setSpotifyError(e instanceof Error ? e.message : 'Spotify çözülemedi.'); })
+        .finally(() => { if (!cancelled) setSpotifyLoading(false); });
+      return () => { cancelled = true; };
+    }
     if (!needle || needle.length < 2) {
       setYtResults([]);
       setYtError(null);
@@ -100,7 +120,36 @@ export function SearchPage() {
     return () => {
       cancelled = true;
     };
-  }, [deferredQuery]);
+  }, [deferredQuery, isSpotifyUrl]);
+
+  const handleSpotifyImport = async () => {
+    if (!spotify || importing) return;
+    setImporting(true);
+    try {
+      const playlist = await api.createPlaylist({ name: spotify.title.slice(0, 80) || 'Spotify İçe Aktarma' });
+      pushToast(`“${playlist.name}” oluşturuldu. ${spotify.items.length} şarkı indiriliyor…`, 'info');
+      let ok = 0;
+      let fail = 0;
+      for (const item of spotify.items) {
+        try {
+          const yt = await api.youtubeSearch(item.youtubeQuery, 1);
+          const first = yt.results[0];
+          if (!first) { fail += 1; continue; }
+          await api.youtubeDownload({ id: first.id, title: item.title, uploader: item.artist, thumbnail: first.thumbnail });
+          ok += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+      await refreshLibrary();
+      pushToast(`İçe aktarma bitti: ${ok} indirildi${fail ? `, ${fail} bulunamadı` : ''}.`, fail > 0 ? 'info' : 'success');
+      navigate(`/playlist/${playlist.id}`);
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'İçe aktarma başarısız.', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const handleDownload = async (item: YouTubeResult) => {
     setDownloadingId(item.id);
@@ -136,12 +185,52 @@ export function SearchPage() {
     artists: results.artists.length,
   };
 
+  const renderSpotify = () => (
+    <section className="content-section">
+      <div className="section-heading">
+        <div>
+          <h2>Spotify içe aktar</h2>
+          <p>Bağlantıyı algıladık — playlist olarak oluşturup YouTube üzerinden MP3 indiririz.</p>
+        </div>
+      </div>
+      {spotifyLoading ? (
+        <div className="surface-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Loader2 size={18} className="spin" />
+          <span>Spotify bağlantısı çözülüyor…</span>
+        </div>
+      ) : spotifyError ? (
+        <EmptyState icon={SearchX} title="Spotify çözülemedi" description={spotifyError} />
+      ) : spotify ? (
+        <div className="surface-panel" style={{ padding: 18 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <strong style={{ fontSize: '1rem' }}>{spotify.title}</strong>
+              <div style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: 4 }}>
+                {spotify.items.length} şarkı — YouTube'da aranıp indirilecek, çevrimdışı çalınacak.
+              </div>
+            </div>
+            <button type="button" className="button primary" disabled={importing} onClick={() => void handleSpotifyImport()}>
+              {importing ? <><Loader2 size={16} className="spin" /> İndiriliyor…</> : <><Download size={16} /> Playlist oluştur ve indir</>}
+            </button>
+          </div>
+          <ul style={{ marginTop: 12, padding: 0, listStyle: 'none' }}>
+            {spotify.items.slice(0, 8).map((item, i) => (
+              <li key={i} style={{ padding: '6px 0', borderTop: '1px solid var(--border)', fontSize: '0.85rem' }}>
+                <strong>{item.title}</strong> <span style={{ color: 'var(--muted)' }}>· {item.artist}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+
   const renderYouTube = () => (
     <section className="content-section">
       <div className="section-heading">
         <div>
           <h2>YouTube sonuçları</h2>
-          <p>İstediğin parçayı MP3 olarak indir ve kütüphanene ekle.</p>
+          <p>Her arama otomatik YouTube'da da aranır — kompaktla MP3 indir, çevrimdışı dinle.</p>
         </div>
       </div>
 
@@ -216,7 +305,7 @@ export function SearchPage() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Şarkı, albüm veya sanatçı ara…"
+          placeholder="Şarkı, albüm, sanatçı veya Spotify linki yapıştır…"
           autoFocus
           aria-label="Kitaplıkta ara"
           autoComplete="off"
@@ -309,17 +398,15 @@ export function SearchPage() {
             ))}
           </div>
 
-          {total === 0 ? (
-            <EmptyState
-              icon={SearchX}
-              title="Sonuç bulunamadı"
-              description={`“${deferredQuery}” için kütüphanende eşleşen bir şarkı, albüm veya sanatçı yok. Farklı bir ifade deneyebilirsin.`}
-              action={
-                <button type="button" className="button secondary" onClick={() => setQuery('')}>
-                  Aramayı temizle
-                </button>
-              }
-            />
+          {isSpotifyUrl ? (
+            renderSpotify()
+          ) : total === 0 ? (
+            <>
+              <p style={{ color: 'var(--muted)', margin: '10px 0 4px' }}>
+                Kütüphanende yok — YouTube'da aradık, aşağıdan çevrimdışı dinlemek için indir.
+              </p>
+              {renderYouTube()}
+            </>
           ) : (
             <div className="search-results">
               {results.tracks.length > 0 && (tab === 'all' || tab === 'tracks') ? (
@@ -383,7 +470,7 @@ export function SearchPage() {
             </div>
           )}
 
-          {renderYouTube()}
+          {!isSpotifyUrl && total > 0 ? renderYouTube() : null}
         </>
       )}
     </div>

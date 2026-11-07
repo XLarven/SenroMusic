@@ -15,7 +15,7 @@ export default defineConfig({
         theme_color: '#09090c',
         background_color: '#09090c',
         display: 'standalone',
-        orientation: 'any',
+        orientation: 'portrait',
         start_url: '/',
         scope: '/',
         categories: ['music', 'entertainment'],

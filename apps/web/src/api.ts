@@ -7,6 +7,7 @@ import type {
   YouTubeResult,
   User,
   AdminStats,
+  SpotifyResolved,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -77,6 +78,8 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
   adminStats: () => request<AdminStats>('/api/admin/stats'),
+  spotifyResolve: (url: string) =>
+    request<SpotifyResolved>('/api/spotify/resolve', { method: 'POST', body: { url } }),
   library: () => request<Library>('/api/library'),
   youtubeSearch: (q: string, limit?: number) =>
     request<{ results: YouTubeResult[] }>(
