@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { usePlayer } from '../store/player';
 
-type SenroMediaBridge = {
+type NorieMediaBridge = {
   toggle: () => void;
   play: () => void;
   pause: () => void;
@@ -11,7 +11,7 @@ type SenroMediaBridge = {
 
 declare global {
   interface Window {
-    senroMedia?: SenroMediaBridge;
+    NorieMedia?: NorieMediaBridge;
   }
 }
 
@@ -20,7 +20,7 @@ export function useMediaSession(): void {
   const playing = usePlayer((state) => state.playing);
 
   useEffect(() => {
-    window.senroMedia = {
+    window.NorieMedia = {
       toggle: () => usePlayer.getState().toggle(),
       play: () => usePlayer.getState().play(),
       pause: () => usePlayer.getState().pause(),
@@ -28,7 +28,7 @@ export function useMediaSession(): void {
       previous: () => usePlayer.getState().previous(),
     };
     return () => {
-      delete window.senroMedia;
+      delete window.NorieMedia;
     };
   }, []);
 

@@ -45,8 +45,8 @@ export function App() {
 
   useEffect(() => {
     const onUnauthorized = () => setAnonymous();
-    window.addEventListener('senro:unauthorized', onUnauthorized);
-    return () => window.removeEventListener('senro:unauthorized', onUnauthorized);
+    window.addEventListener('Norie:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('Norie:unauthorized', onUnauthorized);
   }, [setAnonymous]);
 
   if (status === 'checking') return <Splash />;

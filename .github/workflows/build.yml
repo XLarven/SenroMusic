@@ -36,7 +36,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @senro/desktop build
+      - run: pnpm --filter @Norie/desktop build
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-windows
@@ -85,7 +85,7 @@ jobs:
       - run: npx cap sync ios
         working-directory: apps/web
         continue-on-error: true
-      - run: xcodebuild -project apps/web/ios/App/App.xcodeproj -scheme App -sdk iphoneos -archivePath build/SenroMusic.xcarchive archive
+      - run: xcodebuild -project apps/web/ios/App/App.xcodeproj -scheme App -sdk iphoneos -archivePath build/Norie Music.xcarchive archive
         continue-on-error: true
       - uses: actions/upload-artifact@v4
         if: always()

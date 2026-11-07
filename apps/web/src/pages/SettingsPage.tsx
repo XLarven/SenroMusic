@@ -106,7 +106,7 @@ export function SettingsPage() {
     const choice = await installPrompt.userChoice;
     if (choice.outcome === 'accepted') {
       setInstalled(true);
-      pushToast('SenroMusic ana ekranına eklendi.', 'success');
+      pushToast('Norie Music ana ekranına eklendi.', 'success');
     }
     setInstallPrompt(null);
   };
@@ -153,7 +153,7 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Sunucu</h2>
-              <p>SenroMusic sunucunun durumu.</p>
+              <p>Norie Music sunucunun durumu.</p>
             </div>
             <button
               type="button"
@@ -268,7 +268,7 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Uygulama</h2>
-              <p>SenroMusic'i her cihazında kullan.</p>
+              <p>Norie Music'i her cihazında kullan.</p>
             </div>
           </header>
 
@@ -331,7 +331,7 @@ export function SettingsPage() {
               <div>
                 <strong>Demo anahtarı kullanılıyor</strong>
                 <p>
-                  Sunucu <code>senro-demo</code> anahtarıyla çalışıyor. İnternete açmadan önce
+                  Sunucu <code>Norie-demo</code> anahtarıyla çalışıyor. İnternete açmadan önce
                   <code> MUSIC_TOKEN</code> değerini değiştir.
                 </p>
               </div>
@@ -376,11 +376,11 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Hakkında</h2>
-              <p>SenroMusic 0.4 · Yerel öncelikli müzik.</p>
+              <p>Norie Music 0.5 · Yerel öncelikli müzik.</p>
             </div>
           </header>
           <p>
-            SenroMusic kendi barındırdığın arşivler için tasarlanmıştır. Uygulama DRM koruması
+            Norie Music kendi barındırdığın arşivler için tasarlanmıştır. Uygulama DRM koruması
             barındırmaz ve üçüncü taraf platformlardan içerik indirmez. Yalnızca hak sahibi olduğun
             veya kullanım lisansına sahip olduğun dosyaları kullan.
           </p>

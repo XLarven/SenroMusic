@@ -3,7 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config.js';
 import { findUserById, touchUserActive, type UserRow } from './users.js';
 
-export const SESSION_COOKIE = 'senro_session';
+export const SESSION_COOKIE = 'Norie_session';
 
 // Extend Fastify request with user
 declare module 'fastify' {

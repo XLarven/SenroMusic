@@ -1,4 +1,4 @@
-# SenroMusic — Windows'tan Tüm Platformlara Derleme
+# Norie Music — Windows'tan Tüm Platformlara Derleme
 
 Hedef: **Tambir Windows makinesi** ile tüm çıktıları üretmek.
 GitHub'a push edince CI otomatik derler, yerel isterseniz aşağıdaki adımları izleyin.
@@ -26,14 +26,14 @@ Script sırayla yapar:
 ```powershell
 pnpm install
 pnpm desktop:build:win
-# Çıktı: apps/desktop/release/SenroMusic Setup *.exe (+ portable)
+# Çıktı: apps/desktop/release/Norie Music Setup *.exe (+ portable)
 ```
 Ek: macOS/Linux derlemek için `build:mac` / `build:linux` hazır ama **o OS'te** çalıştırılmalı.
 
 ## 3. Android (yerel Windows)
 Gereksinim: JDK 17 + Android Studio (SDK).
 ```powershell
-pnpm --filter @senro/web cap:add:android   # ilk sefer
+pnpm --filter @Norie/web cap:add:android   # ilk sefer
 pnpm mobile:android:build                  # debug APK
 ```
 CI'da hiç bunlara gerek yok — push edin, GitHub Actions APK üretir.

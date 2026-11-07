@@ -1,8 +1,8 @@
 services:
-  senromusic:
+  Norie Music:
     build: .
-    image: senromusic:latest
-    container_name: senromusic
+    image: Norie Music:latest
+    container_name: Norie Music
     ports:
       - "${PORT:-8787}:8787"
     environment:

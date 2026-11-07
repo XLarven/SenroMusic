@@ -66,7 +66,7 @@ function AppError({
           </button>
         </div>
         <small>
-          SenroMusic sunucusunun çalıştığından ve bu cihazın aynı ağda olduğundan emin ol. Sunucu adresi:{' '}
+          Norie Music sunucusunun çalıştığından ve bu cihazın aynı ağda olduğundan emin ol. Sunucu adresi:{' '}
           <code>{window.location.host}</code>
         </small>
       </div>

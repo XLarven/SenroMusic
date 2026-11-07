@@ -18,7 +18,7 @@ function New-RoundedPath {
   return $path
 }
 
-function New-SenroIcon {
+function New-NorieIcon {
   param([int]$Size, [string]$OutputPath)
 
   $scale = $Size / 512.0
@@ -87,6 +87,6 @@ function New-SenroIcon {
 
 $publicDir = Join-Path $PSScriptRoot '..\public'
 $publicDir = [System.IO.Path]::GetFullPath($publicDir)
-New-SenroIcon -Size 192 -OutputPath (Join-Path $publicDir 'icon-192.png')
-New-SenroIcon -Size 512 -OutputPath (Join-Path $publicDir 'icon-512.png')
+New-NorieIcon -Size 192 -OutputPath (Join-Path $publicDir 'icon-192.png')
+New-NorieIcon -Size 512 -OutputPath (Join-Path $publicDir 'icon-512.png')
 Write-Output "Icons written to $publicDir"

@@ -9,7 +9,7 @@ COPY apps ./apps
 COPY server ./server
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @senro/server build && pnpm --filter @senro/web build
+RUN pnpm --filter @norie/server build && pnpm --filter @norie/web build
 
 ENV NODE_ENV=production
 ENV MUSIC_DIR=/music
@@ -20,4 +20,4 @@ ENV HOST=0.0.0.0
 VOLUME ["/music", "/data"]
 EXPOSE 8787
 
-CMD ["pnpm", "--filter", "@senro/server", "start"]
+CMD ["pnpm", "--filter", "@norie/server", "start"]

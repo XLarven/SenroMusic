@@ -21,7 +21,7 @@ function readConfig() {
 function getServerUrl() {
   const fromConfig = readConfig().url;
   if (typeof fromConfig === 'string' && fromConfig.trim()) return fromConfig.trim();
-  const fromEnv = process.env.SENRO_SERVER_URL;
+  const fromEnv = process.env.Norie_SERVER_URL;
   if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim();
   return 'http://localhost:8787';
 }
@@ -43,7 +43,7 @@ function createWindow() {
     height: 820,
     minWidth: 960,
     minHeight: 640,
-    title: 'SenroMusic',
+    title: 'Norie Music',
     backgroundColor: '#07080a',
     autoHideMenuBar: false,
     webPreferences: {
@@ -72,7 +72,7 @@ function createWindow() {
 
   const menu = Menu.buildFromTemplate([
     {
-      label: 'SenroMusic',
+      label: 'Norie Music',
       submenu: [
         {
           label: 'Sunucu adresini değiştir…',
@@ -125,14 +125,14 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-ipcMain.handle('senro:get-server-url', () => getServerUrl());
-ipcMain.handle('senro:set-server-url', (_event, url) => {
+ipcMain.handle('Norie:get-server-url', () => getServerUrl());
+ipcMain.handle('Norie:set-server-url', (_event, url) => {
   if (typeof url !== 'string' || !/^https?:\/\//i.test(url.trim())) {
     throw new Error('Geçerli bir http:// veya https:// adresi girin.');
   }
   setServerUrl(url.trim());
   return getServerUrl();
 });
-ipcMain.handle('senro:open-external', (_event, url) => {
+ipcMain.handle('Norie:open-external', (_event, url) => {
   if (typeof url === 'string') shell.openExternal(url);
 });

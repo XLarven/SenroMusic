@@ -1,6 +1,6 @@
-# SenroMusic
+# Norie Music
 
-SenroMusic, kendi barındırdığınız müzik arşivini telefon, tablet ve bilgisayarlardan dinlemenizi sağlayan yerel öncelikli bir müzik uygulamasıdır. Tek bir kod tabanı; web (PWA), Windows (Electron) ve Docker ile kendi sunucunuzda çalışır.
+Norie Music, kendi barındırdığınız müzik arşivini telefon, tablet ve bilgisayarlardan dinlemenizi sağlayan yerel öncelikli bir müzik uygulamasıdır. Tek bir kod tabanı; web (PWA), Windows (Electron) ve Docker ile kendi sunucunuzda çalışır.
 
 ## Özellikler
 
@@ -17,7 +17,7 @@ SenroMusic, kendi barındırdığınız müzik arşivini telefon, tablet ve bilg
 
 ## Yasal kullanım
 
-SenroMusic yalnızca **hak sahibi olduğunuz veya kullanım lisansına sahip olduğunuz** dosyalar için tasarlanmıştır.
+Norie Music yalnızca **hak sahibi olduğunuz veya kullanım lisansına sahip olduğunuz** dosyalar için tasarlanmıştır.
 Uygulama YouTube, SoundCloud veya benzeri platformlardan içerik indirmez, rip etmez ve bunu kolaylaştırmaz.
 Lütfen yalnızca kendi arşivinizdeki veya lisanslı müzik dosyalarınızı kullanın.
 
@@ -38,7 +38,7 @@ pnpm dev           # sunucu + web arayüzü
 
 - Web arayüzü: http://localhost:5173
 - API: http://127.0.0.1:8787
-- Geliştirme anahtarı: `senro-demo` (yalnızca geliştirme)
+- Geliştirme anahtarı: `Norie-demo` (yalnızca geliştirme)
 
 ## Üretim derlemesi
 
@@ -55,7 +55,7 @@ pnpm start
 
 | Değişken | Açıklama | Varsayılan |
 |---|---|---|
-| `MUSIC_TOKEN` | Sunucu erişim anahtarı | `senro-demo` (geliştirme) |
+| `MUSIC_TOKEN` | Sunucu erişim anahtarı | `Norie-demo` (geliştirme) |
 | `MUSIC_DIR` | Müzik klasörü | `server/music` |
 | `DATA_DIR` | Veritabanı ve kapaklar | `server/data` |
 | `PORT` | Sunucu portu | `8787` |
@@ -82,19 +82,19 @@ Web arayüzü Capacitor ile native mobil uygulamaya sarılabilir.
 
 ### Android (Windows/macOS/Linux)
 ```bash
-pnpm --filter @senro/web build
-pnpm --filter @senro/web cap:add:android   # ilk seferde
-pnpm --filter @senro/web cap:sync
-pnpm --filter @senro/web cap:open:android   # Android Studio'da aç
+pnpm --filter @Norie/web build
+pnpm --filter @Norie/web cap:add:android   # ilk seferde
+pnpm --filter @Norie/web cap:sync
+pnpm --filter @Norie/web cap:open:android   # Android Studio'da aç
 ```
 Android Studio'dan APK/AAB derleyip Play Store'a yükleyin. Sunucu adresini uygulama içi Ayarlar → Sunucu adresi alanından girin.
 
 ### iOS (yalnızca macOS)
 ```bash
-pnpm --filter @senro/web build
-pnpm --filter @senro/web cap:add:ios      # ilk seferde (macOS gerekir)
-pnpm --filter @senro/web cap:sync
-pnpm --filter @senro/web cap:open:ios     # Xcode'da aç
+pnpm --filter @Norie/web build
+pnpm --filter @Norie/web cap:add:ios      # ilk seferde (macOS gerekir)
+pnpm --filter @Norie/web cap:sync
+pnpm --filter @Norie/web cap:open:ios     # Xcode'da aç
 ```
 Xcode ile archive alıp App Store Connect'e yükleyin. Apple Developer hesabı ($99/yıl) gerekir.
 
@@ -122,8 +122,8 @@ Native Android/iOS mağaza sürümleri Faz 2’de (Capacitor/EAS) planlanmaktad�
 
 ```bash
 pnpm test          # sunucu testleri
-pnpm --filter @senro/web build
-pnpm --filter @senro/server build
+pnpm --filter @Norie/web build
+pnpm --filter @Norie/server build
 ```
 
 ## Proje yapısı

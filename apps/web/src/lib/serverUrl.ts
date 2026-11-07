@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'senro:serverUrl';
+const STORAGE_KEY = 'Norie:serverUrl';
 
 export function getServerUrl(): string {
   try {

@@ -296,7 +296,7 @@ function coverSvg(album: Album): string {
   <path d="M120 640 C 280 420, 430 780, 780 480" stroke="#ffffff" stroke-opacity="0.28" stroke-width="3" fill="none"/>
   <text x="72" y="700" fill="#ffffff" font-family="Segoe UI, sans-serif" font-size="42" letter-spacing="6" opacity="0.75">${safeArtist.toUpperCase()}</text>
   <text x="68" y="790" fill="#ffffff" font-family="Segoe UI, sans-serif" font-size="76" font-weight="700">${safeTitle}</text>
-  <text x="72" y="840" fill="#ffffff" font-family="Segoe UI, sans-serif" font-size="24" letter-spacing="4" opacity="0.55">SENRO DEMO SESSIONS</text>
+  <text x="72" y="840" fill="#ffffff" font-family="Segoe UI, sans-serif" font-size="24" letter-spacing="4" opacity="0.55">Norie DEMO SESSIONS</text>
 </svg>`;
 }
 
@@ -378,7 +378,7 @@ async function main(): Promise<void> {
   await writeFile(
     resolve(target, 'README.txt'),
     [
-      'SenroMusic demo library',
+      'Norie Music demo library',
       '',
       'These files are synthesized locally for development and contain no third-party recordings.',
       'Delete this folder or point MUSIC_DIR at your own licensed music library.',

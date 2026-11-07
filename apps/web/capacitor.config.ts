@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.senro.music',
-  appName: 'SenroMusic',
+  appId: 'com.Norie.music',
+  appName: 'Norie Music',
   webDir: 'dist',
   server: {
     // In development you can point to your dev server:

@@ -1,6 +1,6 @@
 {
-  "name": "@senro/desktop",
-  "version": "0.4.0",
+  "name": "@Norie/desktop",
+  "version": "0.5.0",
   "private": true,
   "type": "commonjs",
   "main": "main.cjs",
@@ -13,8 +13,8 @@
     "build:all": "electron-builder --win nsis portable --mac dmg --linux AppImage deb"
   },
   "build": {
-    "appId": "com.senromusic.desktop",
-    "productName": "SenroMusic",
+    "appId": "com.Norie Music.desktop",
+    "productName": "Norie Music",
     "directories": {
       "output": "release"
     },

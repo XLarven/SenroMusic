@@ -1,13 +1,13 @@
-# SenroMusic — Windows'tan tek komutla tüm platformları derle
+# Norie Music — Windows'tan tek komutla tüm platformları derle
 # Çalıştırma: powershell -ExecutionPolicy Bypass -File scripts/build-all-windows.ps1
 # Ürettiği çıktılar:
-#   apps/desktop/release/SenroMusic Setup *.exe  (Windows installer, NSIS + portable)
+#   apps/desktop/release/Norie Music Setup *.exe  (Windows installer, NSIS + portable)
 #   apps/web/android/app/build/outputs/apk/debug/app-debug.apk (Android, JDK ister)
 #   apps/ios-swiftpm/ -> xtool ile Windows'tan IPA (Apple Developer hesabı gerekir)
 
 $ErrorActionPreference = "Continue"
 $root = Resolve-Path "$PSScriptRoot/.."
-Write-Host "SenroMusic — tüm platformlar derleniyor: $root" -ForegroundColor Green
+Write-Host "Norie Music — tüm platformlar derleniyor: $root" -ForegroundColor Green
 
 # 1) Web (PWA) + Server
 Write-Host "`n[1/4] Web + Server derleniyor..." -ForegroundColor Cyan

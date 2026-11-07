@@ -1,4 +1,4 @@
-# SenroMusic — iOS (xtool, Windows'tan derleme)
+# Norie Music — iOS (xtool, Windows'tan derleme)
 
 Bu sarmalayıcı, **Xcode olmadan Windows'tan iOS IPA** üretebilmeniz için [xtool](https://github.com/xtool-org/xtool) (SwiftPM tabanlı, çapraz platformlu Xcode alternatifi) ile çalışır.
 

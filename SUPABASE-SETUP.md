@@ -1,4 +1,4 @@
-# SenroMusic — Kullanıcı Sistemi + Supabase (v0.4)
+# Norie Music — Kullanıcı Sistemi + Supabase (v0.4)
 
 ## Ne değişti?
 - `MUSIC_TOKEN` tek giriş ekranı kaldırıldı. Yerine e-posta + parola ile **Kayıt Ol / Giriş Yap** geldi.

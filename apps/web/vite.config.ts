@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'SenroMusic',
-        short_name: 'Senro',
+        name: 'Norie Music',
+        short_name: 'Norie',
         description: 'Kendi müzik sunucun için hızlı ve şık oynatıcı.',
         theme_color: '#09090c',
         background_color: '#09090c',

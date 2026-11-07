@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "SenroMusic",
+    name: "Norie Music",
     platforms: [
         .iOS(.v15)
     ],
     targets: [
         .executableTarget(
-            name: "SenroMusicApp",
-            path: "Sources/SenroMusicApp"
+            name: "Norie MusicApp",
+            path: "Sources/Norie MusicApp"
         )
     ]
 )

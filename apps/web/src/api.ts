@@ -47,7 +47,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       // Keep the generic message when the server did not return JSON.
     }
     if (response.status === 401 && !path.startsWith('/api/auth/')) {
-      window.dispatchEvent(new CustomEvent('senro:unauthorized'));
+      window.dispatchEvent(new CustomEvent('Norie:unauthorized'));
     }
     throw new ApiError(response.status, code, message);
   }

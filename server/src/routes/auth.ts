@@ -108,9 +108,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(401).send({ error: { code: 'invalid_token', message: 'Sunucu anahtarı hatalı.' } });
       }
       attempts.delete(key);
-      let admin = findUserByEmail('admin@senro.local');
+      let admin = findUserByEmail('admin@Norie.local');
       if (!admin) {
-        admin = createUser('admin@senro.local', `legacy-${token}`, 'Sunucu Yöneticisi', 'admin');
+        admin = createUser('admin@Norie.local', `legacy-${token}`, 'Sunucu Yöneticisi', 'admin');
       }
       setSessionCookie(reply, admin.id, config.secureCookies ?? request.protocol === 'https');
       return { ok: true, user: toPublicUser(admin), legacy: true };
@@ -135,7 +135,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/auth/me
   app.get('/api/auth/me', async (request, reply) => {
-    const userId = verifySession(request.cookies['senro_session']);
+    const userId = verifySession(request.cookies['Norie_session']);
     if (!userId) {
       return reply.code(401).send({ error: { code: 'unauthorized', message: 'Oturum bulunamadı.' } });
     }

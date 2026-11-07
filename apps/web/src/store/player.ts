@@ -47,7 +47,7 @@ function getAudio(): HTMLAudioElement {
   if (!audio) {
     audio = new Audio();
     audio.preload = 'metadata';
-    const stored = Number(localStorage.getItem('senro.volume'));
+    const stored = Number(localStorage.getItem('Norie.volume'));
     audio.volume = Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : 0.8;
   }
   return audio;
@@ -217,7 +217,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const volume = Math.max(0, Math.min(1, value));
     element.volume = volume;
     element.muted = volume === 0;
-    localStorage.setItem('senro.volume', String(volume));
+    localStorage.setItem('Norie.volume', String(volume));
     set({ volume, muted: volume === 0 });
   },
 

@@ -88,7 +88,7 @@ export async function buildServer() {
     return reply
       .code(503)
       .type('text/plain')
-      .send('SenroMusic web arayüzü henüz derlenmedi. `pnpm build` çalıştırın.');
+      .send('Norie Music web arayüzü henüz derlenmedi. `pnpm build` çalıştırın.');
   });
 
   return app;
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
 
   if (config.demoToken) {
     app.log.warn(
-      `MUSIC_TOKEN ayarlanmadı. Geliştirme anahtarı kullanılıyor: "senro-demo" (${tokenFingerprint}). ` +
+      `MUSIC_TOKEN ayarlanmadı. Geliştirme anahtarı kullanılıyor: "Norie-demo" (${tokenFingerprint}). ` +
         'Üretimde .env içinde güçlü bir MUSIC_TOKEN belirleyin.',
     );
   }

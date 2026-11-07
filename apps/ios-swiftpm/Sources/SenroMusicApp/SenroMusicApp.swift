@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct SenroMusicApp: App {
+struct Norie MusicApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

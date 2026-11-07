@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SenroMusic — Sunucu bağlantısı</title>
+    <title>Norie Music — Sunucu bağlantısı</title>
     <style>
       :root { color-scheme: dark; }
       * { box-sizing: border-box; }
@@ -56,8 +56,8 @@
   </head>
   <body>
     <main class="card">
-      <h1>SenroMusic</h1>
-      <p>SenroMusic sunucunuzun adresini girin. Örneğin <code>http://192.168.1.20:8787</code> veya <code>http://localhost:8787</code>.</p>
+      <h1>Norie Music</h1>
+      <p>Norie Music sunucunuzun adresini girin. Örneğin <code>http://192.168.1.20:8787</code> veya <code>http://localhost:8787</code>.</p>
       <label for="url">Sunucu adresi</label>
       <input id="url" type="url" placeholder="http://localhost:8787" autocomplete="off" spellcheck="false" />
       <div class="actions">
@@ -69,7 +69,7 @@
     <script>
       const input = document.getElementById('url');
       const status = document.getElementById('status');
-      const api = window.senroDesktop;
+      const api = window.NorieDesktop;
       (async () => {
         try { input.value = await api.getServerUrl(); } catch {}
       })();

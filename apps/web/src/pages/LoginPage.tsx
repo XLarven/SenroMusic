@@ -143,7 +143,7 @@ export function LoginPage() {
         </div>
 
         <p className="login-story-foot">
-          SenroMusic, yalnızca hak sahibi olduğun veya lisansa sahip olduğun dosyaları oynatmak için
+          Norie Music, yalnızca hak sahibi olduğun veya lisansa sahip olduğun dosyaları oynatmak için
           tasarlandı.
         </p>
       </section>
@@ -227,7 +227,7 @@ export function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(event) => { setEmail(event.target.value); if (error) clearError(); }}
-                placeholder="ornek@senromusic.local"
+                placeholder="ornek@Norie Music.local"
                 autoComplete="email"
                 autoCapitalize="none"
                 spellCheck={false}
@@ -308,7 +308,7 @@ export function LoginPage() {
           ) : null}
 
           <footer className="login-footer">
-            <span>SenroMusic 0.4</span>
+            <span>Norie Music 0.5</span>
             <span>Yerel öncelikli · Açık arayüz</span>
           </footer>
         </div>

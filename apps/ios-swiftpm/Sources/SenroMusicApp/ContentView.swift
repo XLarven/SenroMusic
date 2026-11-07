@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 
 struct ContentView: View {
-    @State private var serverUrl: String = UserDefaults.standard.string(forKey: "senro:serverUrl") ?? ""
+    @State private var serverUrl: String = UserDefaults.standard.string(forKey: "Norie:serverUrl") ?? ""
     @State private var showingSetup: Bool = false
     @State private var reloadTick = 0
 
@@ -10,7 +10,7 @@ struct ContentView: View {
         ZStack {
             if serverUrl.isEmpty {
                 SetupView(serverUrl: $serverUrl, onSave: {
-                    UserDefaults.standard.set(serverUrl, forKey: "senro:serverUrl")
+                    UserDefaults.standard.set(serverUrl, forKey: "Norie:serverUrl")
                     reloadTick += 1
                 })
             } else {
@@ -35,7 +35,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSetup) {
             NavigationView {
                 SetupView(serverUrl: $serverUrl, onSave: {
-                    UserDefaults.standard.set(serverUrl, forKey: "senro:serverUrl")
+                    UserDefaults.standard.set(serverUrl, forKey: "Norie:serverUrl")
                     reloadTick += 1
                     showingSetup = false
                 })
@@ -52,7 +52,7 @@ struct SetupView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("SenroMusic sunucunuzun adresini girin")
+            Text("Norie Music sunucunuzun adresini girin")
                 .font(.headline)
                 .multilineTextAlignment(.center)
             TextField("https://muzik.ornek.com", text: $serverUrl)

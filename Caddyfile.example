@@ -1,4 +1,4 @@
-# SenroMusic – Caddy ters proxy (Windows VDS)
+# Norie Music – Caddy ters proxy (Windows VDS)
 # muzik.ornek.com yerine kendi alan adınızı yazın.
 # Caddy sertifikayı (Let's Encrypt) otomatik alır.
 
@@ -14,7 +14,7 @@ https://muzik.ornek.com {
 
     # Log
     log {
-        output file C:\Caddy\logs\senro.log {
+        output file C:\Caddy\logs\Norie.log {
             roll_size 10mb
             roll_keep 10
         }

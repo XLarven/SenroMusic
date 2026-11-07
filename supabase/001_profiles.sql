@@ -1,6 +1,6 @@
--- SenroMusic — Supabase profil senkronu (opsiyonel)
+-- Norie Music — Supabase profil senkronu (opsiyonel)
 -- Supabase Dashboard → SQL Editor'da çalıştırın.
--- SenroMusic sunucusu (server/src/supabase.ts) presence bilgilerini bu tabloya yazar.
+-- Norie Music sunucusu (server/src/supabase.ts) presence bilgilerini bu tabloya yazar.
 
 create table if not exists public.profiles (
   id uuid primary key,

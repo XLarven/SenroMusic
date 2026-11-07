@@ -1,21 +1,21 @@
 {
-  "name": "senromusic",
-  "version": "0.4.0",
+  "name": "Norie Music",
+  "version": "0.5.0",
   "private": true,
   "description": "Self-hosted, cross-platform music library and player",
   "scripts": {
-    "dev": "concurrently -n server,web -c cyan,magenta \"pnpm --filter @senro/server dev\" \"pnpm --filter @senro/web dev\"",
-    "build": "pnpm --filter @senro/server build && pnpm --filter @senro/web build",
-    "start": "pnpm --filter @senro/server start",
-    "demo": "pnpm --filter @senro/server demo",
-    "test": "pnpm --filter @senro/server test",
-    "desktop": "pnpm --filter @senro/desktop dev",
-    "desktop:build": "pnpm --filter @senro/desktop build",
-    "desktop:build:win": "pnpm --filter @senro/desktop build:win",
-    "mobile:android:build": "pnpm --filter @senro/web cap:build:android",
+    "dev": "concurrently -n server,web -c cyan,magenta \"pnpm --filter @Norie/server dev\" \"pnpm --filter @Norie/web dev\"",
+    "build": "pnpm --filter @Norie/server build && pnpm --filter @Norie/web build",
+    "start": "pnpm --filter @Norie/server start",
+    "demo": "pnpm --filter @Norie/server demo",
+    "test": "pnpm --filter @Norie/server test",
+    "desktop": "pnpm --filter @Norie/desktop dev",
+    "desktop:build": "pnpm --filter @Norie/desktop build",
+    "desktop:build:win": "pnpm --filter @Norie/desktop build:win",
+    "mobile:android:build": "pnpm --filter @Norie/web cap:build:android",
     "build:all": "powershell -ExecutionPolicy Bypass -File scripts/build-all-windows.ps1",
-    "build:web": "pnpm --filter @senro/web build",
-    "build:server": "pnpm --filter @senro/server build"
+    "build:web": "pnpm --filter @Norie/web build",
+    "build:server": "pnpm --filter @Norie/server build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

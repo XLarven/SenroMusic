@@ -44,7 +44,7 @@ export async function mirrorPresence(userId: string, email: string, displayName:
 /**
  * Verify a Supabase JWT (e.g. after client signs in with Supabase Auth directly).
  * Returns stable hex id (first 24 hex of sha256 of sub) so local session can be issued.
- * In normal flow SenroMusic does password login server-side via Auth REST; this helper is for future mobile JWT use.
+ * In normal flow Norie Music does password login server-side via Auth REST; this helper is for future mobile JWT use.
  */
 export function supabaseSessionId(sub: string, secret: string): string {
   return createHmac('sha256', secret).update(sub).digest('hex').slice(0, 24);

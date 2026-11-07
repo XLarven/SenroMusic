@@ -24,7 +24,7 @@ export function Logo({ compact = false, asLink = false, className }: LogoProps) 
       <Mark />
       {!compact ? (
         <span className="logo-word">
-          senro<span>music</span>
+          Norie<span> Music</span>
         </span>
       ) : null}
     </>
@@ -32,7 +32,7 @@ export function Logo({ compact = false, asLink = false, className }: LogoProps) 
 
   if (asLink) {
     return (
-      <Link to="/" className={clsx('logo', className)} aria-label="SenroMusic ana sayfa">
+      <Link to="/" className={clsx('logo', className)} aria-label="Norie Music ana sayfa">
         {content}
       </Link>
     );

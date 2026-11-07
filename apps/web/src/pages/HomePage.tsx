@@ -48,7 +48,7 @@ export function HomePage() {
         <EmptyState
           icon={LibraryBig}
           title="İlk parçanı ekle"
-          description="Sunucundaki müzik klasörüne dosyalarını koy, ardından kitaplığı yeniden tara. SenroMusic metadata ve kapakları otomatik hazırlar."
+          description="Sunucundaki müzik klasörüne dosyalarını koy, ardından kitaplığı yeniden tara. Norie Music metadata ve kapakları otomatik hazırlar."
           action={
             <Link to="/settings" className="button primary">
               <HardDrive size={16} />

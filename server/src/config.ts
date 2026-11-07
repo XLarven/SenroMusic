@@ -41,7 +41,7 @@ if (isProduction && !process.env.MUSIC_SESSION_SECRET?.trim()) {
   );
 }
 
-const musicToken = configuredToken || 'senro-demo';
+const musicToken = configuredToken || 'Norie-demo';
 
 export const config = {
   isProduction,
@@ -56,7 +56,7 @@ export const config = {
   demoToken: !configuredToken,
   sessionSecret:
     process.env.MUSIC_SESSION_SECRET?.trim() ||
-    createHash('sha256').update(`senro-session:${musicToken}`).digest('hex'),
+    createHash('sha256').update(`Norie-session:${musicToken}`).digest('hex'),
   sessionDays: envInt('SESSION_DAYS', 30),
   secureCookies:
     secureCookiesRaw === undefined || secureCookiesRaw === ''

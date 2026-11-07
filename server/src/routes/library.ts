@@ -49,8 +49,8 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     const library = getLibrary();
     return {
       status: 'ok',
-      name: 'SenroMusic',
-      version: '0.4.0',
+      name: 'Norie Music',
+      version: '0.5.0',
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,

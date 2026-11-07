@@ -1,11 +1,11 @@
-# SenroMusic — Güvenli VDS Kurulumu
+# Norie Music — Güvenli VDS Kurulumu
 
 Amaç: Kendi VDS'inizde, yalnızca HTTPS üzerinden, yalnızca güçlü anahtarla girişe izin veren, dış ağa minimum port açarak yayına alma.
 
 ## Mimari (önerilen)
 
 ```
-İnternet → 443 (Caddy, Let's Encrypt) → 127.0.0.1:8787 (SenroMusic/Fastify)
+İnternet → 443 (Caddy, Let's Encrypt) → 127.0.0.1:8787 (Norie Music/Fastify)
 ```
 
 - **8787 doğrudan internete açılMAZ.** `HOST=127.0.0.1` ile dinlenir.
@@ -63,7 +63,7 @@ RDP'yi kendi IP'nize kilitlemek için script içindeki örnek satırı aktif edi
 ```powershell
 npm i -g pm2 pm2-windows
 pnpm build
-pm2 start pnpm --name senromusic -- start
+pm2 start pnpm --name Norie Music -- start
 pm2 save
 pm2 startup
 ```
