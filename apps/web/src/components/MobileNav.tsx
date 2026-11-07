@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { Home, LibraryBig, Search, Settings2 } from 'lucide-react';
+import { Compass, Home, LibraryBig, Settings2 } from 'lucide-react';
 import clsx from 'clsx';
 
 const ITEMS = [
   { to: '/', label: 'Ana sayfa', icon: Home, end: true },
-  { to: '/search', label: 'Ara', icon: Search, end: false },
+  { to: '/search', label: 'Kesfet', icon: Compass, end: false },
   { to: '/library', label: 'Kitaplık', icon: LibraryBig, end: false },
-  { to: '/settings', label: 'Ayarlar', icon: Settings2, end: false },
+  { to: '/settings', label: 'Profil', icon: Settings2, end: false },
 ];
 
 export function MobileNav() {

@@ -1,7 +1,10 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import {
+  ChevronDown,
+  Heart,
   ListMusic,
   Loader2,
+  Maximize2,
   Moon,
   Pause,
   Play,
@@ -43,6 +46,8 @@ export function PlayerBar() {
   const cycleRepeat = usePlayer((state) => state.cycleRepeat);
   const setQueueOpen = usePlayer((state) => state.setQueueOpen);
   const setSleepTimer = usePlayer((state) => state.setSleepTimer);
+  const [expanded, setExpanded] = useState(false);
+  const [liked, setLiked] = useState(false);
 
   const safeDuration = Math.max(duration || current?.duration || 0, 0);
   const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
@@ -57,17 +62,25 @@ export function PlayerBar() {
   const volumeStyle = { '--fill': `${volumeValue * 100}%` } as CSSProperties;
 
   return (
+    <>
     <section className={clsx('player-bar', !current && 'is-empty')} aria-label="Müzik oynatıcı">
       <div className="player-track">
         {current ? (
-          <Cover
-            src={current.coverUrl}
-            alt=""
-            seed={`${current.albumArtist}-${current.album}`}
-            className="player-cover"
-            iconSize={18}
-            eager
-          />
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            aria-label="Şimdi çalınıyor'u büyüt"
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+          >
+            <Cover
+              src={current.coverUrl}
+              alt=""
+              seed={`${current.albumArtist}-${current.album}`}
+              className="player-cover"
+              iconSize={18}
+              eager
+            />
+          </button>
         ) : (
           <div className="player-cover player-cover-empty" aria-hidden="true">
             <ListMusic size={18} />
@@ -160,6 +173,17 @@ export function PlayerBar() {
       </div>
 
       <div className="player-right">
+        {current ? (
+          <button
+            type="button"
+            className="player-tool"
+            onClick={() => setExpanded(true)}
+            aria-label="Şimdi çalınıyor'u genişlet"
+            title="Büyüt"
+          >
+            <Maximize2 size={16} />
+          </button>
+        ) : null}
         <button
           type="button"
           className={clsx('player-tool', sleepTimer && 'is-active')}
@@ -205,5 +229,90 @@ export function PlayerBar() {
         </div>
       </div>
     </section>
+
+    {expanded && current ? (
+      <div className="np-sheet" role="dialog" aria-label="Şimdi çalınıyor">
+        <div className="np-top">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setExpanded(false)}
+            aria-label="Kapat"
+          >
+            <ChevronDown size={20} />
+          </button>
+          <span className="np-label">Şimdi çalınıyor</span>
+          <span style={{ width: 36 }} />
+        </div>
+
+        <div className="np-art">
+          <Cover
+            src={current.coverUrl}
+            alt=""
+            seed={`${current.albumArtist}-${current.album}`}
+            className="np-art-cover"
+            iconSize={64}
+            eager
+          />
+        </div>
+
+        <div className="np-meta">
+          <div className="np-title">{current.title}</div>
+          <div className="np-artist">{current.artist}</div>
+          <button
+            type="button"
+            className={clsx('np-heart', liked && 'is-liked')}
+            onClick={() => setLiked((v) => !v)}
+            aria-label={liked ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+          >
+            <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
+          </button>
+        </div>
+
+        <div className="np-controls">
+          <div className="np-progress">
+            <span>{formatDuration(currentTime)}</span>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(safeDuration, 0.1)}
+              step={0.1}
+              value={Math.min(currentTime, Math.max(safeDuration, 0.1))}
+              onChange={(event) => seek(Number(event.target.value))}
+              className="range player-range"
+              style={progressStyle}
+              disabled={!current || safeDuration <= 0}
+              aria-label="Parça ilerlemesi"
+            />
+            <span>{formatDuration(safeDuration)}</span>
+          </div>
+
+          <div className="np-buttons">
+            <button type="button" className="np-skip" onClick={previous} disabled={!current} aria-label="Önceki">
+              <SkipBack size={28} fill="currentColor" />
+            </button>
+            <button
+              type="button"
+              className="np-play"
+              onClick={toggle}
+              disabled={!current}
+              aria-label={playing ? 'Duraklat' : 'Oynat'}
+            >
+              {current && loading ? (
+                <Loader2 size={30} className="spin" />
+              ) : playing ? (
+                <Pause size={30} fill="currentColor" />
+              ) : (
+                <Play size={30} fill="currentColor" style={{ marginLeft: 3 }} />
+              )}
+            </button>
+            <button type="button" className="np-skip" onClick={next} disabled={!current} aria-label="Sonraki">
+              <SkipForward size={28} fill="currentColor" />
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

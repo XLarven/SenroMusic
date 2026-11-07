@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Clock3, Disc3, HardDrive, LibraryBig, Plus, Sparkles } from 'lucide-react';
+import { ArrowRight, Clock3, Disc3, HardDrive, LibraryBig, Plus, Search, Sparkles } from 'lucide-react';
 import { AlbumCard } from '../components/AlbumCard';
 import { Cover } from '../components/Cover';
 import { EmptyState } from '../components/EmptyState';
@@ -69,6 +69,26 @@ export function HomePage() {
           Çevrimiçi
         </span>
       </div>
+
+      <Link
+        to="/search"
+        aria-label="Ara"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          margin: '4px 0 16px',
+          padding: '14px 18px',
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: 'var(--muted)',
+          fontSize: '0.9rem',
+        }}
+      >
+        <Search size={18} />
+        <span>Şarkı, albüm veya sanatçı ara…</span>
+      </Link>
 
       <section className="home-hero">
         <div className="home-hero-copy">

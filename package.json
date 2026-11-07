@@ -1,6 +1,6 @@
 {
   "name": "senromusic",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Self-hosted, cross-platform music library and player",
   "scripts": {

@@ -376,7 +376,7 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Hakkında</h2>
-              <p>SenroMusic 0.2 · Yerel öncelikli müzik.</p>
+              <p>SenroMusic 0.3 · Yerel öncelikli müzik.</p>
             </div>
           </header>
           <p>
