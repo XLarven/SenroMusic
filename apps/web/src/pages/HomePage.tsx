@@ -1,14 +1,11 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Clock3, Disc3, HardDrive, LibraryBig, Plus, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, Clock3, HardDrive, LibraryBig, Sparkles } from 'lucide-react';
 import { AlbumCard } from '../components/AlbumCard';
 import { Cover } from '../components/Cover';
 import { EmptyState } from '../components/EmptyState';
 import { PlayButton } from '../components/PlayButton';
-import { PlaylistCard } from '../components/PlaylistCard';
-import { TrackList } from '../components/TrackList';
 import { useMusicData } from '../MusicDataContext';
 import { usePlayer } from '../store/player';
-import { useUiStore } from '../store/ui';
 import {
   formatBytes,
   formatCount,
@@ -19,9 +16,8 @@ import {
 } from '../lib/format';
 
 export function HomePage() {
-  const { library, playlists } = useMusicData();
+  const { library } = useMusicData();
   const playQueue = usePlayer((state) => state.playQueue);
-  const openCreatePlaylist = useUiStore((state) => state.openCreatePlaylist);
 
   const albums = recentAlbums(library, 10);
   const featured = albums[0] ?? library.albums[0] ?? null;
@@ -69,26 +65,6 @@ export function HomePage() {
           Çevrimiçi
         </span>
       </div>
-
-      <Link
-        to="/search"
-        aria-label="Ara"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          margin: '4px 0 16px',
-          padding: '14px 18px',
-          borderRadius: 999,
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          color: 'var(--muted)',
-          fontSize: '0.9rem',
-        }}
-      >
-        <Search size={18} />
-        <span>Şarkı, albüm veya sanatçı ara…</span>
-      </Link>
 
       <div className="home-top">
         <section className="home-hero">
@@ -157,72 +133,34 @@ export function HomePage() {
         </aside>
       </div>
 
-      <section className="content-section">
-        <div className="section-heading">
-          <div>
-            <h2>Son eklenenler</h2>
-            <p>Arşivine en son katılan albümler.</p>
-          </div>
-          <Link to="/library?tab=albums" className="section-link">
-            Tümünü gör
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-        <div className="card-grid album-grid">
-          {albums.slice(0, 5).map((album) => (
-            <AlbumCard key={album.id} album={album} />
-          ))}
-        </div>
-      </section>
-
-      <section className="content-section">
-        <div className="section-heading">
-          <div>
-            <h2>Kitaplığından</h2>
-            <p>Son eklenen parçalarla hızlı bir başlangıç.</p>
-          </div>
-          <Link to="/library?tab=tracks" className="section-link">
-            Tüm parçalar
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-        <div className="surface-panel">
-          <TrackList tracks={recentTracks} />
-        </div>
-      </section>
-
       <div className="home-bottom">
         <section className="content-section" style={{ marginTop: 0 }}>
           <div className="section-heading">
-            <div><h2>Çalma listelerin</h2><p>Seçkilerin.</p></div>
-            <Link to="/library?tab=playlists" className="section-link">Tümünü gör <ArrowRight size={15} /></Link>
+            <div><h2>Trend albümler</h2><p>Arşivine en son katılanlar.</p></div>
+            <Link to="/library?tab=albums" className="section-link">Tümünü gör <ArrowRight size={15} /></Link>
           </div>
-          <div className="card-grid playlist-grid">
-            {playlists.slice(0, 4).map((p) => <PlaylistCard key={p.id} playlist={p} />)}
-            <button type="button" className="create-playlist-card" onClick={openCreatePlaylist}>
-              <span><Plus size={22} /></span>
-              <strong>Yeni liste</strong>
-            </button>
+          <div className="card-grid album-grid home-album-grid">
+            {albums.slice(0, 5).map((album) => (
+              <AlbumCard key={album.id} album={album} />
+            ))}
           </div>
         </section>
         <aside className="analytics-card" aria-label="İstatistiklerin">
-          <h3 style={{ fontSize: '0.9rem' }}>İstatistiklerin</h3>
+          <h3>İstatistiklerin</h3>
           <div className="vinyl" aria-hidden="true">♫</div>
           <div className="analytics-hours">{formatLongDuration(library.stats.totalDuration)}</div>
-          <small style={{ color: 'var(--muted)' }}>Toplam Dinleme Süresi</small>
+          <small>Toplam arşiv süresi</small>
           <div className="analytics-chips">
             <span>{formatCount(library.stats.tracks)} parça</span>
             <span>{formatCount(library.stats.albums)} albüm</span>
             <span>{formatCount(library.stats.artists)} sanatçı</span>
           </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', fontSize: '0.68rem', color: 'var(--muted)' }}>
+          <div className="analytics-footnote">
             <Clock3 size={13} /> {formatBytes(library.stats.totalSize)}
             <HardDrive size={13} /> Arşiv
           </div>
         </aside>
       </div>
-
-
     </div>
   );
 }

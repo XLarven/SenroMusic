@@ -2,6 +2,7 @@ import { Bell, Search } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '../store/auth';
+import { greeting } from '../lib/format';
 
 export function TopBar() {
   const [q, setQ] = useState('');
@@ -18,6 +19,10 @@ export function TopBar() {
 
   return (
     <header className="topbar">
+      <div className="topbar__mobile-copy">
+        <small>{greeting()},</small>
+        <strong>{user?.displayName || user?.email?.split('@')[0] || 'müziksever'} 👋</strong>
+      </div>
       <form onSubmit={submit} className="topbar__search" role="search">
         <Search size={17} aria-hidden="true" style={{ color: 'var(--nm-text-secondary)' }} />
         <input

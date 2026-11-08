@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Eye, EyeOff, KeyRound, Loader2, Mail, User, Wifi, WifiOff } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Mail, User, Wifi, WifiOff } from 'lucide-react';
 import { api } from '../api';
 import { Logo } from '../components/Logo';
 import { useAuthStore } from '../store/auth';
@@ -13,6 +13,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const status = useAuthStore((state) => state.status);
@@ -36,6 +37,7 @@ export function LoginPage() {
       if (mode === 'login') {
         await login(email.trim(), password);
       } else {
+        if (password !== passwordConfirm) return;
         await register(email.trim(), password, displayName.trim());
       }
     } catch {
@@ -66,14 +68,14 @@ export function LoginPage() {
 
         <section className="login-card nm-glass" aria-label={mode === 'login' ? 'Giriş yap' : 'Kayıt ol'}>
           <div className="login-form-heading">
-            <h1>{mode === 'login' ? 'Tekrar hoş geldin' : 'Hoş geldin'}</h1>
+            <h1>{mode === 'login' ? 'Tekrar hoş geldin' : 'Hesap oluştur.'}</h1>
             <p>{mode === 'login' ? 'Kütüphanene devam et' : 'Hesabını oluştur, müziğin seninle kalsın'}</p>
           </div>
 
           <form className="login-form" onSubmit={submit} noValidate>
             {mode === 'register' ? (
               <>
-                <label htmlFor="display-name">Ad Soyad</label>
+                <label htmlFor="display-name">Kullanıcı adı</label>
                 <div className="nm-field">
                   <User size={16} aria-hidden="true" />
                   <input
@@ -146,13 +148,41 @@ export function LoginPage() {
               </button>
             </div>
 
+            {mode === 'register' ? (
+              <>
+                <label htmlFor="password-confirm">Parolayı tekrar gir</label>
+                <div className="nm-field">
+                  <KeyRound size={16} aria-hidden="true" />
+                  <input
+                    id="password-confirm"
+                    type={showPassword ? 'text' : 'password'}
+                    value={passwordConfirm}
+                    onChange={(e) => { setPasswordConfirm(e.target.value); if (error) clearError(); }}
+                    placeholder="Parolanı doğrula"
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    maxLength={200}
+                    aria-invalid={Boolean(passwordConfirm && password !== passwordConfirm)}
+                  />
+                </div>
+                {passwordConfirm && password !== passwordConfirm ? (
+                  <p className="form-error" role="alert">Parolalar eşleşmiyor.</p>
+                ) : null}
+              </>
+            ) : null}
+
             {error ? (
               <p className="form-error" id="login-error" role="alert">{error}</p>
             ) : null}
 
-            <button type="submit" className="nm-btn nm-btn--primary login-submit" disabled={!email.trim() || !password || busy}>
+            <button
+              type="submit"
+              className="nm-btn nm-btn--primary login-submit"
+              disabled={!email.trim() || !password || busy || (mode === 'register' && (!displayName.trim() || password !== passwordConfirm))}
+            >
               {busy ? <Loader2 size={18} className="spin" /> : null}
               {busy ? 'Bağlanıyor…' : mode === 'login' ? 'Giriş yap' : 'Hesap oluştur'}
+              {!busy ? <ArrowRight size={17} /> : null}
             </button>
           </form>
 
