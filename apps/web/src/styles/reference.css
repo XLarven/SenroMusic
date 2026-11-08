@@ -2382,6 +2382,15 @@ body::before {
   height: 46px;
 }
 
+.import-cover-placeholder {
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.52), rgba(167, 139, 250, 0.24));
+}
+
+.import-source {
+  text-decoration: none;
+}
+
 .import-copy {
   display: flex;
   flex-direction: column;

@@ -13,6 +13,7 @@ import type {
   YouTubeResult,
   User,
   AdminStats,
+  SpotifyCatalogSearch,
   SpotifyResolved,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
@@ -149,6 +150,12 @@ export const api = {
   adminStats: () => request<AdminStats>('/api/admin/stats'),
   spotifyResolve: (url: string) =>
     request<SpotifyResolved>('/api/spotify/resolve', { method: 'POST', body: { url } }),
+  spotifySearch: (q: string, limit = 20) =>
+    request<SpotifyCatalogSearch>(
+      `/api/spotify/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  spotifyPlaylist: (id: string) =>
+    request<SpotifyResolved>(`/api/spotify/playlists/${encodeURIComponent(id)}`),
   library: () => request<Library>('/api/library'),
   search: (q: string, limit = 20) =>
     request<{ tracks: Track[]; albums: Album[]; artists: Artist[] }>(

@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
 import { rateLimit } from '../ratelimit.js';
+import { getSpotifyPlaylist, isSpotifyConfigured, searchSpotify, type SpotifyItem } from '../spotifyApi.js';
 
 const execFileAsync = promisify(execFile);
 const PYTHON = process.env.PYTHON_PATH || 'python';
@@ -15,16 +16,18 @@ async function runYtDlp(args: string[]): Promise<string> {
   return stdout + (stderr ? `\n${stderr}` : '');
 }
 
-type Item = {
-  title: string;
-  artist: string;
-  youtubeQuery: string;
-  providerTrackId: string | null;
-  duration: number | null;
-  artworkUrl: string | null;
-  sourceUrl: string | null;
-  album: string | null;
-};
+type Item = SpotifyItem;
+
+function extractPlaylistId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname !== 'open.spotify.com') return null;
+    const match = parsed.pathname.match(/\/(?:intl-[a-z-]+\/)?playlist\/([A-Za-z0-9]+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function thumbnailOf(entry: Record<string, unknown>): string | null {
   const thumbnails = entry.thumbnails as Array<{ url?: string }> | undefined;
@@ -147,6 +150,58 @@ async function resolveViaOembed(url: string): Promise<{ type: string; title: str
 }
 
 export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
+  app.get<{ Querystring: { q?: string; limit?: string } }>(
+    '/api/spotify/search',
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'spotify-search', max: 60, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
+    async (request, reply) => {
+      if (!isSpotifyConfigured()) {
+        return reply.code(503).send({
+          error: { code: 'spotify_not_configured', message: 'Spotify API kimlik bilgileri yapılandırılmadı.' },
+        });
+      }
+      const q = (request.query.q ?? '').trim();
+      if (!q) return reply.code(400).send({ error: { code: 'invalid_query', message: 'Arama sorgusu gerekli.' } });
+      try {
+        return await searchSpotify(q, Number(request.query.limit) || 20);
+      } catch (error) {
+        request.log.warn({ err: error }, 'spotify search failed');
+        return reply.code(502).send({ error: { code: 'spotify_unavailable', message: 'Spotify kataloğu alınamadı.' } });
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/spotify/playlists/:id',
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'spotify-playlist', max: 20, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
+    async (request, reply) => {
+      if (!isSpotifyConfigured()) {
+        return reply.code(503).send({
+          error: { code: 'spotify_not_configured', message: 'Spotify API kimlik bilgileri yapılandırılmadı.' },
+        });
+      }
+      const id = request.params.id.trim();
+      if (!/^[A-Za-z0-9]{22}$/.test(id)) {
+        return reply.code(400).send({ error: { code: 'invalid_playlist', message: 'Geçersiz Spotify çalma listesi kimliği.' } });
+      }
+      try {
+        return await getSpotifyPlaylist(id);
+      } catch (error) {
+        request.log.warn({ err: error }, 'spotify playlist failed');
+        return reply.code(502).send({ error: { code: 'spotify_unavailable', message: 'Spotify çalma listesi alınamadı.' } });
+      }
+    },
+  );
+
   app.post<{ Body: { url?: string } }>(
     '/api/spotify/resolve',
     {
@@ -159,6 +214,24 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
       const url = (request.body?.url ?? '').trim();
       if (!url || !url.includes('open.spotify.com')) {
         return reply.code(400).send({ error: { code: 'bad_request', message: 'Geçerli bir Spotify bağlantısı yapıştırın (open.spotify.com).' } });
+      }
+      const playlistId = extractPlaylistId(url);
+      if (playlistId && isSpotifyConfigured()) {
+        try {
+          const playlist = await getSpotifyPlaylist(playlistId);
+          return {
+            type: playlist.type,
+            title: playlist.title,
+            description: playlist.description,
+            artworkUrl: playlist.artworkUrl,
+            creator: playlist.creator,
+            totalDuration: playlist.totalDuration,
+            totalTracks: playlist.totalTracks,
+            items: playlist.items,
+          };
+        } catch (error) {
+          request.log.warn({ err: error }, 'spotify web api playlist failed; falling back');
+        }
       }
       const viaYt = await resolveViaYtDlp(url);
       if (viaYt) return viaYt;

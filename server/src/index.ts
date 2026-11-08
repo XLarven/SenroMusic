@@ -7,7 +7,7 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { config, paths } from './config.js';
 import { closeDb } from './db.js';
-import { closeMysql, initMysqlSchema } from './mysqldb.js';
+import { closeMysql, initMysqlSchema, mirrorAll } from './mysqldb.js';
 import { authRoutes } from './routes/auth.js';
 import { importRoutes } from './routes/imports.js';
 import { libraryRoutes } from './routes/library.js';
@@ -108,6 +108,7 @@ async function main(): Promise<void> {
   if (config.mysqlHost) {
     const ok = await initMysqlSchema();
     app.log.info(`MySQL ${ok ? 'bağlantısı kuruldu' : 'bağlanamadı'} (${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase})`);
+    if (ok) void mirrorAll();
   }
 
   await app.listen({ host: config.host, port: config.port });

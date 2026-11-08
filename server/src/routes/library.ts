@@ -10,6 +10,7 @@ import { getTrackRow } from '../db.js';
 import { parseRange } from '../range.js';
 import { rateLimit } from '../ratelimit.js';
 import { isScanning, scanLibrary } from '../scanner.js';
+import { isSpotifyConfigured } from '../spotifyApi.js';
 
 const AUDIO_MIME: Record<string, string> = {
   mp3: 'audio/mpeg',
@@ -51,11 +52,13 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     return {
       status: 'ok',
       name: 'Norie Music',
-      version: '0.14.0',
+      version: '0.15.0',
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,
       lastScanAt: library.stats.lastScanAt,
+      mysqlEnabled: Boolean(config.mysqlHost && config.mysqlUser),
+      spotifyConfigured: isSpotifyConfigured(),
     };
   });
 

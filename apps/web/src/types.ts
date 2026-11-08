@@ -116,7 +116,43 @@ export type SpotifyItem = {
 export type SpotifyResolved = {
   type: string;
   title: string;
+  description?: string | null;
+  artworkUrl?: string | null;
+  creator?: string | null;
+  totalDuration?: number | null;
+  totalTracks?: number;
   items: SpotifyItem[];
+};
+
+export type SpotifyCatalogSearch = {
+  tracks: Array<{
+    id: string;
+    title: string;
+    artist: string;
+    album: string | null;
+    duration: number | null;
+    artworkUrl: string | null;
+    sourceUrl: string | null;
+    isrc: string | null;
+  }>;
+  artists: Array<{ id: string; name: string; imageUrl: string | null; sourceUrl: string | null }>;
+  albums: Array<{
+    id: string;
+    name: string;
+    artist: string;
+    imageUrl: string | null;
+    sourceUrl: string | null;
+    releaseDate: string | null;
+  }>;
+  playlists: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    imageUrl: string | null;
+    sourceUrl: string | null;
+    owner: string | null;
+    trackCount: number | null;
+  }>;
 };
 
 export type YouTubeResult = {
@@ -136,6 +172,8 @@ export type Health = {
   scanning: boolean;
   demoToken?: boolean;
   lastScanAt?: string | null;
+  mysqlEnabled?: boolean;
+  spotifyConfigured?: boolean;
 };
 
 export type User = {

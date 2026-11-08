@@ -5,8 +5,11 @@ import { Disc3, Download, Link2, Loader2, Music, Search, SearchX, Sparkles, Vide
 import clsx from 'clsx';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistCard } from '../components/ArtistCard';
+import { Cover } from '../components/Cover';
+import { DownloadButton } from '../components/DownloadButton';
 import { EmptyState } from '../components/EmptyState';
 import { ImportPreviewPanel, type PlaylistPreview, type PreviewItem } from '../components/ImportPreviewPanel';
+import { PlayButton } from '../components/PlayButton';
 import { TrackList } from '../components/TrackList';
 import { useMusicData } from '../MusicDataContext';
 import { api } from '../api';
@@ -103,6 +106,9 @@ export function SearchPage() {
   const [ytPlaylistImporting, setYtPlaylistImporting] = useState(false);
   const [catalogResults, setCatalogResults] = useState<{ tracks: import('../types').Track[]; albums: import('../types').Album[]; artists: import('../types').Artist[] } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
+  const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
+  const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -223,6 +229,38 @@ export function SearchPage() {
       window.clearTimeout(timer);
     };
   }, [deferredQuery, isSpotifyUrl]);
+
+  useEffect(() => {
+    if (!deferredQuery || deferredQuery.length < 2 || isPlaylistUrl(deferredQuery)) {
+      setSpotifyCatalog(null);
+      setSpotifyCatalogLoading(false);
+      setSpotifyCatalogError(null);
+      return;
+    }
+    let cancelled = false;
+    setSpotifyCatalogLoading(true);
+    setSpotifyCatalogError(null);
+    const timer = window.setTimeout(() => {
+      void api
+        .spotifySearch(deferredQuery, 20)
+        .then((result) => {
+          if (!cancelled) setSpotifyCatalog(result);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          const message = error instanceof Error ? error.message : 'Spotify kataloğu alınamadı.';
+          setSpotifyCatalogError(message.includes('yapılandırılmadı') ? null : message);
+          setSpotifyCatalog(null);
+        })
+        .finally(() => {
+          if (!cancelled) setSpotifyCatalogLoading(false);
+        });
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [deferredQuery]);
 
   useEffect(() => {
     if (!spotify || !isPlaylistUrl(deferredQuery) || !deferredQuery.includes('open.spotify.com')) return;
@@ -590,6 +628,78 @@ export function SearchPage() {
     artists: results.artists.length,
   };
 
+  const renderSpotifyCatalog = () => {
+    if (spotifyCatalogLoading) {
+      return (
+        <section className="content-section">
+          <div className="section-heading"><div><h2>Spotify kataloğu</h2><p>Resmi Spotify Web API üzerinden aranıyor…</p></div></div>
+          <div className="surface-panel" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Loader2 size={18} className="spin" /><span>Spotify katalogunda aranıyor…</span>
+          </div>
+        </section>
+      );
+    }
+    if (spotifyCatalogError) {
+      return (
+        <section className="content-section">
+          <div className="section-heading"><div><h2>Spotify kataloğu</h2></div></div>
+          <EmptyState icon={SearchX} title="Spotify kataloğu alınamadı" description={spotifyCatalogError} compact />
+        </section>
+      );
+    }
+    if (!spotifyCatalog || (spotifyCatalog.tracks.length === 0 && spotifyCatalog.artists.length === 0 && spotifyCatalog.albums.length === 0 && spotifyCatalog.playlists.length === 0)) {
+      return null;
+    }
+    return (
+      <section className="content-section" aria-label="Spotify kataloğu">
+        <div className="section-heading">
+          <div>
+            <h2>Spotify kataloğu</h2>
+            <p>Resmi meta veri. Spotify sesi indirilemez; yalnızca kütüphanende bulunanlar çalınabilir.</p>
+          </div>
+        </div>
+        {spotifyCatalog.tracks.length ? (
+          <div className="surface-panel import-track-list">
+            {spotifyCatalog.tracks.slice(0, 8).map((track) => {
+              const local = matchTrack(track, library.tracks);
+              return (
+                <article className={`import-track-row ${local ? 'is-playable' : 'is-unavailable'}`} key={`spotify-${track.id}`}>
+                  <span className="import-order">♪</span>
+                  <span className="import-cover import-cover-placeholder" aria-hidden="true" />
+                  <div className="import-copy">
+                    <strong>{track.title}</strong>
+                    <span>{track.artist}{track.album ? ` · ${track.album}` : ''}</span>
+                    <small>{local ? 'Kütüphanende var' : 'NorieMusic kütüphanesinde yok'}{track.duration ? ` · ${formatDuration(track.duration)}` : ''}</small>
+                  </div>
+                  {local ? (
+                    <>
+                      <PlayButton tracks={[local]} size="sm" label={`${track.title} çal`} />
+                      <DownloadButton track={local} />
+                    </>
+                  ) : (
+                    <a className="icon-button subtle import-source" href={track.sourceUrl ?? undefined} target="_blank" rel="noreferrer" title="Spotify'da aç" aria-label="Spotify'da aç">
+                      <Link2 size={16} />
+                    </a>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
+        {spotifyCatalog.playlists.length ? (
+          <div className="card-grid playlist-grid">
+            {spotifyCatalog.playlists.slice(0, 4).map((playlist) => (
+              <a key={playlist.id} className="album-card" href={playlist.sourceUrl ?? undefined} target="_blank" rel="noreferrer">
+                <Cover src={playlist.imageUrl} alt="" seed={playlist.id} className="album-cover" />
+                <span className="album-copy"><strong>{playlist.name}</strong><small>{playlist.owner}{playlist.trackCount ? ` · ${playlist.trackCount} parça` : ''}</small></span>
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
   const renderSpotify = () => (
     <section className="content-section">
       <div className="section-heading">
@@ -949,6 +1059,7 @@ export function SearchPage() {
             </div>
           )}
 
+          {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) ? renderSpotifyCatalog() : null}
           {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) && total > 0 ? renderYouTube() : null}
         </>
       )}
