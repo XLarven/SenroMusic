@@ -19,6 +19,7 @@ import {
 import clsx from 'clsx';
 import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
+import { NMLyricsPanel } from './norie/NMLyricsPanel';
 import { usePlayer } from '../store/player';
 import { formatDuration } from '../lib/format';
 
@@ -310,6 +311,13 @@ export function PlayerBar() {
               <SkipForward size={28} fill="currentColor" />
             </button>
           </div>
+        </div>
+
+        <div style={{ width: 'min(92vw, 560px)', margin: '18px auto 0', border: '1px solid var(--nm-border)', borderRadius: 18, background: 'rgba(0,0,0,0.25)' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--nm-border)', fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--nm-text-secondary)' }}>
+            Sözler
+          </div>
+          <NMLyricsPanel artist={current.artist} title={current.title} duration={safeDuration} />
         </div>
       </div>
     ) : null}

@@ -244,7 +244,7 @@ export function LoginPage() {
           </p>
 
           <footer className="login-footer">
-            <span>Norie Music 0.7</span>
+            <span>Norie Music 0.8</span>
             <span>Yerel öncelikli · Açık arayüz</span>
           </footer>
         </div>

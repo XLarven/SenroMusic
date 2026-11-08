@@ -376,7 +376,7 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Hakkında</h2>
-              <p>Norie Music 0.7 · Yerel öncelikli müzik.</p>
+              <p>Norie Music 0.8 · Yerel öncelikli müzik.</p>
             </div>
           </header>
           <p>
