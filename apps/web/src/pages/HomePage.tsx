@@ -90,86 +90,72 @@ export function HomePage() {
         <span>Şarkı, albüm veya sanatçı ara…</span>
       </Link>
 
-      <section className="home-hero">
-        <div className="home-hero-copy">
-          <span className="eyebrow">
-            <Sparkles size={14} />
-            Senin kütüphanen
-          </span>
-          <h1>
-            {greeting()}.
-            <br />
-            <span>Müziğin seni bekliyor.</span>
-          </h1>
-          <p>
-            {formatCount(library.stats.tracks)} parça, {formatCount(library.stats.albums)} albüm ve{' '}
-            {formatCount(library.stats.artists)} sanatçı. Kendi arşivinden bir seçim yap ya da bırak,
-            karışık çalsın.
-          </p>
-          <div className="home-hero-actions">
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => playQueue(shuffle(library.tracks))}
-            >
-              <Sparkles size={17} />
-              Karışık çal
-            </button>
-            <Link to="/library" className="button secondary">
-              Kitaplığı keşfet
-              <ArrowRight size={16} />
-            </Link>
-          </div>
-          <div className="home-stats">
-            <span>
-              <Clock3 size={15} />
-              {formatLongDuration(library.stats.totalDuration)}
-            </span>
-            <span>
-              <HardDrive size={15} />
-              {formatBytes(library.stats.totalSize)}
-            </span>
-            <span>
-              <Disc3 size={15} />
-              Kayıpsız arşiv
-            </span>
-          </div>
-        </div>
-
-        {featured ? (
-          <div className="home-feature">
-            <div className="home-feature-disc" aria-hidden="true" />
-            <div className="home-feature-card">
-              <Link to={`/album/${featured.id}`} className="home-feature-link">
-                <Cover
-                  src={featured.coverUrl}
-                  alt={featured.name}
-                  seed={`${featured.artist}-${featured.name}`}
-                  className="home-feature-cover"
-                  eager
-                  iconSize={40}
-                />
-                <span className="home-feature-shine" aria-hidden="true" />
+      <div className="home-top">
+        <section className="home-hero">
+          <div className="home-hero-copy">
+            <span className="eyebrow">Norie Music</span>
+            <h1>{featured ? featured.name : 'Müziğin seni bekliyor'}</h1>
+            <p>{featured ? featured.artist : 'Kütüphaneni keşfet'}</p>
+            <div className="home-hero-actions">
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => playQueue(shuffle(library.tracks))}
+              >
+                <Sparkles size={16} />
+                Şimdi Dinle
+              </button>
+              <Link to="/library" className="button secondary">
+                Göz At <ArrowRight size={15} />
               </Link>
-              <div className="home-feature-play">
-                <PlayButton
-                  tracks={library.tracks.filter(
-                    (track) =>
-                      track.albumArtist === featured.artist && track.album === featured.name,
-                  )}
-                  size="lg"
-                  label={`${featured.name} albümünü çal`}
-                />
-              </div>
-              <div className="home-feature-meta">
-                <span>Son eklenen</span>
-                <strong>{featured.name}</strong>
-                <small>{featured.artist}</small>
-              </div>
             </div>
           </div>
-        ) : null}
-      </section>
+
+          {featured ? (
+            <div className="home-feature">
+              <div className="home-feature-card">
+                <Link to={`/album/${featured.id}`} className="home-feature-link">
+                  <Cover
+                    src={featured.coverUrl}
+                    alt={featured.name}
+                    seed={`${featured.artist}-${featured.name}`}
+                    className="home-feature-cover"
+                    eager
+                    iconSize={40}
+                  />
+                </Link>
+                <div className="home-feature-play">
+                  <PlayButton
+                    tracks={library.tracks.filter(
+                      (track) =>
+                        track.albumArtist === featured.artist && track.album === featured.name,
+                    )}
+                    size="lg"
+                    label={`${featured.name} albümünü çal`}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="home-queue" aria-label="Şimdi çalınıyor">
+          <h3>Şimdi çalınıyor</h3>
+          <p>Çalma kuyruğu</p>
+          {recentTracks.slice(0, 3).map((t) => (
+            <div key={t.id} className="home-queue__row">
+              <Cover src={t.coverUrl} alt="" seed={t.id} className="home-queue__cover" iconSize={16} />
+              <div className="meta">
+                <strong>{t.title}</strong>
+                <small>{t.artist}</small>
+              </div>
+              <button type="button" className="home-queue__play" onClick={() => playQueue([t])} aria-label={`${t.title} çal`}>
+                ▶
+              </button>
+            </div>
+          ))}
+        </aside>
+      </div>
 
       <section className="content-section">
         <div className="section-heading">
@@ -205,47 +191,38 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="content-section">
-        <div className="section-heading">
-          <div>
-            <h2>Çalma listelerin</h2>
-            <p>Kendi ritmini yakalayan seçkiler.</p>
+      <div className="home-bottom">
+        <section className="content-section" style={{ marginTop: 0 }}>
+          <div className="section-heading">
+            <div><h2>Çalma listelerin</h2><p>Seçkilerin.</p></div>
+            <Link to="/library?tab=playlists" className="section-link">Tümünü gör <ArrowRight size={15} /></Link>
           </div>
-          {playlists.length > 0 ? (
-            <Link to="/library?tab=playlists" className="section-link">
-              Tümünü gör
-              <ArrowRight size={15} />
-            </Link>
-          ) : null}
-        </div>
-
-        {playlists.length > 0 ? (
           <div className="card-grid playlist-grid">
-            {playlists.slice(0, 4).map((playlist) => (
-              <PlaylistCard key={playlist.id} playlist={playlist} />
-            ))}
+            {playlists.slice(0, 4).map((p) => <PlaylistCard key={p.id} playlist={p} />)}
             <button type="button" className="create-playlist-card" onClick={openCreatePlaylist}>
-              <span>
-                <Plus size={22} />
-              </span>
-              <strong>Yeni çalma listesi</strong>
-              <small>Bir isim ver, parçaları eklemeye başla.</small>
+              <span><Plus size={22} /></span>
+              <strong>Yeni liste</strong>
             </button>
           </div>
-        ) : (
-          <div className="playlist-empty-banner">
-            <div>
-              <span className="eyebrow">İlk listen</span>
-              <h3>Kendi seçkini oluştur.</h3>
-              <p>Albümlerden ve aramadan parça ekleyerek kendi dinleme sıranı hazırla.</p>
-            </div>
-            <button type="button" className="button secondary" onClick={openCreatePlaylist}>
-              <Plus size={16} />
-              Çalma listesi oluştur
-            </button>
+        </section>
+        <aside className="analytics-card" aria-label="İstatistiklerin">
+          <h3 style={{ fontSize: '0.9rem' }}>İstatistiklerin</h3>
+          <div className="vinyl" aria-hidden="true">♫</div>
+          <div className="analytics-hours">{formatLongDuration(library.stats.totalDuration)}</div>
+          <small style={{ color: 'var(--muted)' }}>Toplam Dinleme Süresi</small>
+          <div className="analytics-chips">
+            <span>{formatCount(library.stats.tracks)} parça</span>
+            <span>{formatCount(library.stats.albums)} albüm</span>
+            <span>{formatCount(library.stats.artists)} sanatçı</span>
           </div>
-        )}
-      </section>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', fontSize: '0.68rem', color: 'var(--muted)' }}>
+            <Clock3 size={13} /> {formatBytes(library.stats.totalSize)}
+            <HardDrive size={13} /> Arşiv
+          </div>
+        </aside>
+      </div>
+
+
     </div>
   );
 }

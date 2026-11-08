@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/auth';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { Logo } from './Logo';
+import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { PlayerBar } from './PlayerBar';
@@ -190,6 +191,7 @@ export function AppShell() {
         </a>
         <Sidebar />
         <main id="main-content" className="shell-main" ref={mainRef} tabIndex={-1}>
+          <TopBar />
           <Outlet />
         </main>
         <div className="shell-player">

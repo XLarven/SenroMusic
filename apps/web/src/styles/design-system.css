@@ -3,8 +3,9 @@
 :root {
   --nm-background: #111111;
   --nm-surface: #1F1F1F;
-  --nm-accent: #780103;
+  --nm-accent: #C8102E;
   --nm-accent-soft: #A23B3E;
+  --nm-crimson: #780103;
   --nm-text-primary: #FFFFFF;
   --nm-text-secondary: #B3B3B3;
   --nm-white-soft: #FEFFFD;
@@ -27,11 +28,11 @@
   --muted-strong: #D1D1D1;
   --border: rgba(255,255,255,0.10);
   --border-strong: rgba(255,255,255,0.16);
-  --accent: #780103;
+  --accent: #C8102E;
   --accent-strong: #A23B3E;
   --accent-deep: #780103;
-  --accent-soft: rgba(120,1,3,0.28);
-  --accent-glow: rgba(162,59,62,0.35);
+  --accent-soft: rgba(162,59,62,0.22);
+  --accent-glow: rgba(200,16,46,0.35);
 }
 
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.16) transparent; }

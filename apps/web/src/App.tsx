@@ -13,6 +13,9 @@ import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PlaylistPage } from './pages/PlaylistPage';
 import { SearchPage } from './pages/SearchPage';
+import { FavoritesPage } from './pages/FavoritesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 
 function Splash() {
@@ -62,6 +65,9 @@ export function App() {
         <Route path="artist/:id" element={<ArtistPage />} />
         <Route path="playlist/:id" element={<PlaylistPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="admin" element={<AdminPage />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFoundPage />} />

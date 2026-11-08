@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import {
   ArrowUpRight,
+  Bell,
+  Heart,
   Home,
   LibraryBig,
   Loader2,
   LogOut,
+  Play,
   Plus,
   Search,
   Settings2,
@@ -23,7 +26,9 @@ import { formatCount } from '../lib/format';
 const NAV_ITEMS = [
   { to: '/', label: 'Ana sayfa', icon: Home, end: true },
   { to: '/search', label: 'Ara', icon: Search, end: false },
-  { to: '/library', label: 'Kitaplık', icon: LibraryBig, end: false },
+  { to: '/library', label: 'Kütüphane', icon: LibraryBig, end: false },
+  { to: '/favorites', label: 'Favoriler', icon: Heart, end: false },
+  { to: '/notifications', label: 'Bildirimler', icon: Bell, end: false },
 ];
 
 export function Sidebar() {
