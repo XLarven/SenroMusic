@@ -10,9 +10,9 @@ import { config } from '../config.js';
 import { mirrorUsers } from '../mysqldb.js';
 import { rateLimit } from '../ratelimit.js';
 import { isSpotifyConfigured } from '../spotifyApi.js';
-import { adminStats, createUser, findUserByEmail, findUserById, toPublicUser, touchLogin, verifyPassword } from '../users.js';
+import { adminStats, createUser, findUserByEmail, findUserById, findUserByUsername, toPublicUser, touchLogin, verifyPassword } from '../users.js';
 
-type RegisterBody = { email?: unknown; password?: unknown; displayName?: unknown; name?: unknown };
+type RegisterBody = { email?: unknown; password?: unknown; displayName?: unknown; name?: unknown; username?: unknown };
 type LoginBody = { email?: unknown; password?: unknown };
 
 const MAX_ATTEMPTS = 20;
@@ -38,6 +38,10 @@ function validEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
 
+function validUsername(value: string): boolean {
+  return /^[a-z0-9_.]{3,30}$/.test(value);
+}
+
 function clientIp(request: { headers: Record<string, string | string[] | undefined>; ip?: string }): string {
   const forwarded = request.headers['x-forwarded-for'];
   const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]?.trim();
@@ -51,6 +55,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     spotifyEnabled: isSpotifyConfigured(),
   }));
 
+  app.get<{ Querystring: { username?: string } }>(
+    '/api/auth/username-available',
+    {
+      preHandler: rateLimit({ name: 'username-available', max: 60, windowMs: 60_000 }),
+    },
+    async (request, reply) => {
+      const username = (request.query.username ?? '').trim().toLocaleLowerCase('tr');
+      if (!validUsername(username)) {
+        return reply.code(400).send({ error: { code: 'invalid_username', message: 'Kullanıcı adı 3-30 karakter olmalı: küçük harfler, rakamlar, alt çizgi veya nokta.' } });
+      }
+      return { available: !findUserByUsername(username), username };
+    },
+  );
+
   app.post<{ Body: RegisterBody }>(
     '/api/auth/register',
     { preHandler: rateLimit({ name: 'register', max: 10, windowMs: 15 * 60_000 }) },
@@ -60,6 +78,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     const emailRaw = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
     const password = typeof request.body?.password === 'string' ? request.body.password : '';
+    const username = typeof request.body?.username === 'string' ? request.body.username.trim().toLocaleLowerCase('tr') : '';
     const displayName =
       (typeof request.body?.displayName === 'string' && request.body.displayName) ||
       (typeof request.body?.name === 'string' && request.body.name) ||
@@ -67,16 +86,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!validEmail(emailRaw)) {
       return reply.code(400).send({ error: { code: 'invalid_email', message: 'Geçerli bir e-posta girin.' } });
     }
+    if (!validUsername(username)) {
+      return reply.code(400).send({ error: { code: 'invalid_username', message: 'Kullanıcı adı 3-30 karakter olmalı: küçük harfler, rakamlar, alt çizgi veya nokta.' } });
+    }
     if (password.length < 8 || password.length > 200) {
       return reply.code(400).send({ error: { code: 'weak_password', message: 'Parola en az 8 karakter olmalı.' } });
     }
     if (findUserByEmail(emailRaw)) {
       return reply.code(409).send({ error: { code: 'email_taken', message: 'Bu e-posta zaten kayıtlı.' } });
     }
+    if (findUserByUsername(username)) {
+      return reply.code(409).send({ error: { code: 'username_taken', message: 'Bu kullanıcı adı zaten kullanılıyor.' } });
+    }
     let user;
     try {
       const isFirstUser = adminStats().totalUsers === 0;
-      user = createUser(emailRaw, password, displayName, isFirstUser ? 'admin' : 'user');
+      user = createUser(emailRaw, password, displayName, isFirstUser ? 'admin' : 'user', username);
     } catch (e) {
       request.log.error({ err: e }, 'register failed');
       return reply.code(500).send({ error: { code: 'register_failed', message: 'Kayıt oluşturulamadı.' } });

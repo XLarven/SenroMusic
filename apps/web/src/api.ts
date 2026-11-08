@@ -73,11 +73,15 @@ export const api = {
       method: 'POST',
       body: { email, password },
     }),
-  register: (email: string, password: string, displayName: string) =>
+  register: (email: string, password: string, displayName: string, username: string) =>
     request<{ ok: boolean; user: User }>('/api/auth/register', {
       method: 'POST',
-      body: { email, password, displayName },
+      body: { email, password, displayName, username },
     }),
+  usernameAvailable: (username: string) =>
+    request<{ available: boolean; username: string }>(
+      `/api/auth/username-available?username=${encodeURIComponent(username)}`,
+    ),
   tokenLogin: (token: string) =>
     request<{ ok: boolean; user: User }>('/api/auth/login', {
       method: 'POST',
@@ -146,6 +150,10 @@ export const api = {
   publicProfile: (id: string) =>
     request<{ profile: PublicProfile; playlists: PlaylistSummary[] }>(
       `/api/profiles/${encodeURIComponent(id)}`,
+    ),
+  publicProfileByUsername: (username: string) =>
+    request<{ profile: PublicProfile; playlists: PlaylistSummary[] }>(
+      `/api/profiles/by-username/${encodeURIComponent(username)}`,
     ),
   adminStats: () => request<AdminStats>('/api/admin/stats'),
   spotifyResolve: (url: string) =>

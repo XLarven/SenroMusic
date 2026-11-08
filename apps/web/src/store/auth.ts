@@ -12,7 +12,7 @@ type AuthState = {
   error: string | null;
   check: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string, username: string) => Promise<void>;
   tokenLogin: (token: string) => Promise<void>;
   logout: () => Promise<void>;
   setAnonymous: () => void;
@@ -49,10 +49,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (email, password, displayName) => {
+  register: async (email, password, displayName, username) => {
     set({ error: null });
     try {
-      const result = await api.register(email, password, displayName);
+      const result = await api.register(email, password, displayName, username);
       set({ status: 'authenticated', user: result.user, error: null });
       void useFavorites.getState().load();
     } catch (error) {

@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Mail, User, Wifi, WifiOff } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, User, Wifi, WifiOff, XCircle } from 'lucide-react';
 import { api } from '../api';
 import { Logo } from '../components/Logo';
 import { useAuthStore } from '../store/auth';
@@ -8,11 +8,28 @@ import { formatCount } from '../lib/format';
 
 type Mode = 'login' | 'register';
 
+const USERNAME_RE = /^[a-z0-9_.]{3,30}$/;
+
+function passwordStrength(value: string): { score: number; label: string } {
+  let score = 0;
+  if (value.length >= 8) score += 1;
+  if (value.length >= 12) score += 1;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+  if (/\d/.test(value)) score += 1;
+  if (/[^A-Za-z0-9]/.test(value)) score += 1;
+  return {
+    score,
+    label: score <= 1 ? 'Zayıf' : score === 2 ? 'Orta' : score === 3 ? 'Güçlü' : 'Çok güçlü',
+  };
+}
+
 export function LoginPage() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameState, setUsernameState] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +46,37 @@ export function LoginPage() {
     staleTime: 20_000,
   });
 
+  useEffect(() => {
+    if (mode !== 'register') return;
+    const clean = username.trim().toLocaleLowerCase('tr');
+    if (!clean) {
+      setUsernameState('idle');
+      return;
+    }
+    if (!USERNAME_RE.test(clean)) {
+      setUsernameState('invalid');
+      return;
+    }
+    let cancelled = false;
+    setUsernameState('checking');
+    const timer = window.setTimeout(() => {
+      void api
+        .usernameAvailable(clean)
+        .then((result) => {
+          if (!cancelled) setUsernameState(result.available ? 'available' : 'taken');
+        })
+        .catch(() => {
+          if (!cancelled) setUsernameState('idle');
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mode, username]);
+
+  const strength = passwordStrength(password);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting) return;
@@ -38,7 +86,7 @@ export function LoginPage() {
         await login(email.trim(), password);
       } else {
         if (password !== passwordConfirm) return;
-        await register(email.trim(), password, displayName.trim());
+        await register(email.trim(), password, displayName.trim(), username.trim().toLocaleLowerCase('tr'));
       }
     } catch {
       // store exposes localized error
@@ -75,7 +123,31 @@ export function LoginPage() {
           <form className="login-form" onSubmit={submit} noValidate>
             {mode === 'register' ? (
               <>
-                <label htmlFor="display-name">Kullanıcı adı</label>
+                <label htmlFor="username">Kullanıcı Adı</label>
+                <div className="nm-field">
+                  <User size={16} aria-hidden="true" />
+                  <input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => { setUsername(e.target.value.toLocaleLowerCase('tr')); if (error) clearError(); }}
+                    placeholder="ornek_kullanici"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    maxLength={30}
+                    aria-invalid={usernameState === 'invalid' || usernameState === 'taken'}
+                    aria-describedby="username-feedback"
+                  />
+                  {usernameState === 'checking' ? <Loader2 size={16} className="spin" aria-label="Kontrol ediliyor" /> : null}
+                  {usernameState === 'available' ? <CheckCircle2 size={16} className="field-ok" aria-label="Kullanılabilir" /> : null}
+                  {usernameState === 'taken' || usernameState === 'invalid' ? <XCircle size={16} className="field-error" aria-label="Uygun değil" /> : null}
+                </div>
+                <p id="username-feedback" className="field-feedback">
+                  {usernameState === 'available' ? 'Bu kullanıcı adı kullanılabilir.' : usernameState === 'taken' ? 'Kullanıcı adı zaten kullanılıyor.' : usernameState === 'invalid' ? '3-30 karakter: küçük harf, rakam, alt çizgi veya nokta.' : 'Herkese açık profil bağlantıların bu adla oluşturulur.'}
+                </p>
+
+                <label htmlFor="display-name">Görünen Ad <small>(isteğe bağlı)</small></label>
                 <div className="nm-field">
                   <User size={16} aria-hidden="true" />
                   <input
@@ -83,7 +155,7 @@ export function LoginPage() {
                     type="text"
                     value={displayName}
                     onChange={(e) => { setDisplayName(e.target.value); if (error) clearError(); }}
-                    placeholder="Adın"
+                    placeholder="Profilinde görünecek ad"
                     autoComplete="name"
                     autoCapitalize="words"
                     spellCheck={false}
@@ -93,7 +165,7 @@ export function LoginPage() {
               </>
             ) : null}
 
-            <label htmlFor="email">E-posta</label>
+            <label htmlFor="email">{mode === 'register' ? 'E-posta Adresi' : 'E-posta'}</label>
             <div className="nm-field">
               <Mail size={16} aria-hidden="true" />
               <input
@@ -147,10 +219,16 @@ export function LoginPage() {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            {mode === 'register' && password ? (
+              <div className="password-strength" aria-label={`Parola gücü: ${strength.label}`}>
+                <div className="password-meter"><span style={{ width: `${Math.min(100, strength.score * 25)}%` }} /></div>
+                <small>{strength.label} · en az 8 karakter, büyük-küçük harf, rakam ve sembol önerilir</small>
+              </div>
+            ) : null}
 
             {mode === 'register' ? (
               <>
-                <label htmlFor="password-confirm">Parolayı tekrar gir</label>
+                <label htmlFor="password-confirm">Parola Tekrarı</label>
                 <div className="nm-field">
                   <KeyRound size={16} aria-hidden="true" />
                   <input
@@ -164,6 +242,14 @@ export function LoginPage() {
                     maxLength={200}
                     aria-invalid={Boolean(passwordConfirm && password !== passwordConfirm)}
                   />
+                  <button
+                    type="button"
+                    className="nm-eye"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
                 {passwordConfirm && password !== passwordConfirm ? (
                   <p className="form-error" role="alert">Parolalar eşleşmiyor.</p>
@@ -178,7 +264,7 @@ export function LoginPage() {
             <button
               type="submit"
               className="nm-btn nm-btn--primary login-submit"
-              disabled={!email.trim() || !password || busy || (mode === 'register' && (!displayName.trim() || password !== passwordConfirm))}
+              disabled={!email.trim() || !password || busy || (mode === 'register' && (usernameState !== 'available' || password !== passwordConfirm))}
             >
               {busy ? <Loader2 size={18} className="spin" /> : null}
               {busy ? 'Bağlanıyor…' : mode === 'login' ? 'Giriş yap' : 'Hesap oluştur'}

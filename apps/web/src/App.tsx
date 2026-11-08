@@ -73,6 +73,7 @@ export function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="profile/:id" element={<ProfilePage />} />
+        <Route path="u/:username" element={<ProfilePage />} />
         <Route path="admin" element={<AdminPage />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFoundPage />} />

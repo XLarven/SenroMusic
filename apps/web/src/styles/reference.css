@@ -2229,6 +2229,118 @@ body::before {
   width: min(620px, calc(100vw - 28px));
 }
 
+.image-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.image-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.image-editor-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.image-editor-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.image-editor-stage.is-circle {
+  width: min(320px, 100%);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 50%;
+}
+
+.image-editor-stage.is-wide {
+  width: 100%;
+  aspect-ratio: 2.33 / 1;
+}
+
+.image-editor-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+.image-editor-canvas:active {
+  cursor: grabbing;
+}
+
+.image-editor-circle-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+}
+
+.image-editor-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.image-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-image-upload {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-image-preview {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-banner-preview {
+  position: relative;
+  min-height: 96px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile-banner-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .profile-edit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2261,6 +2373,45 @@ body::before {
   color: #fff;
   background: rgba(255, 255, 255, 0.055);
   outline: none;
+}
+
+.field-feedback {
+  margin: 6px 2px 0;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.74rem;
+}
+
+.field-ok {
+  color: #6ee7a3;
+}
+
+.field-error {
+  color: #ff8f99;
+}
+
+.password-strength {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.password-meter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.password-meter span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ff5d6c, #e7c577, #6ee7a3);
+  transition: width 160ms ease;
+}
+
+.password-strength small {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.72rem;
 }
 
 .field textarea {

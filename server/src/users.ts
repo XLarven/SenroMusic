@@ -73,7 +73,13 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
-export function createUser(email: string, password: string, displayName: string, role: 'admin' | 'user' = 'user'): UserRow {
+export function createUser(
+  email: string,
+  password: string,
+  displayName: string,
+  role: 'admin' | 'user' = 'user',
+  username: string | null = null,
+): UserRow {
   const normalized = email.trim().toLowerCase();
   const now = new Date().toISOString();
   const row: UserRow = {
@@ -88,15 +94,28 @@ export function createUser(email: string, password: string, displayName: string,
     last_active_at: now,
     last_ip: '',
     user_agent: '',
+    bio: '',
+    avatar_url: null,
+    banner_url: null,
+    profile_visibility: 'public',
+    username: username ? username.trim().toLocaleLowerCase('tr') : null,
+    favorite_genres: null,
   };
   getDb()
     .prepare(
-      `INSERT INTO users (id, email, password_hash, display_name, role, created_at, updated_at, last_login_at, last_active_at, last_ip, user_agent)
-       VALUES (@id, @email, @password_hash, @display_name, @role, @created_at, @updated_at, @last_login_at, @last_active_at, @last_ip, @user_agent)`,
+      `INSERT INTO users (id, email, password_hash, display_name, role, created_at, updated_at, last_login_at, last_active_at, last_ip, user_agent, bio, avatar_url, banner_url, profile_visibility, username, favorite_genres)
+       VALUES (@id, @email, @password_hash, @display_name, @role, @created_at, @updated_at, @last_login_at, @last_active_at, @last_ip, @user_agent, @bio, @avatar_url, @banner_url, @profile_visibility, @username, @favorite_genres)`,
     )
     .run(row);
   void mirrorUsers();
   return row;
+}
+
+export function findUserByUsername(username: string): UserRow | null {
+  const row = getDb()
+    .prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE')
+    .get(username.trim().toLocaleLowerCase('tr')) as UserRow | undefined;
+  return row ?? null;
 }
 
 export function findUserByEmail(email: string): UserRow | null {

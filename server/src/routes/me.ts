@@ -6,6 +6,7 @@ import { getPublicPlaylists } from '../library.js';
 import { rateLimit } from '../ratelimit.js';
 import {
   findUserById,
+  findUserByUsername,
   hashPassword,
   toPublicProfile,
   toPublicUser,
@@ -61,9 +62,9 @@ function cleanString(value: unknown, max: number): string | null {
 }
 
 function parseImageDataUrl(value: string): { bytes: Buffer; mime: string } | null {
-  const match = value.match(/^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/);
+  const match = value.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
   if (!match) return null;
-  const mime = match[1] === 'jpeg' ? 'image/jpeg' : 'image/png';
+  const mime = match[1] === 'jpeg' ? 'image/jpeg' : match[1] === 'webp' ? 'image/webp' : 'image/png';
   const bytes = Buffer.from(match[2] ?? '', 'base64');
   if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024) return null;
   const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -77,7 +78,11 @@ function parseImageDataUrl(value: string): { bytes: Buffer; mime: string } | nul
     bytes[5] === 0x0a &&
     bytes[6] === 0x1a &&
     bytes[7] === 0x0a;
-  return (mime === 'image/jpeg' && isJpeg) || (mime === 'image/png' && pngHeader)
+  const webpHeader =
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  return (mime === 'image/jpeg' && isJpeg) || (mime === 'image/png' && pngHeader) || (mime === 'image/webp' && webpHeader)
     ? { bytes, mime }
     : null;
 }
@@ -153,8 +158,8 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       }
       if (bio !== undefined && bio === null) return badRequest(reply, 'Biyografi metin olmalı.');
       if (profileVisibility === null) return badRequest(reply, 'Profil görünürlüğü public veya private olmalı.');
-      if (username !== undefined && username !== null && !/^[a-z0-9_]{3,30}$/.test(username)) {
-        return badRequest(reply, 'Kullanıcı adı 3-30 karakter olmalı: küçük harfler, rakamlar veya alt çizgi.');
+      if (username !== undefined && username !== null && !/^[a-z0-9_.]{3,30}$/.test(username)) {
+        return badRequest(reply, 'Kullanıcı adı 3-30 karakter olmalı: küçük harfler, rakamlar, alt çizgi veya nokta.');
       }
       if (body.avatarUrl !== undefined && avatarUrl === undefined) return badRequest(reply, 'Avatar görseli JPEG veya PNG olmalı.');
       if (body.bannerUrl !== undefined && bannerUrl === undefined) return badRequest(reply, 'Banner görseli JPEG veya PNG olmalı.');
@@ -395,6 +400,24 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireAuth },
     async (request, reply) => {
       const target = findUserById(request.params.id);
+      if (!target) return notFound(reply, 'profile_not_found', 'Profil bulunamadı.');
+      const isOwner = target.id === request.user!.id;
+      const canView = isOwner || target.profile_visibility !== 'private' || request.user!.role === 'admin';
+      if (!canView) return notFound(reply, 'profile_not_found', 'Profil bulunamadı.');
+      const profile = toPublicProfile(target, isOwner);
+      profile.publicPlaylistCount = getPublicPlaylists(target.id).length;
+      profile.followedArtistCount = (
+        getDb().prepare('SELECT COUNT(*) AS c FROM artist_follows WHERE user_id = ?').get(target.id) as { c: number }
+      ).c;
+      return { profile, playlists: getPublicPlaylists(target.id) };
+    },
+  );
+
+  app.get<{ Params: { username: string } }>(
+    '/api/profiles/by-username/:username',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const target = findUserByUsername(request.params.username);
       if (!target) return notFound(reply, 'profile_not_found', 'Profil bulunamadı.');
       const isOwner = target.id === request.user!.id;
       const canView = isOwner || target.profile_visibility !== 'private' || request.user!.role === 'admin';

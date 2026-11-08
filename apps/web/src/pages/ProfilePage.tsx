@@ -1,18 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowRight, Camera, LogOut, Pencil, Settings2, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowRight, Camera, Image as ImageIcon, LogOut, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { api } from '../api';
 import { EmptyState } from '../components/EmptyState';
+import { ImageCropEditor } from '../components/ImageCropEditor';
 import { PlaylistCard } from '../components/PlaylistCard';
 import { Modal } from '../components/Modal';
 import { useMusicData } from '../MusicDataContext';
-import { resizeAvatar, resizeImage } from '../lib/image';
+import { getAppLanguage } from '../lib/i18n';
 import { useAuthStore } from '../store/auth';
 import { useFavorites } from '../store/favorites';
 import { useToastStore } from '../store/toast';
 import { formatCount, formatLongDuration } from '../lib/format';
 import type { PlaylistSummary, User } from '../types';
+
+function validateImageFile(file: File): string | null {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Yalnızca JPEG, PNG veya WebP görseller desteklenir.';
+  if (file.size > 20 * 1024 * 1024) return 'Görsel en fazla 20 MB olabilir.';
+  return null;
+}
 
 function EditProfileDialog({ user, onClose }: { user: User; onClose: () => void }) {
   const updateUser = useAuthStore((state) => state.updateUser);
@@ -26,13 +33,40 @@ function EditProfileDialog({ user, onClose }: { user: User; onClose: () => void 
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
   const [bannerUrl, setBannerUrl] = useState(user.bannerUrl);
   const [saving, setSaving] = useState(false);
+  const [editor, setEditor] = useState<{ kind: 'avatar' | 'banner'; url: string } | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const language = getAppLanguage();
+
+  useEffect(
+    () => () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    },
+    [],
+  );
+
+  const openEditor = (kind: 'avatar' | 'banner', file: File) => {
+    const error = validateImageFile(file);
+    if (error) {
+      pushToast(error, 'error');
+      return;
+    }
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = URL.createObjectURL(file);
+    setEditor({ kind, url: objectUrlRef.current });
+  };
 
   const save = async () => {
+    if (!/^[a-z0-9_.]{3,30}$/.test(username.trim().toLocaleLowerCase('tr'))) {
+      pushToast('Kullanıcı adı 3-30 karakter olmalı: küçük harfler, rakamlar, alt çizgi veya nokta.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const result = await api.updateProfile({
         displayName,
-        username: username.trim() ? username.trim() : null,
+        username: username.trim().toLocaleLowerCase('tr'),
         bio,
         avatarUrl,
         bannerUrl,
@@ -93,37 +127,82 @@ function EditProfileDialog({ user, onClose }: { user: User; onClose: () => void 
             <option value="private">Özel</option>
           </select>
         </label>
-        <label className="field">
-          <span>Profil görseli (750×750)</span>
+        <section className="field full profile-image-upload" aria-label={language === 'en' ? 'Profile picture' : 'Profil fotoğrafı'}>
+          <span>{language === 'en' ? 'Profile Picture (750 × 750)' : 'Profil Fotoğrafı (750 × 750)'}</span>
+          <div className="profile-image-preview">
+            {avatarUrl ? <img src={avatarUrl} alt="" /> : <span className="profile-avatar profile-avatar-fallback">{user.displayName.slice(0, 2).toLocaleUpperCase('tr')}</span>}
+          </div>
+          <div className="profile-image-actions">
+            <button type="button" className="button secondary compact" onClick={() => avatarInputRef.current?.click()}>
+              <Camera size={15} /> {language === 'en' ? 'Edit Profile Picture' : 'Profil Fotoğrafını Düzenle'}
+            </button>
+            {avatarUrl ? (
+              <button type="button" className="button ghost compact" onClick={() => setAvatarUrl(null)}>
+                <Trash2 size={15} /> {language === 'en' ? 'Remove' : 'Kaldır'}
+              </button>
+            ) : null}
+          </div>
           <input
+            ref={avatarInputRef}
             type="file"
-            accept="image/jpeg,image/png"
+            accept="image/jpeg,image/png,image/webp"
+            className="visually-hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (!file) return;
-              void resizeAvatar(file).then(setAvatarUrl).catch((error) => pushToast(error instanceof Error ? error.message : 'Görsel işlenemedi.', 'error'));
+              event.target.value = '';
+              if (file) openEditor('avatar', file);
             }}
           />
-        </label>
-        <label className="field">
-          <span>Banner (2660×1140)</span>
+        </section>
+        <section className="field full profile-image-upload" aria-label={language === 'en' ? 'Banner' : 'Banner'}>
+          <span>{language === 'en' ? 'Banner (2660 × 1140)' : 'Banner (2660 × 1140)'}</span>
+          <div className="profile-banner-preview">
+            {bannerUrl ? <img src={bannerUrl} alt="" /> : <span className="settings-hint">Banner bulunmuyor</span>}
+          </div>
+          <div className="profile-image-actions">
+            <button type="button" className="button secondary compact" onClick={() => bannerInputRef.current?.click()}>
+              <ImageIcon size={15} /> {language === 'en' ? 'Edit Banner' : 'Banner Düzenle'}
+            </button>
+            {bannerUrl ? (
+              <button type="button" className="button ghost compact" onClick={() => setBannerUrl(null)}>
+                <Trash2 size={15} /> {language === 'en' ? 'Remove' : 'Kaldır'}
+              </button>
+            ) : null}
+          </div>
           <input
+            ref={bannerInputRef}
             type="file"
-            accept="image/jpeg,image/png"
+            accept="image/jpeg,image/png,image/webp"
+            className="visually-hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (!file) return;
-              void resizeImage(file, 1140).then(setBannerUrl).catch((error) => pushToast(error instanceof Error ? error.message : 'Görsel işlenemedi.', 'error'));
+              event.target.value = '';
+              if (file) openEditor('banner', file);
             }}
           />
-        </label>
+        </section>
       </div>
+      {editor ? (
+        <ImageCropEditor
+          imageUrl={editor.url}
+          outputWidth={editor.kind === 'avatar' ? 750 : 2660}
+          outputHeight={editor.kind === 'avatar' ? 750 : 1140}
+          shape={editor.kind === 'avatar' ? 'circle' : 'wide'}
+          title={editor.kind === 'avatar' ? (language === 'en' ? 'Edit Profile Picture' : 'Profil Fotoğrafını Düzenle') : (language === 'en' ? 'Edit Banner' : 'Banner Düzenle')}
+          onCancel={() => setEditor(null)}
+          onSave={(dataUrl) => {
+            if (editor.kind === 'avatar') setAvatarUrl(dataUrl);
+            else setBannerUrl(dataUrl);
+            setEditor(null);
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }
 
 export function ProfilePage() {
-  const { id } = useParams<{ id?: string }>();
+  const { id, username } = useParams<{ id?: string; username?: string }>();
   const { playlists } = useMusicData();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -131,11 +210,11 @@ export function ProfilePage() {
   const pushToast = useToastStore((state) => state.push);
   const [editing, setEditing] = useState(false);
 
-  const isOwn = !id || id === user?.id;
+  const isOwn = (!id && !username) || id === user?.id || username === user?.username;
   const publicProfileQuery = useQuery({
-    queryKey: ['profile', id],
-    queryFn: () => api.publicProfile(id ?? ''),
-    enabled: Boolean(id) && !isOwn,
+    queryKey: username ? ['profile', 'username', username] : ['profile', id],
+    queryFn: () => (username ? api.publicProfileByUsername(username) : api.publicProfile(id ?? '')),
+    enabled: Boolean(username || id) && !isOwn,
     staleTime: 30_000,
     retry: false,
   });
@@ -212,10 +291,13 @@ export function ProfilePage() {
           <div className="profile-copy">
             <h2>{name}</h2>
             <p>
-              {profile.username ? `@${profile.username} · ` : ''}
+              {profile.username ? `@${profile.username} · ` : (isOwn ? 'Kullanıcı adın henüz ayarlanmadı · ' : '')}
               {profile.role === 'admin' ? 'Yönetici' : 'Üye'}
               {isOwn && profile.profileVisibility === 'private' ? <ShieldCheck size={14} aria-label="Özel profil" /> : null}
             </p>
+            {isOwn && !profile.username ? (
+              <p className="settings-hint">Herkese açık profil bağlantın için bir kullanıcı adı belirle. Mevcut hesabın, parolan ve içeriklerin aynen korunur.</p>
+            ) : null}
             {profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}
             {profile.favoriteGenres.length ? (
               <div className="profile-genres" aria-label="Favori türler">
