@@ -7,7 +7,7 @@ import {
   verifySession,
 } from '../auth.js';
 import { config } from '../config.js';
-import { mirrorUsers } from '../mysqldb.js';
+import { getDatabaseStatus, mirrorUsers } from '../mysqldb.js';
 import { rateLimit } from '../ratelimit.js';
 import { isSpotifyConfigured } from '../spotifyApi.js';
 import { adminStats, createUser, findUserByEmail, findUserById, findUserByUsername, toPublicUser, touchLogin, verifyPassword } from '../users.js';
@@ -53,6 +53,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     registrationOpen: config.allowRegistration,
     mysqlEnabled: Boolean(config.mysqlHost && config.mysqlUser),
     spotifyEnabled: isSpotifyConfigured(),
+    database: await getDatabaseStatus(),
   }));
 
   app.get<{ Querystring: { username?: string } }>(

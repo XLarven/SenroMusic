@@ -215,6 +215,12 @@ export type HistoryItem = {
   source: string;
 };
 
+export type SearchHistoryItem = {
+  id: number;
+  query: string;
+  searchedAt: string;
+};
+
 export type ArtistFollow = {
   artistId: string;
   artistName: string;

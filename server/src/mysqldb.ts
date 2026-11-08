@@ -20,6 +20,8 @@ export function getMysqlConfig(): MysqlConfig {
 
 let pool: mysql.Pool | null = null;
 let initPromise: Promise<boolean> | null = null;
+let lastInitOk = false;
+let statusCache: { value: { driver: 'sqlite' | 'mysql'; configured: boolean; connected: boolean; primary: boolean; migrationsApplied: boolean }; at: number } | null = null;
 
 async function ensureColumn(
   p: mysql.Pool,
@@ -69,6 +71,8 @@ export function getPool(): mysql.Pool | null {
     connectionLimit: 10,
     queueLimit: 0,
     timezone: 'Z',
+    connectTimeout: 3000,
+    enableKeepAlive: true,
   });
   return pool;
 }
@@ -234,6 +238,17 @@ export async function initMysqlSchema(): Promise<boolean> {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
       await p.execute(`
+        CREATE TABLE IF NOT EXISTS user_search_history (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          user_id VARCHAR(64) NOT NULL,
+          query VARCHAR(512) NOT NULL,
+          searched_at VARCHAR(32) NOT NULL,
+          INDEX idx_search_history_user_time (user_id, searched_at),
+          INDEX idx_search_history_user_query (user_id, query),
+          CONSTRAINT fk_search_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await p.execute(`
         CREATE TABLE IF NOT EXISTS schema_migrations (
           id INT PRIMARY KEY,
           name VARCHAR(256) NOT NULL,
@@ -264,8 +279,10 @@ export async function initMysqlSchema(): Promise<boolean> {
         ['favorite_genres', 'favorite_genres TEXT'],
       ] as const) await ensureColumn(p, 'users', column[0], column[1]);
       await ensureIndex(p, 'users', 'idx_users_username', 'username');
+      lastInitOk = true;
       return true;
     } catch (e) {
+      lastInitOk = false;
       console.warn('[mysql] init failed:', (e as Error).message);
       return false;
     }
@@ -394,6 +411,15 @@ export async function mirrorPersonalData(): Promise<void> {
         [r.user_id, r.artist_id, r.artist_name, r.created_at],
       );
     }
+
+    const searches = db.prepare('SELECT * FROM user_search_history').all() as Array<Record<string, unknown>>;
+    for (const r of searches) {
+      await p.query(
+        `INSERT INTO user_search_history (id,user_id,query,searched_at) VALUES (?,?,?,?)
+         ON DUPLICATE KEY UPDATE user_id=VALUES(user_id),query=VALUES(query),searched_at=VALUES(searched_at)`,
+        [r.id, r.user_id, r.query, r.searched_at],
+      );
+    }
   } catch (e) {
     console.warn('[mysql] mirrorPersonalData failed:', (e as Error).message);
   }
@@ -404,6 +430,38 @@ export async function mirrorAll(): Promise<void> {
   await mirrorUsers();
   await mirrorTracksPlaylists();
   await mirrorPersonalData();
+}
+
+export async function getDatabaseStatus(): Promise<{
+  driver: 'sqlite' | 'mysql';
+  configured: boolean;
+  connected: boolean;
+  primary: boolean;
+  migrationsApplied: boolean;
+}> {
+  const { config } = await import('./config.js');
+  const driver = config.dbDriver as 'sqlite' | 'mysql';
+  const configured = Boolean(config.mysqlHost && config.mysqlUser);
+  const now = Date.now();
+  if (statusCache && now - statusCache.at < 30_000) return statusCache.value;
+  let connected = false;
+  if (configured) {
+    try {
+      const ok = await initMysqlSchema();
+      connected = ok && (await pingMysql());
+    } catch {
+      connected = false;
+    }
+  }
+  const value = {
+    driver,
+    configured,
+    connected,
+    primary: driver === 'mysql' && connected,
+    migrationsApplied: lastInitOk,
+  };
+  statusCache = { value, at: now };
+  return value;
 }
 
 export async function pingMysql(): Promise<boolean> {

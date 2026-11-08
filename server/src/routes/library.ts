@@ -7,6 +7,7 @@ import { config } from '../config.js';
 import { coverMime, resolveCoverPath } from '../covers.js';
 import { getLibrary, searchCatalog } from '../library.js';
 import { getTrackRow } from '../db.js';
+import { getDatabaseStatus } from '../mysqldb.js';
 import { parseRange } from '../range.js';
 import { rateLimit } from '../ratelimit.js';
 import { isScanning, scanLibrary } from '../scanner.js';
@@ -52,13 +53,14 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     return {
       status: 'ok',
       name: 'Norie Music',
-      version: '0.16.0',
+      version: '0.17.0',
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,
       lastScanAt: library.stats.lastScanAt,
       mysqlEnabled: Boolean(config.mysqlHost && config.mysqlUser),
       spotifyConfigured: isSpotifyConfigured(),
+      database: await getDatabaseStatus(),
     };
   });
 

@@ -7,12 +7,13 @@ type Props = {
   artist: string;
   title: string;
   duration: number;
+  album?: string;
 };
 
-export function NMLyricsPanel({ artist, title, duration }: Props) {
+export function NMLyricsPanel({ artist, title, duration, album }: Props) {
   const currentTime = usePlayer((s) => s.currentTime);
   const seek = usePlayer((s) => s.seek);
-  const { data, loading, error } = useLyrics(artist, title, duration);
+  const { data, loading, error } = useLyrics(artist, title, duration, album);
   const listRef = useRef<HTMLDivElement>(null);
   const activeIndexRef = useRef(-1);
 

@@ -2225,6 +2225,56 @@ body::before {
   margin-bottom: 22px;
 }
 
+.youtube-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.youtube-modal-card {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: rgba(18, 12, 14, 0.94);
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+}
+
+.youtube-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.youtube-player-host {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #000;
+}
+
+.youtube-player-host iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.youtube-modal-controls {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
 .profile-edit-modal {
   width: min(620px, calc(100vw - 28px));
 }

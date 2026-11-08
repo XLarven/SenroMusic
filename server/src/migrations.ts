@@ -133,6 +133,24 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 4,
+    name: 'account synchronized search history',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_search_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          query TEXT NOT NULL,
+          searched_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_search_history_user_time
+          ON user_search_history(user_id, searched_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_search_history_user_query
+          ON user_search_history(user_id, query);
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

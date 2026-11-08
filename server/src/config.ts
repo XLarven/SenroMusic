@@ -44,6 +44,8 @@ export const config = {
   mysqlPort: envInt('MYSQL_PORT', 3306),
   mysqlUser: process.env.MYSQL_USER?.trim() || '',
   mysqlPassword: process.env.MYSQL_PASSWORD || '',
+  dbDriver: process.env.DB_DRIVER?.trim().toLowerCase() === 'mysql' ? 'mysql' : 'sqlite',
+  searchHistoryLimit: envInt('SEARCH_HISTORY_LIMIT', 100),
   spotifyClientId: process.env.SPOTIFY_CLIENT_ID?.trim() || '',
   spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET?.trim() || '',
   spotifySearchLimit: envInt('SPOTIFY_SEARCH_LIMIT', 20),

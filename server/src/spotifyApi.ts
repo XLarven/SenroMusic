@@ -112,7 +112,7 @@ export async function searchSpotify(query: string, limit = config.spotifySearchL
   if (!token) throw new Error('Spotify credentials are not configured.');
   const q = query.trim().slice(0, 120);
   if (!q) throw new Error('Search query is required.');
-  const safeLimit = Math.min(Math.max(limit, 1), 50);
+  const safeLimit = Math.min(Math.max(limit, 1), 10);
   const json = (await spotifyGet(
     `/search?q=${encodeURIComponent(q)}&type=track,artist,album,playlist&limit=${safeLimit}`,
   )) as {
@@ -122,12 +122,20 @@ export async function searchSpotify(query: string, limit = config.spotifySearchL
     playlists?: { items?: Array<Record<string, unknown>> };
   };
 
+  const keep = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
   return {
-    tracks: (json.tracks?.items ?? []).map((track) => {
+    tracks: (json.tracks?.items ?? []).filter(keep).map((track) => {
       const artists = Array.isArray(track.artists)
-        ? track.artists.map((artist) => String((artist as { name?: string }).name ?? '')).filter(Boolean)
+        ? track.artists.filter(keep).map((artist) => String(artist.name ?? '')).filter(Boolean)
         : [];
-      const album = track.album as { name?: string; images?: unknown } | undefined;
+      const album = (typeof track.album === 'object' && track.album !== null ? track.album : undefined) as
+        | { name?: string; images?: unknown }
+        | undefined;
+      const externalIds = (typeof track.external_ids === 'object' && track.external_ids !== null ? track.external_ids : undefined) as
+        | { isrc?: string }
+        | undefined;
       return {
         id: String(track.id ?? ''),
         title: String(track.name ?? ''),
@@ -136,18 +144,18 @@ export async function searchSpotify(query: string, limit = config.spotifySearchL
         duration: typeof track.duration_ms === 'number' ? track.duration_ms / 1000 : null,
         artworkUrl: imageUrl(album?.images),
         sourceUrl: typeof track.href === 'string' ? track.href : null,
-        isrc: typeof track.isrc === 'string' ? track.isrc : null,
+        isrc: typeof externalIds?.isrc === 'string' ? externalIds.isrc : null,
       };
     }),
-    artists: (json.artists?.items ?? []).map((artist) => ({
+    artists: (json.artists?.items ?? []).filter(keep).map((artist) => ({
       id: String(artist.id ?? ''),
       name: String(artist.name ?? ''),
       imageUrl: imageUrl(artist.images),
       sourceUrl: typeof artist.href === 'string' ? artist.href : null,
     })),
-    albums: (json.albums?.items ?? []).map((album) => {
+    albums: (json.albums?.items ?? []).filter(keep).map((album) => {
       const artists = Array.isArray(album.artists)
-        ? album.artists.map((artist) => String((artist as { name?: string }).name ?? '')).filter(Boolean)
+        ? album.artists.filter(keep).map((artist) => String(artist.name ?? '')).filter(Boolean)
         : [];
       return {
         id: String(album.id ?? ''),
@@ -158,9 +166,13 @@ export async function searchSpotify(query: string, limit = config.spotifySearchL
         releaseDate: typeof album.release_date === 'string' ? album.release_date : null,
       };
     }),
-    playlists: (json.playlists?.items ?? []).map((playlist) => {
-      const owner = playlist.owner as { display_name?: string; id?: string } | undefined;
-      const tracks = playlist.tracks as { total?: number } | undefined;
+    playlists: (json.playlists?.items ?? []).filter(keep).map((playlist) => {
+      const owner = (typeof playlist.owner === 'object' && playlist.owner !== null ? playlist.owner : undefined) as
+        | { display_name?: string; id?: string }
+        | undefined;
+      const tracks = (typeof playlist.tracks === 'object' && playlist.tracks !== null ? playlist.tracks : undefined) as
+        | { total?: number }
+        | undefined;
       return {
         id: String(playlist.id ?? ''),
         name: String(playlist.name ?? ''),

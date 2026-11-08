@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { FastifyInstance } from 'fastify';
-import { requireAuth } from '../auth.js';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import { requireAdmin, requireAuth } from '../auth.js';
 import { rateLimit } from '../ratelimit.js';
-import { getSpotifyPlaylist, isSpotifyConfigured, searchSpotify, type SpotifyItem } from '../spotifyApi.js';
+import { getSpotifyAccessToken, getSpotifyPlaylist, isSpotifyConfigured, searchSpotify, type SpotifyItem } from '../spotifyApi.js';
 
 const execFileAsync = promisify(execFile);
 const PYTHON = process.env.PYTHON_PATH || 'python';
@@ -17,6 +17,14 @@ async function runYtDlp(args: string[]): Promise<string> {
 }
 
 type Item = SpotifyItem;
+
+function sanitizeSpotifyError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer <redacted>')
+    .replace(/grant_type=[^&\\s]+/gi, 'grant_type=<redacted>')
+    .slice(0, 500);
+}
 
 function extractPlaylistId(url: string): string | null {
   try {
@@ -150,6 +158,62 @@ async function resolveViaOembed(url: string): Promise<{ type: string; title: str
 }
 
 export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
+  app.get(
+    '/api/spotify/diagnostics',
+    {
+      preHandler: [
+        requireAdmin,
+        rateLimit({ name: 'spotify-diagnostics', max: 10, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
+    async (request, reply: FastifyReply) => {
+      const credentialsLoaded = isSpotifyConfigured();
+      let tokenIssued = false;
+      let catalogAccessible = false;
+      let playlistMetadataAccessible = false;
+      let rateLimited = false;
+      let upstreamUnavailable = false;
+      let lastError: string | null = null;
+
+      if (credentialsLoaded) {
+        try {
+          tokenIssued = Boolean(await getSpotifyAccessToken());
+        } catch (error) {
+          lastError = sanitizeSpotifyError(error);
+        }
+      }
+      if (tokenIssued) {
+        try {
+          const result = await searchSpotify('test', 1);
+          catalogAccessible = result.tracks.length > 0;
+        } catch (error) {
+          lastError = sanitizeSpotifyError(error);
+          rateLimited = /429|rate/i.test(lastError);
+          upstreamUnavailable = /5\\d\\d|fetch failed|ECONNRESET|ETIMEDOUT/i.test(lastError);
+        }
+      }
+      if (tokenIssued) {
+        try {
+          await getSpotifyPlaylist('1kP7p1pYQ8SBixphVEpTWI');
+          playlistMetadataAccessible = true;
+        } catch (error) {
+          lastError = lastError ?? sanitizeSpotifyError(error);
+          rateLimited = rateLimited || /429|rate/i.test(lastError);
+        }
+      }
+
+      return {
+        configured: credentialsLoaded,
+        tokenIssued,
+        catalogSearchAccessible: catalogAccessible,
+        playlistMetadataAccessible,
+        rateLimited,
+        upstreamUnavailable,
+        lastError,
+      };
+    },
+  );
+
   app.get<{ Querystring: { q?: string; limit?: string } }>(
     '/api/spotify/search',
     {
@@ -167,10 +231,15 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
       const q = (request.query.q ?? '').trim();
       if (!q) return reply.code(400).send({ error: { code: 'invalid_query', message: 'Arama sorgusu gerekli.' } });
       try {
-        return await searchSpotify(q, Number(request.query.limit) || 20);
+        return await searchSpotify(q, Number(request.query.limit) || 10);
       } catch (error) {
         request.log.warn({ err: error }, 'spotify search failed');
-        return reply.code(502).send({ error: { code: 'spotify_unavailable', message: 'Spotify kataloğu alınamadı.' } });
+        return reply.code(502).send({
+          error: {
+            code: 'spotify_unavailable',
+            message: 'Spotify araması şu anda kullanılamıyor. Diğer müzik kaynaklarında arama yapabilirsiniz.',
+          },
+        });
       }
     },
   );
@@ -197,7 +266,12 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
         return await getSpotifyPlaylist(id);
       } catch (error) {
         request.log.warn({ err: error }, 'spotify playlist failed');
-        return reply.code(502).send({ error: { code: 'spotify_unavailable', message: 'Spotify çalma listesi alınamadı.' } });
+        return reply.code(502).send({
+          error: {
+            code: 'spotify_unavailable',
+            message: 'Spotify çalma listesi şu anda kullanılamıyor. Bağlantıyı daha sonra tekrar deneyin.',
+          },
+        });
       }
     },
   );
@@ -219,16 +293,19 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
       if (playlistId && isSpotifyConfigured()) {
         try {
           const playlist = await getSpotifyPlaylist(playlistId);
-          return {
-            type: playlist.type,
-            title: playlist.title,
-            description: playlist.description,
-            artworkUrl: playlist.artworkUrl,
-            creator: playlist.creator,
-            totalDuration: playlist.totalDuration,
-            totalTracks: playlist.totalTracks,
-            items: playlist.items,
-          };
+          if (playlist.items.length > 0) {
+            return {
+              type: playlist.type,
+              title: playlist.title,
+              description: playlist.description,
+              artworkUrl: playlist.artworkUrl,
+              creator: playlist.creator,
+              totalDuration: playlist.totalDuration,
+              totalTracks: playlist.totalTracks,
+              items: playlist.items,
+            };
+          }
+          request.log.warn({ playlistId }, 'spotify web api returned no tracks; falling back');
         } catch (error) {
           request.log.warn({ err: error }, 'spotify web api playlist failed; falling back');
         }

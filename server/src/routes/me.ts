@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { clearSessionCookie, requireAuth } from '../auth.js';
 import { cacheCoverBuffer } from '../covers.js';
+import { config } from '../config.js';
 import { getDb, getTrackRow, trackToDto } from '../db.js';
 import { getPublicPlaylists } from '../library.js';
 import { rateLimit } from '../ratelimit.js';
@@ -394,6 +395,43 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       return { ok: true, followed: false };
     },
   );
+
+  app.get('/api/me/search-history', { preHandler: requireAuth }, async (request) => {
+    const limit = Math.min(Math.max(Number(new URL(request.url, 'http://localhost').searchParams.get('limit') ?? '50'), 1), 200);
+    const rows = getDb()
+      .prepare('SELECT id, query, searched_at FROM user_search_history WHERE user_id = ? ORDER BY searched_at DESC, id DESC LIMIT ?')
+      .all(request.user!.id, limit) as Array<{ id: number; query: string; searched_at: string }>;
+    return { items: rows.map((row) => ({ id: row.id, query: row.query, searchedAt: row.searched_at })) };
+  });
+
+  app.post<{ Body: { query?: unknown } }>(
+    '/api/me/search-history',
+    { preHandler: [requireAuth, rateLimit({ name: 'search-history', max: 60, windowMs: 60_000, keyBy: 'user' })] },
+    async (request, reply) => {
+      const query = typeof request.body?.query === 'string' ? request.body.query.trim().replace(/\s+/g, ' ') : '';
+      if (query.length < 2 || query.length > 120) return badRequest(reply, 'Arama sorgusu 2-120 karakter olmalı.');
+      if (getSetting(request.user!.id, 'historyEnabled') === false) return { ok: true, recorded: false };
+      const now = new Date().toISOString();
+      const run = getDb().transaction(() => {
+        getDb().prepare('DELETE FROM user_search_history WHERE user_id = ? AND lower(query) = lower(?)').run(request.user!.id, query);
+        getDb().prepare('INSERT INTO user_search_history (user_id, query, searched_at) VALUES (?, ?, ?)').run(request.user!.id, query, now);
+        const limit = config.searchHistoryLimit;
+        getDb().prepare(
+          `DELETE FROM user_search_history
+           WHERE user_id = ? AND id NOT IN (
+             SELECT id FROM user_search_history WHERE user_id = ? ORDER BY searched_at DESC, id DESC LIMIT ?
+           )`,
+        ).run(request.user!.id, request.user!.id, limit);
+      });
+      run();
+      return { ok: true, recorded: true };
+    },
+  );
+
+  app.delete('/api/me/search-history', { preHandler: requireAuth }, async (request) => {
+    getDb().prepare('DELETE FROM user_search_history WHERE user_id = ?').run(request.user!.id);
+    return { ok: true };
+  });
 
   app.get<{ Params: { id: string } }>(
     '/api/profiles/:id',

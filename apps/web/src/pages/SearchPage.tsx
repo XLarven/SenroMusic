@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDeferredValue, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Disc3, Download, Link2, Loader2, Music, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
+import { Disc3, Download, Link2, Loader2, Music, Play, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
 import clsx from 'clsx';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistCard } from '../components/ArtistCard';
@@ -11,6 +11,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ImportPreviewPanel, type PlaylistPreview, type PreviewItem } from '../components/ImportPreviewPanel';
 import { PlayButton } from '../components/PlayButton';
 import { TrackList } from '../components/TrackList';
+import { YouTubePlayerModal } from '../components/YouTubePlayer';
 import { useMusicData } from '../MusicDataContext';
 import { api } from '../api';
 import { useDownloads } from '../store/downloads';
@@ -109,6 +110,7 @@ export function SearchPage() {
   const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
   const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
+  const [youtubePlaying, setYoutubePlaying] = useState<YouTubeResult | null>(null);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -117,6 +119,22 @@ export function SearchPage() {
       return [];
     }
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .searchHistory(50)
+      .then((result) => {
+        if (cancelled) return;
+        const queries = result.items.map((item) => item.query);
+        setHistory(queries);
+        try { localStorage.setItem('Norie.searchHistory', JSON.stringify(queries)); } catch { /* private mode */ }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [preview, setPreview] = useState<PlaylistPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -242,7 +260,7 @@ export function SearchPage() {
     setSpotifyCatalogError(null);
     const timer = window.setTimeout(() => {
       void api
-        .spotifySearch(deferredQuery, 20)
+        .spotifySearch(deferredQuery, 10)
         .then((result) => {
           if (!cancelled) setSpotifyCatalog(result);
         })
@@ -448,7 +466,7 @@ export function SearchPage() {
     };
   }, [deferredQuery, library.tracks]);
 
-  const pushHistory = (value: string) => {
+  const pushHistory = (value: string, record = true) => {
     const clean = value.trim();
     if (clean.length < 2) return;
     setHistory((current) => {
@@ -456,6 +474,9 @@ export function SearchPage() {
       try { localStorage.setItem('Norie.searchHistory', JSON.stringify(next)); } catch { /* private mode */ }
       return next;
     });
+    if (record) {
+      void api.recordSearch(clean).catch(() => undefined);
+    }
   };
 
   const importPreview = async (selectedIndexes: number[], existingPlaylistId?: string) => {
@@ -782,6 +803,15 @@ export function SearchPage() {
                 </div>
                 <button
                   type="button"
+                  className="button secondary"
+                  onClick={() => setYoutubePlaying(item)}
+                  style={{ flexShrink: 0 }}
+                >
+                  <Play size={16} />
+                  Oynat
+                </button>
+                <button
+                  type="button"
                   className="button primary"
                   disabled={downloadingId === item.id}
                   onClick={() => void handleDownload(item)}
@@ -899,11 +929,11 @@ export function SearchPage() {
             <section className="content-section recent-searches" aria-label="Son aramalar">
               <div className="section-heading">
                 <div><h2>Son aramalar</h2><p>Tek dokunuşla devam et.</p></div>
-                <button type="button" className="text-button" onClick={() => { setHistory([]); try { localStorage.removeItem('Norie.searchHistory'); } catch { /* private mode */ } }}>Temizle</button>
+                <button type="button" className="text-button" onClick={() => { setHistory([]); void api.clearSearchHistory().catch(() => undefined); try { localStorage.removeItem('Norie.searchHistory'); } catch { /* private mode */ } }}>Temizle</button>
               </div>
               <div className="filter-pills">
                 {history.map((item) => (
-                  <button type="button" key={item} className="filter-pill" onClick={() => { setQuery(item); pushHistory(item); }}>{item}</button>
+                  <button type="button" key={item} className="filter-pill" onClick={() => { setQuery(item); pushHistory(item, false); }}>{item}</button>
                 ))}
               </div>
             </section>
@@ -1063,6 +1093,9 @@ export function SearchPage() {
           {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) && total > 0 ? renderYouTube() : null}
         </>
       )}
+      {youtubePlaying ? (
+        <YouTubePlayerModal videoId={youtubePlaying.id} title={youtubePlaying.title} onClose={() => setYoutubePlaying(null)} />
+      ) : null}
     </div>
   );
 }

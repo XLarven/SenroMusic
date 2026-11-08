@@ -380,7 +380,7 @@ export function PlayerBar() {
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--nm-border)', fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--nm-text-secondary)' }}>
             Sözler
           </div>
-          <NMLyricsPanel artist={current.artist} title={current.title} duration={safeDuration} />
+          <NMLyricsPanel artist={current.artist} title={current.title} duration={safeDuration} album={current.album} />
         </div>
       </div>
     ) : null}

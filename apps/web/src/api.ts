@@ -5,6 +5,7 @@ import type {
   Health,
   HistoryItem,
   Library,
+  SearchHistoryItem,
   Playlist,
   PlaylistSummary,
   PublicProfile,
@@ -136,6 +137,15 @@ export const api = {
       lastPlayedAt: string | null;
       topArtists: Array<{ artist: string; plays: number }>;
     }>('/api/me/history/stats'),
+  searchHistory: (limit = 50) =>
+    request<{ items: SearchHistoryItem[] }>(`/api/me/search-history?limit=${limit}`),
+  recordSearch: (query: string) =>
+    request<{ ok: boolean; recorded?: boolean }>('/api/me/search-history', {
+      method: 'POST',
+      body: { query },
+    }),
+  clearSearchHistory: () =>
+    request<{ ok: boolean }>('/api/me/search-history', { method: 'DELETE' }),
   artistFollows: () => request<{ follows: ArtistFollow[] }>('/api/me/artist-follows'),
   followArtist: (artistId: string, artistName: string) =>
     request<{ ok: boolean; followed: boolean }>('/api/me/artist-follows', {
@@ -158,7 +168,7 @@ export const api = {
   adminStats: () => request<AdminStats>('/api/admin/stats'),
   spotifyResolve: (url: string) =>
     request<SpotifyResolved>('/api/spotify/resolve', { method: 'POST', body: { url } }),
-  spotifySearch: (q: string, limit = 20) =>
+  spotifySearch: (q: string, limit = 10) =>
     request<SpotifyCatalogSearch>(
       `/api/spotify/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
