@@ -35,13 +35,14 @@ export function TopBar() {
           type="search"
         />
       </form>
-      <span style={{ flex: 1 }} />
-      <NavLink to="/notifications" className="topbar__icon" aria-label="Bildirimler" title="Bildirimler">
-        <Bell size={17} />
-      </NavLink>
-      <NavLink to="/profile" className="topbar__avatar" aria-label="Profil">
-        {initials}
-      </NavLink>
+      <div className="topbar__actions">
+        <NavLink to="/notifications" className="topbar__icon" aria-label="Bildirimler" title="Bildirimler">
+          <Bell size={17} />
+        </NavLink>
+        <NavLink to="/profile" className="topbar__avatar" aria-label="Profil">
+          {initials}
+        </NavLink>
+      </div>
     </header>
   );
 }

@@ -39,6 +39,9 @@ export function Sidebar() {
   const pushToast = useToastStore((state) => state.push);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const userName = user?.displayName || user?.email?.split('@')[0] || 'misafir';
+  const initials = (user?.displayName || user?.email || 'N').slice(0, 2).toUpperCase();
+
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
@@ -138,32 +141,48 @@ export function Sidebar() {
           </span>
         </Link>
 
-        <div className="side-utility">
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => clsx('side-utility-link', isActive && 'is-active')}
-          >
-            <Settings2 size={17} />
-            Ayarlar
-          </NavLink>
-          {user?.role === 'admin' ? (
+        <div className="side-user-card">
+          <Link to="/profile" className="side-user">
+            <span className="side-avatar" aria-hidden="true">
+              {initials}
+            </span>
+            <span className="side-user-copy">
+              <strong>{userName}</strong>
+              <small className={clsx('side-user-badge', user?.role === 'admin' && 'is-admin')}>
+                {user?.role === 'admin' ? 'Yönetici' : 'Üye'}
+              </small>
+            </span>
+          </Link>
+          <div className="side-user-actions">
             <NavLink
-              to="/admin"
-              className={({ isActive }) => clsx('side-utility-link', isActive && 'is-active')}
+              to="/settings"
+              className={({ isActive }) => clsx('side-icon-button', isActive && 'is-active')}
+              aria-label="Ayarlar"
+              title="Ayarlar"
             >
-              <ShieldCheck size={17} />
-              Kullanıcılar
+              <Settings2 size={16} />
             </NavLink>
-          ) : null}
-          <button
-            type="button"
-            className="side-utility-link"
-            onClick={() => void handleLogout()}
-            disabled={loggingOut}
-          >
-            {loggingOut ? <Loader2 size={17} className="spin" /> : <LogOut size={17} />}
-            Çıkış
-          </button>
+            {user?.role === 'admin' ? (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) => clsx('side-icon-button', isActive && 'is-active')}
+                aria-label="Kullanıcılar"
+                title="Kullanıcılar"
+              >
+                <ShieldCheck size={16} />
+              </NavLink>
+            ) : null}
+            <button
+              type="button"
+              className="side-icon-button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              aria-label="Çıkış yap"
+              title="Çıkış"
+            >
+              {loggingOut ? <Loader2 size={16} className="spin" /> : <LogOut size={16} />}
+            </button>
+          </div>
         </div>
       </div>
     </aside>

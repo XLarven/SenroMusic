@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Norie verify</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #050505;
+      }
+      iframe {
+        display: block;
+        border: 0;
+      }
+    </style>
+    <script>
+      window.addEventListener('load', function () {
+        var p = new URLSearchParams(location.search);
+        var w = parseInt(p.get('w') || '1440', 10);
+        var h = parseInt(p.get('h') || '900', 10);
+        var src = p.get('src') || '/';
+        var f = document.createElement('iframe');
+        f.width = String(w);
+        f.height = String(h);
+        f.src = src;
+        document.body.appendChild(f);
+      });
+    </script>
+  </head>
+  <body></body>
+</html>

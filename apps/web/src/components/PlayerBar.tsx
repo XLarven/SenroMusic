@@ -21,6 +21,7 @@ import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
 import { NMLyricsPanel } from './norie/NMLyricsPanel';
 import { usePlayer } from '../store/player';
+import { useFavorites } from '../store/favorites';
 import { formatDuration } from '../lib/format';
 
 export function PlayerBar() {
@@ -48,7 +49,9 @@ export function PlayerBar() {
   const setQueueOpen = usePlayer((state) => state.setQueueOpen);
   const setSleepTimer = usePlayer((state) => state.setSleepTimer);
   const [expanded, setExpanded] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const favIds = useFavorites((state) => state.ids);
+  const toggleFav = useFavorites((state) => state.toggle);
+  const liked = current ? favIds.includes(current.id) : false;
 
   const safeDuration = Math.max(duration || current?.duration || 0, 0);
   const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
@@ -91,6 +94,17 @@ export function PlayerBar() {
           <span className="player-title">{current?.title ?? 'Bir şarkı seç'}</span>
           <span className="player-artist">{current?.artist ?? 'Kitaplığın seni bekliyor'}</span>
         </div>
+        {current ? (
+          <button
+            type="button"
+            className={clsx('player-heart', liked && 'is-liked')}
+            onClick={() => toggleFav(current.id)}
+            aria-label={liked ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+            title={liked ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+          >
+            <Heart size={17} fill={liked ? 'currentColor' : 'none'} />
+          </button>
+        ) : null}
         {current ? <AddToPlaylistMenu track={current} className="player-add" /> : null}
       </div>
 
@@ -263,7 +277,7 @@ export function PlayerBar() {
           <button
             type="button"
             className={clsx('np-heart', liked && 'is-liked')}
-            onClick={() => setLiked((v) => !v)}
+            onClick={() => current && toggleFav(current.id)}
             aria-label={liked ? 'Favorilerden kaldır' : 'Favorilere ekle'}
           >
             <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
