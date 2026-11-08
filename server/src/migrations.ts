@@ -103,6 +103,36 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 3,
+    name: 'preserve imported external playlist tracks and source metadata',
+    up(db) {
+      addColumn(db, 'playlists', 'source_provider TEXT');
+      addColumn(db, 'playlists', 'source_url TEXT');
+      addColumn(db, 'playlists', 'source_playlist_id TEXT');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS playlist_external_tracks (
+          entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL,
+          provider_track_id TEXT,
+          title TEXT NOT NULL,
+          artist TEXT NOT NULL,
+          album TEXT,
+          duration REAL,
+          artwork_url TEXT,
+          source_url TEXT,
+          position INTEGER NOT NULL,
+          matched_track_id TEXT REFERENCES tracks(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_external_tracks_playlist
+          ON playlist_external_tracks(playlist_id, position);
+        CREATE INDEX IF NOT EXISTS idx_external_tracks_provider
+          ON playlist_external_tracks(provider, provider_track_id);
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

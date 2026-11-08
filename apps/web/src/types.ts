@@ -63,12 +63,32 @@ export type PlaylistSummary = {
   visibility: 'private' | 'public';
   pinned: boolean;
   isOwner: boolean;
+  sourceProvider: string | null;
+  sourceUrl: string | null;
+  sourcePlaylistId: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
+export type ExternalPlaylistTrack = {
+  entryId: number;
+  provider: string;
+  providerTrackId: string | null;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration: number | null;
+  artworkUrl: string | null;
+  sourceUrl: string | null;
+  position: number;
+  matchedTrackId: string | null;
+  status: 'playable' | 'unavailable';
+  createdAt: string;
+};
+
 export type Playlist = PlaylistSummary & {
-  tracks: Array<Track & { entryId: number }>;
+  tracks: Array<Track & { entryId: number; position: number }>;
+  externalTracks: ExternalPlaylistTrack[];
 };
 
 export type ScanResult = {
@@ -86,6 +106,11 @@ export type SpotifyItem = {
   title: string;
   artist: string;
   youtubeQuery: string;
+  providerTrackId?: string | null;
+  duration?: number | null;
+  artworkUrl?: string | null;
+  sourceUrl?: string | null;
+  album?: string | null;
 };
 
 export type SpotifyResolved = {

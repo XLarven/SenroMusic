@@ -2294,6 +2294,126 @@ body::before {
   margin-top: 8px;
 }
 
+.import-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.status-pill.is-warning {
+  border-color: rgba(255, 184, 107, 0.42);
+  color: #ffd8a8;
+  background: rgba(255, 184, 107, 0.1);
+}
+
+.status-pill.is-success {
+  border-color: rgba(110, 231, 163, 0.42);
+  color: #9df0c2;
+  background: rgba(110, 231, 163, 0.1);
+}
+
+.detail-source {
+  display: inline-block;
+  margin-top: 8px;
+  color: #ff8f99;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.detail-source:hover {
+  color: #ff5d6c;
+}
+
+.import-order {
+  width: 24px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.import-row-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.import-existing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.78rem;
+}
+
+.import-existing select {
+  min-height: 34px;
+  max-width: 240px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.import-track-list {
+  overflow: hidden;
+}
+
+.import-track-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.import-track-row:last-child {
+  border-bottom: 0;
+}
+
+.import-check {
+  display: inline-flex;
+  align-items: center;
+}
+
+.import-cover {
+  width: 46px;
+  height: 46px;
+}
+
+.import-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.import-copy strong,
+.import-copy span,
+.import-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-copy span,
+.import-copy small {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.76rem;
+}
+
+.import-track-row.is-unavailable .import-copy strong {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.import-unavailable {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: #ffb86b;
+}
+
 .import-panel {
   display: flex;
   flex-wrap: wrap;

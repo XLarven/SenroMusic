@@ -37,6 +37,9 @@ export type PlaylistRow = {
   share_slug: string | null;
   cover_id: string | null;
   cover_url: string | null;
+  source_provider: string | null;
+  source_url: string | null;
+  source_playlist_id: string | null;
   created_at: string;
   updated_at: string;
 };

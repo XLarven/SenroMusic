@@ -6,13 +6,15 @@ import clsx from 'clsx';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistCard } from '../components/ArtistCard';
 import { EmptyState } from '../components/EmptyState';
+import { ImportPreviewPanel, type PlaylistPreview, type PreviewItem } from '../components/ImportPreviewPanel';
 import { TrackList } from '../components/TrackList';
 import { useMusicData } from '../MusicDataContext';
 import { api } from '../api';
+import { useDownloads } from '../store/downloads';
 import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
 import { formatCount, formatDuration } from '../lib/format';
-import type { YouTubeResult, SpotifyResolved } from '../types';
+import type { Track, YouTubeResult, SpotifyResolved } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 type SearchTab = 'all' | 'tracks' | 'albums' | 'artists';
@@ -27,9 +29,57 @@ function normalize(value: string | null | undefined): string {
   return (value ?? '').toLocaleLowerCase('tr');
 }
 
+function isPlaylistUrl(value: string): boolean {
+  return (
+    /open\.spotify\.com\/(?:intl-[a-z-]+\/)?playlist\//.test(value) ||
+    /(?:youtube\.com|music\.youtube\.com)\/playlist\?list=/.test(value) ||
+    /youtu\.be\/[^?\s]+[?&]list=/.test(value) ||
+    /(?:^|\/)p\/[A-Za-z0-9_-]+/.test(value) ||
+    /(?:^|\/)playlist\/[A-Za-z0-9_-]+/.test(value)
+  );
+}
+
+function norieSlug(value: string): string | null {
+  const match = value.match(/(?:^|\/)p\/([A-Za-z0-9_-]+)/);
+  return match?.[1] ?? null;
+}
+
+function noriePlaylistId(value: string): string | null {
+  if (value.includes('open.spotify.com') || value.includes('youtube.com') || value.includes('youtu.be')) return null;
+  const match = value.match(/(?:^|\/)playlist\/([A-Za-z0-9_-]+)/);
+  return match?.[1] ?? null;
+}
+
+function matchTrack(item: { title: string; artist: string; duration?: number | null }, tracks: Track[]): Track | null {
+  const title = normalize(item.title);
+  const artist = normalize(item.artist);
+  let best: Track | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const track of tracks) {
+    if (normalize(track.title) !== title) continue;
+    const trackArtist = normalize(track.artist);
+    if (artist && artist !== trackArtist && !artist.includes(trackArtist) && !trackArtist.includes(artist)) continue;
+    if (item.duration != null && track.duration > 0 && Math.abs(track.duration - item.duration) > 3) continue;
+    const score = item.duration == null ? 0 : Math.abs(track.duration - item.duration);
+    if (score < bestScore) {
+      best = track;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function withMatches(
+  items: Array<Omit<PreviewItem, 'matchedTrack'>>,
+  tracks: Track[],
+): PreviewItem[] {
+  return items.map((item) => ({ ...item, matchedTrack: matchTrack(item, tracks) }));
+}
+
 export function SearchPage() {
-  const { library, refreshLibrary } = useMusicData();
+  const { library, playlists, refreshLibrary, refreshPlaylists } = useMusicData();
   const pushToast = useToastStore((state) => state.push);
+  const downloadTrack = useDownloads((state) => state.download);
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const rawTab = params.get('tab');
@@ -61,6 +111,9 @@ export function SearchPage() {
       return [];
     }
   });
+  const [preview, setPreview] = useState<PlaylistPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const setQuery = (value: string) => {
     const next = new URLSearchParams(params);
@@ -113,6 +166,11 @@ export function SearchPage() {
         .finally(() => { if (!cancelled) setSpotifyLoading(false); });
       return () => { cancelled = true; };
     }
+    if (isPlaylistUrl(needle)) {
+      setYtResults([]);
+      setYtError(null);
+      return;
+    }
     if (!needle || needle.length < 2) {
       setYtResults([]);
       setYtError(null);
@@ -140,7 +198,7 @@ export function SearchPage() {
   }, [deferredQuery, isSpotifyUrl]);
 
   useEffect(() => {
-    if (!deferredQuery || deferredQuery.length < 2 || isSpotifyUrl) {
+    if (!deferredQuery || deferredQuery.length < 2 || isSpotifyUrl || isPlaylistUrl(deferredQuery)) {
       setCatalogResults(null);
       setCatalogLoading(false);
       return;
@@ -166,6 +224,192 @@ export function SearchPage() {
     };
   }, [deferredQuery, isSpotifyUrl]);
 
+  useEffect(() => {
+    if (!spotify || !isPlaylistUrl(deferredQuery) || !deferredQuery.includes('open.spotify.com')) return;
+    const items = withMatches(
+      spotify.items.map((item) => ({
+        providerTrackId: item.providerTrackId ?? null,
+        title: item.title,
+        artist: item.artist,
+        album: item.album ?? null,
+        duration: item.duration ?? null,
+        artworkUrl: item.artworkUrl ?? null,
+        sourceUrl: item.sourceUrl ?? deferredQuery,
+      })),
+      library.tracks,
+    );
+    setPreview({
+      provider: 'spotify',
+      title: spotify.title,
+      description: null,
+      artworkUrl: items.find((item) => item.artworkUrl)?.artworkUrl ?? null,
+      creator: null,
+      totalDuration: items.reduce((sum, item) => sum + (item.duration ?? 0), 0) || null,
+      sourceUrl: deferredQuery,
+      sourcePlaylistId: deferredQuery.match(/playlist\/([^?/]+)/)?.[1] ?? null,
+      items,
+    });
+    setPreviewError(null);
+    setPreviewLoading(false);
+  }, [spotify, deferredQuery, library.tracks]);
+
+  useEffect(() => {
+    const url = deferredQuery;
+    if (!isPlaylistUrl(url) || url.includes('open.spotify.com')) {
+      if (!isPlaylistUrl(url)) {
+        setPreview(null);
+        setPreviewError(null);
+        setPreviewLoading(false);
+      }
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreview(null);
+    const slug = norieSlug(url);
+    const playlistId = noriePlaylistId(url);
+    const isYouTube = /youtube\.com|youtu\.be/.test(url);
+    const sourcePlaylistId = (() => {
+      try {
+        return new URL(url).searchParams.get('list');
+      } catch {
+        return null;
+      }
+    })();
+
+    const load = async () => {
+      if (playlistId) {
+        const playlist = await api.playlist(playlistId);
+        const entries = [
+          ...playlist.tracks.map((track) => ({
+            position: track.position,
+            item: {
+              providerTrackId: track.id,
+              title: track.title,
+              artist: track.artist,
+              album: track.album,
+              duration: track.duration,
+              artworkUrl: track.coverUrl,
+              sourceUrl: track.streamUrl,
+              matchedTrack: track,
+            },
+          })),
+          ...playlist.externalTracks.map((track) => ({
+            position: track.position,
+            item: {
+              providerTrackId: track.providerTrackId,
+              title: track.title,
+              artist: track.artist,
+              album: track.album,
+              duration: track.duration,
+              artworkUrl: track.artworkUrl,
+              sourceUrl: track.sourceUrl,
+              matchedTrack: track.matchedTrackId ? library.tracks.find((candidate) => candidate.id === track.matchedTrackId) ?? null : null,
+            },
+          })),
+        ].sort((a, b) => a.position - b.position).map((entry) => entry.item);
+        return {
+          provider: 'norie' as const,
+          title: playlist.name,
+          description: playlist.description || null,
+          artworkUrl: playlist.coverUrl,
+          creator: null,
+          totalDuration: playlist.duration || null,
+          sourceUrl: url,
+          sourcePlaylistId: playlistId,
+          items: entries,
+        } satisfies PlaylistPreview;
+      }
+      if (slug) {
+        const playlist = await api.publicPlaylistBySlug(slug);
+        const entries = [
+          ...playlist.tracks.map((track) => ({
+            position: track.position,
+            item: {
+              providerTrackId: track.id,
+              title: track.title,
+              artist: track.artist,
+              album: track.album,
+              duration: track.duration,
+              artworkUrl: track.coverUrl,
+              sourceUrl: track.streamUrl,
+              matchedTrack: track,
+            },
+          })),
+          ...playlist.externalTracks.map((track) => ({
+            position: track.position,
+            item: {
+              providerTrackId: track.providerTrackId,
+              title: track.title,
+              artist: track.artist,
+              album: track.album,
+              duration: track.duration,
+              artworkUrl: track.artworkUrl,
+              sourceUrl: track.sourceUrl,
+              matchedTrack: track.matchedTrackId ? library.tracks.find((candidate) => candidate.id === track.matchedTrackId) ?? null : null,
+            },
+          })),
+        ].sort((a, b) => a.position - b.position).map((entry) => entry.item);
+        return {
+          provider: 'norie' as const,
+          title: playlist.name,
+          description: playlist.description || null,
+          artworkUrl: playlist.coverUrl,
+          creator: null,
+          totalDuration: playlist.duration || null,
+          sourceUrl: url,
+          sourcePlaylistId: slug,
+          items: entries,
+        } satisfies PlaylistPreview;
+      }
+      if (isYouTube) {
+        const result = await api.youtubePlaylist(url);
+        const items = withMatches(
+          result.items.map((item) => ({
+            providerTrackId: item.id,
+            title: item.title,
+            artist: item.uploader,
+            album: null,
+            duration: item.duration,
+            artworkUrl: item.thumbnail,
+            sourceUrl: item.url,
+          })),
+          library.tracks,
+        );
+        return {
+          provider: url.includes('music.youtube.com') ? ('youtube-music' as const) : ('youtube' as const),
+          title: result.title,
+          description: null,
+          artworkUrl: items[0]?.artworkUrl ?? null,
+          creator: null,
+          totalDuration: items.reduce((sum, item) => sum + (item.duration ?? 0), 0) || null,
+          sourceUrl: url,
+          sourcePlaylistId,
+          items,
+        } satisfies PlaylistPreview;
+      }
+      throw new Error('Desteklenmeyen çalma listesi bağlantısı.');
+    };
+
+    const timer = window.setTimeout(() => {
+      void load()
+        .then((next) => {
+          if (!cancelled) setPreview(next);
+        })
+        .catch((error) => {
+          if (!cancelled) setPreviewError(error instanceof Error ? error.message : 'Çalma listesi önizlenemedi.');
+        })
+        .finally(() => {
+          if (!cancelled) setPreviewLoading(false);
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [deferredQuery, library.tracks]);
+
   const pushHistory = (value: string) => {
     const clean = value.trim();
     if (clean.length < 2) return;
@@ -174,6 +418,51 @@ export function SearchPage() {
       try { localStorage.setItem('Norie.searchHistory', JSON.stringify(next)); } catch { /* private mode */ }
       return next;
     });
+  };
+
+  const importPreview = async (selectedIndexes: number[], existingPlaylistId?: string) => {
+    if (!preview) return;
+    const result = await api.importPlaylist({
+      provider: preview.provider,
+      sourceUrl: preview.sourceUrl,
+      sourcePlaylistId: preview.sourcePlaylistId,
+      title: preview.title,
+      description: preview.description ?? undefined,
+      artworkUrl: preview.artworkUrl,
+      existingPlaylistId,
+      skipDuplicates: true,
+      selectedIndexes,
+      items: preview.items.map((item) => ({
+        providerTrackId: item.providerTrackId,
+        title: item.title,
+        artist: item.artist,
+        album: item.album,
+        duration: item.duration,
+        artworkUrl: item.artworkUrl,
+        sourceUrl: item.sourceUrl,
+      })),
+    });
+    await refreshPlaylists();
+    pushToast(
+      result.alreadyImported
+        ? 'Bu liste zaten kütüphanende.'
+        : `İçe aktarma bitti: ${result.importedCount} eklendi, ${result.unmatchedCount} referans korundu, ${result.skippedCount} atlandı.`,
+      'success',
+    );
+    navigate(`/playlist/${result.playlist.id}`);
+  };
+
+  const downloadAllPreview = () => {
+    if (!preview) return;
+    const tracks = preview.items.map((item) => item.matchedTrack).filter((track): track is Track => Boolean(track));
+    if (tracks.length === 0) {
+      pushToast('İndirilebilir parça yok; referanslar korunacak.', 'info');
+      return;
+    }
+    void Promise.all(tracks.map((track) => downloadTrack(track).catch(() => undefined))).then(() =>
+      pushToast('İndirme tamamlandı.', 'success'),
+    );
+    pushToast(`${tracks.length} parça indiriliyor…`, 'info');
   };
 
   const handleSpotifyImport = async () => {
@@ -439,6 +728,24 @@ export function SearchPage() {
         )}
       </div>
 
+      {isPlaylistUrl(deferredQuery) ? (
+        previewLoading ? (
+          <div className="surface-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Loader2 size={18} className="spin" />
+            <span>Çalma listesi okunuyor…</span>
+          </div>
+        ) : previewError || (!preview && !isSpotifyUrl) ? (
+          <EmptyState icon={SearchX} title="Çalma listesi önizlenemedi" description={previewError ?? 'Bağlantı desteklenmiyor veya liste gizli olabilir.'} />
+        ) : preview ? (
+          <ImportPreviewPanel
+            preview={preview}
+            playlists={playlists}
+            onImport={importPreview}
+            onDownloadAll={downloadAllPreview}
+          />
+        ) : null
+      ) : null}
+
       {!query.trim() ? (
         <>
           <section className="content-section">
@@ -567,7 +874,7 @@ export function SearchPage() {
             ))}
           </div>
 
-          {isSpotifyUrl ? (
+          {isPlaylistUrl(deferredQuery) ? null : isSpotifyUrl ? (
             renderSpotify()
           ) : total === 0 ? (
             <>
@@ -642,7 +949,7 @@ export function SearchPage() {
             </div>
           )}
 
-          {!isSpotifyUrl && total > 0 ? renderYouTube() : null}
+          {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) && total > 0 ? renderYouTube() : null}
         </>
       )}
     </div>

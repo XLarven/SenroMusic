@@ -363,7 +363,10 @@ export function LibraryPage() {
                 <Cover src={playlist.coverUrl} alt="" seed={playlist.id} className="album-row-cover" />
                 <div className="album-row-copy">
                   <strong>{playlist.name}</strong>
-                  <span>{playlist.trackCount} parça · {playlist.visibility === 'public' ? 'Herkese açık' : 'Özel'}</span>
+                  <span>
+                    {playlist.trackCount} parça · {playlist.visibility === 'public' ? 'Herkese açık' : 'Özel'}
+                    {playlist.sourceProvider ? ` · ${playlist.sourceProvider === 'spotify' ? 'Spotify' : playlist.sourceProvider === 'youtube' ? 'YouTube' : playlist.sourceProvider === 'youtube-music' ? 'YouTube Music' : 'NorieMusic'} kaynağı` : ''}
+                  </span>
                 </div>
                 <Link className="button secondary compact" to={`/playlist/${playlist.id}`}>Aç</Link>
               </article>

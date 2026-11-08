@@ -202,7 +202,20 @@ export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
           '--no-warnings',
         ]);
         const items = parseYouTubeJsonLines(output).slice(0, 500);
-        const title = items[0] ? `${items[0].uploader} öğeleri` : 'YouTube çalma listesi';
+        let title = 'YouTube çalma listesi';
+        for (const line of output.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('{')) continue;
+          try {
+            const first = JSON.parse(trimmed) as { title?: string; playlist_title?: string };
+            if (first.playlist_title || first.title) {
+              title = first.playlist_title ?? first.title ?? title;
+              break;
+            }
+          } catch {
+            // ignore
+          }
+        }
         return { title, items, total: items.length };
       } catch (error) {
         request.log.warn({ err: error }, 'youtube playlist metadata failed');

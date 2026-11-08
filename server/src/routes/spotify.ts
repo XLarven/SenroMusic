@@ -15,7 +15,29 @@ async function runYtDlp(args: string[]): Promise<string> {
   return stdout + (stderr ? `\n${stderr}` : '');
 }
 
-type Item = { title: string; artist: string; youtubeQuery: string };
+type Item = {
+  title: string;
+  artist: string;
+  youtubeQuery: string;
+  providerTrackId: string | null;
+  duration: number | null;
+  artworkUrl: string | null;
+  sourceUrl: string | null;
+  album: string | null;
+};
+
+function thumbnailOf(entry: Record<string, unknown>): string | null {
+  const thumbnails = entry.thumbnails as Array<{ url?: string }> | undefined;
+  return thumbnails?.[thumbnails.length - 1]?.url ?? null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
 
 async function resolveViaYtDlp(url: string): Promise<{ type: string; title: string; items: Item[] } | null> {
   try {
@@ -34,12 +56,30 @@ async function resolveViaYtDlp(url: string): Promise<{ type: string; title: stri
         const t = String(e.title || '').trim();
         if (!t) continue;
         const artist = String(e.uploader || e.channel || e.artist || 'Unknown').trim();
-        items.push({ title: t, artist, youtubeQuery: `${artist} ${t}`.trim() });
+        items.push({
+          title: t,
+          artist,
+          youtubeQuery: `${artist} ${t}`.trim(),
+          providerTrackId: stringOrNull(e.id),
+          duration: numberOrNull(e.duration),
+          artworkUrl: thumbnailOf(e),
+          sourceUrl: stringOrNull(e.webpage_url) ?? stringOrNull(e.url),
+          album: stringOrNull(e.album || e.album_title),
+        });
       }
     } else if (first.title) {
       const t = String(first.title);
       const artist = String(first.uploader || first.channel || 'Unknown');
-      items.push({ title: t, artist, youtubeQuery: `${artist} ${t}`.trim() });
+      items.push({
+        title: t,
+        artist,
+        youtubeQuery: `${artist} ${t}`.trim(),
+        providerTrackId: stringOrNull(first.id),
+        duration: numberOrNull(first.duration),
+        artworkUrl: thumbnailOf(first),
+        sourceUrl: stringOrNull(first.webpage_url) ?? stringOrNull(first.url),
+        album: stringOrNull(first.album || first.album_title),
+      });
     }
 
     if (items.length === 0) {
@@ -50,7 +90,16 @@ async function resolveViaYtDlp(url: string): Promise<{ type: string; title: stri
           const t = String(j.title || '').trim();
           if (!t) continue;
           const artist = String(j.uploader || j.channel || 'Unknown').trim();
-          items.push({ title: t, artist, youtubeQuery: `${artist} ${t}`.trim() });
+          items.push({
+            title: t,
+            artist,
+            youtubeQuery: `${artist} ${t}`.trim(),
+            providerTrackId: stringOrNull(j.id),
+            duration: numberOrNull(j.duration),
+            artworkUrl: thumbnailOf(j),
+            sourceUrl: stringOrNull(j.webpage_url) ?? stringOrNull(j.url),
+            album: stringOrNull(j.album || j.album_title),
+          });
         } catch {
           // ignore
         }
@@ -79,7 +128,18 @@ async function resolveViaOembed(url: string): Promise<{ type: string; title: str
     return {
       type: url.includes('/playlist/') ? 'playlist' : 'track',
       title: raw,
-      items: [{ title: titlePart, artist, youtubeQuery: `${artist} ${titlePart}`.trim() }],
+      items: [
+        {
+          title: titlePart,
+          artist,
+          youtubeQuery: `${artist} ${titlePart}`.trim(),
+          providerTrackId: null,
+          duration: null,
+          artworkUrl: null,
+          sourceUrl: url,
+          album: null,
+        },
+      ],
     };
   } catch {
     return null;

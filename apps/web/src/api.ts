@@ -210,6 +210,34 @@ export const api = {
     ),
   publicPlaylistBySlug: (slug: string) =>
     request<Playlist>(`/api/public-playlists/${encodeURIComponent(slug)}`),
+  importPlaylist: (input: {
+    provider: 'spotify' | 'youtube' | 'youtube-music' | 'norie';
+    sourceUrl: string;
+    sourcePlaylistId?: string | null;
+    title?: string;
+    description?: string;
+    artworkUrl?: string | null;
+    existingPlaylistId?: string;
+    skipDuplicates?: boolean;
+    selectedIndexes?: number[];
+    items: Array<{
+      providerTrackId?: string | null;
+      title: string;
+      artist: string;
+      album?: string | null;
+      duration?: number | null;
+      artworkUrl?: string | null;
+      sourceUrl?: string | null;
+    }>;
+  }) =>
+    request<{
+      playlist: Playlist;
+      importedCount: number;
+      matchedCount: number;
+      unmatchedCount: number;
+      skippedCount: number;
+      alreadyImported: boolean;
+    }>('/api/imports/playlist', { method: 'POST', body: input }),
   uploadPlaylistCover: (playlistId: string, imageDataUrl: string) =>
     request<Playlist>(`/api/playlists/${encodeURIComponent(playlistId)}/cover`, {
       method: 'POST',

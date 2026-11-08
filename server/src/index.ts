@@ -9,6 +9,7 @@ import { config, paths } from './config.js';
 import { closeDb } from './db.js';
 import { closeMysql, initMysqlSchema } from './mysqldb.js';
 import { authRoutes } from './routes/auth.js';
+import { importRoutes } from './routes/imports.js';
 import { libraryRoutes } from './routes/library.js';
 import { meRoutes } from './routes/me.js';
 import { playlistRoutes } from './routes/playlists.js';
@@ -70,6 +71,7 @@ export async function buildServer() {
   await app.register(authRoutes);
   await app.register(libraryRoutes);
   await app.register(meRoutes);
+  await app.register(importRoutes);
   await app.register(playlistRoutes);
   await app.register(youtubeRoutes);
   await app.register(spotifyRoutes);

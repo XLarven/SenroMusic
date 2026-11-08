@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getDb, getMeta, trackToDto, type PlaylistRow, type TrackRow } from './db.js';
-import type { Album, Artist, Library, LibraryStats, Playlist, PlaylistSummary, Track } from './types.js';
+import type { Album, Artist, ExternalPlaylistTrack, Library, LibraryStats, Playlist, PlaylistSummary, Track } from './types.js';
 import type { UserRow } from './users.js';
 
 function stableId(prefix: string, value: string): string {
@@ -103,6 +103,9 @@ function playlistSummary(row: PlaylistAggregateRow, user?: UserRow | null): Play
     visibility: row.visibility,
     pinned: row.pinned === 1,
     isOwner,
+    sourceProvider: row.source_provider,
+    sourceUrl: row.source_url,
+    sourcePlaylistId: row.source_playlist_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -165,20 +168,61 @@ export function getPlaylist(id: string, user?: UserRow | null): Playlist | null 
 
   const entries = db
     .prepare(
-      `SELECT pt.entry_id, t.*
+      `SELECT pt.entry_id, pt.position, t.*
        FROM playlist_tracks pt
        JOIN tracks t ON t.id = pt.track_id
        WHERE pt.playlist_id = ?
        ORDER BY pt.position, pt.entry_id`,
     )
-    .all(id) as Array<TrackRow & { entry_id: number }>;
+    .all(id) as Array<TrackRow & { entry_id: number; position: number }>;
+
+  const externalRows = db
+    .prepare(
+      `SELECT entry_id, provider, provider_track_id, title, artist, album, duration,
+              artwork_url, source_url, position, matched_track_id, created_at
+       FROM playlist_external_tracks
+       WHERE playlist_id = ?
+       ORDER BY position, entry_id`,
+    )
+    .all(id) as Array<{
+      entry_id: number;
+      provider: string;
+      provider_track_id: string | null;
+      title: string;
+      artist: string;
+      album: string | null;
+      duration: number | null;
+      artwork_url: string | null;
+      source_url: string | null;
+      position: number;
+      matched_track_id: string | null;
+      created_at: string;
+    }>;
 
   return {
     ...playlistSummary(row, user),
     tracks: entries.map((entry) => ({
       ...trackToDto(entry),
       entryId: entry.entry_id,
+      position: entry.position,
     })),
+    externalTracks: externalRows.map(
+      (entry): ExternalPlaylistTrack => ({
+        entryId: entry.entry_id,
+        provider: entry.provider,
+        providerTrackId: entry.provider_track_id,
+        title: entry.title,
+        artist: entry.artist,
+        album: entry.album,
+        duration: entry.duration,
+        artworkUrl: entry.artwork_url,
+        sourceUrl: entry.source_url,
+        position: entry.position,
+        matchedTrackId: entry.matched_track_id,
+        status: entry.matched_track_id ? 'playable' : 'unavailable',
+        createdAt: entry.created_at,
+      }),
+    ),
   };
 }
 

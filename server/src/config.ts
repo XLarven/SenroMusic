@@ -67,6 +67,8 @@ export const config = {
     .filter(Boolean),
   scanOnStart: envFlag('SCAN_ON_START', true),
   maxScanFiles: envInt('MAX_SCAN_FILES', 50_000),
+  maxPlaylistsPerAccount: envInt('MAX_PLAYLISTS_PER_ACCOUNT', 1000),
+  maxPlaylistTracks: envInt('MAX_PLAYLIST_TRACKS', 10_000),
   serverRoot,
   projectRoot,
 } as const;
