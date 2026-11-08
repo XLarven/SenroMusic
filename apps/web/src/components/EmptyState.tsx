@@ -1,19 +1,21 @@
+import { createElement, isValidElement, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import clsx from 'clsx';
 
 type EmptyStateProps = {
-  icon: LucideIcon;
+  icon: LucideIcon | ReactNode;
   title: string;
   description: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
+  compact?: boolean;
 };
 
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, action, className, compact }: EmptyStateProps) {
   return (
-    <div className={clsx('empty-state', className)}>
+    <div className={clsx('empty-state', compact && 'empty-state-compact', className)}>
       <div className="empty-state-icon">
-        <Icon size={26} strokeWidth={1.7} />
+        {isValidElement(Icon) ? Icon : createElement(Icon as LucideIcon, { size: 26, strokeWidth: 1.7 })}
       </div>
       <h3>{title}</h3>
       <p>{description}</p>

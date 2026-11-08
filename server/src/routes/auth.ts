@@ -8,6 +8,7 @@ import {
 } from '../auth.js';
 import { config } from '../config.js';
 import { mirrorUsers } from '../mysqldb.js';
+import { rateLimit } from '../ratelimit.js';
 import { adminStats, createUser, findUserByEmail, findUserById, toPublicUser, touchLogin, verifyPassword } from '../users.js';
 
 type RegisterBody = { email?: unknown; password?: unknown; displayName?: unknown; name?: unknown };
@@ -48,8 +49,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     mysqlEnabled: Boolean(config.mysqlHost),
   }));
 
-  app.post<{ Body: RegisterBody }>('/api/auth/register', async (request, reply) => {
-    if (!config.allowRegistration) {
+  app.post<{ Body: RegisterBody }>(
+    '/api/auth/register',
+    { preHandler: rateLimit({ name: 'register', max: 10, windowMs: 15 * 60_000 }) },
+    async (request, reply) => {
+      if (!config.allowRegistration) {
       return reply.code(403).send({ error: { code: 'registration_closed', message: 'Yeni kullanıcı kaydı kapalıdır.' } });
     }
     const emailRaw = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
@@ -79,8 +83,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     touchLogin(user.id, ip, String(request.headers['user-agent'] || ''));
     void mirrorUsers();
     setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
-    return reply.code(201).send({ ok: true, user: toPublicUser(user) });
-  });
+      return reply.code(201).send({ ok: true, user: toPublicUser(user) });
+    },
+  );
 
   app.post<{ Body: LoginBody }>('/api/auth/login', async (request, reply) => {
     const key = clientKey(request as never);

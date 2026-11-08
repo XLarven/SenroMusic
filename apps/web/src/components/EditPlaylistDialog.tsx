@@ -16,6 +16,7 @@ type EditPlaylistDialogProps = {
 export function EditPlaylistDialog({ playlist, open, onClose }: EditPlaylistDialogProps) {
   const [name, setName] = useState(playlist.name);
   const [description, setDescription] = useState(playlist.description);
+  const [visibility, setVisibility] = useState<'private' | 'public'>(playlist.visibility);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const queryClient = useQueryClient();
@@ -26,16 +27,18 @@ export function EditPlaylistDialog({ playlist, open, onClose }: EditPlaylistDial
     if (open) {
       setName(playlist.name);
       setDescription(playlist.description);
+      setVisibility(playlist.visibility);
       setError(null);
       setConfirmDelete(false);
     }
-  }, [open, playlist.name, playlist.description]);
+  }, [open, playlist.name, playlist.description, playlist.visibility]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
       api.updatePlaylist(playlist.id, {
         name: name.trim(),
         description: description.trim(),
+        visibility,
       }),
     onSuccess: async () => {
       await Promise.all([
@@ -115,6 +118,13 @@ export function EditPlaylistDialog({ playlist, open, onClose }: EditPlaylistDial
             maxLength={500}
             disabled={busy}
           />
+        </label>
+        <label>
+          <span>Görünürlük</span>
+          <select value={visibility} onChange={(event) => setVisibility(event.target.value as 'private' | 'public')} disabled={busy}>
+            <option value="private">Özel — yalnızca sen görürsün</option>
+            <option value="public">Herkese açık — giriş yapanlar görebilir</option>
+          </select>
         </label>
         {error ? <p className="form-error">{error}</p> : null}
       </form>

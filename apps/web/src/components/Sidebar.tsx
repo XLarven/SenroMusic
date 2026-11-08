@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router-dom';
 import {
   ArrowUpRight,
   Bell,
+  CloudDownload,
   Heart,
   Home,
   LibraryBig,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Ana sayfa', icon: Home, end: true },
   { to: '/search', label: 'Ara', icon: Search, end: false },
   { to: '/library', label: 'Kütüphane', icon: LibraryBig, end: false },
+  { to: '/downloads', label: 'İndirilenler', icon: CloudDownload, end: false },
   { to: '/favorites', label: 'Favoriler', icon: Heart, end: false },
   { to: '/notifications', label: 'Bildirimler', icon: Bell, end: false },
 ];
@@ -130,7 +132,7 @@ export function Sidebar() {
           <span className="server-card-top">
             <span className="status-pill">
               <span className="status-dot" />
-              Sunucu bağlı
+              Müzik arşivi
             </span>
             <ArrowUpRight size={14} />
           </span>

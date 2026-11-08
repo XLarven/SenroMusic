@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import { api } from '../api';
 import type { Track } from '../types';
+import { useDownloads } from './downloads';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -37,11 +39,73 @@ type PlayerState = {
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   handleEnded: () => void;
+  restoreSession: () => void;
 };
 
 let audio: HTMLAudioElement | null = null;
 let listenersAttached = false;
 let sleepTimerHandle: ReturnType<typeof setTimeout> | null = null;
+let lastRecordedTrackId: string | null = null;
+let lastSessionSave = 0;
+
+const SESSION_KEY = 'Norie.player.session';
+const GRACEFUL_NETWORK_MESSAGE = 'Bağlantı kesildi. Yerel dosya yoksa parça burada duraklatıldı.';
+
+type SavedSession = {
+  current: Track | null;
+  queue: Track[];
+  index: number;
+  currentTime: number;
+  shuffle: boolean;
+  repeat: RepeatMode;
+  volume: number;
+  muted: boolean;
+};
+
+function saveSession(state: PlayerState): void {
+  if (!state.current) {
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* private mode */ }
+    return;
+  }
+  const payload: SavedSession = {
+    current: state.current,
+    queue: state.queue,
+    index: state.index,
+    currentTime: state.currentTime,
+    shuffle: state.shuffle,
+    repeat: state.repeat,
+    volume: state.volume,
+    muted: state.muted,
+  };
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(payload)); } catch { /* private mode */ }
+}
+
+function loadSession(): SavedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedSession;
+    if (!parsed.current || !Array.isArray(parsed.queue)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function startTrack(track: Track, startTime = 0): Promise<void> {
+  attachAudioListeners();
+  const element = getAudio();
+  const source = await useDownloads
+    .getState()
+    .resolveSource(track)
+    .catch(() => track.streamUrl);
+  if (usePlayer.getState().current?.id !== track.id) return;
+  element.src = source;
+  if (Number.isFinite(startTime) && startTime > 0) {
+    element.currentTime = startTime;
+  }
+  playElement();
+}
 
 function getAudio(): HTMLAudioElement {
   if (!audio) {
@@ -61,6 +125,23 @@ function attachAudioListeners(): void {
 
   element.addEventListener('timeupdate', () => {
     update({ currentTime: element.currentTime });
+    const state = usePlayer.getState();
+    const stamp = Date.now();
+    if (state.current && stamp - lastSessionSave > 5000) {
+      lastSessionSave = stamp;
+      saveSession(state);
+    }
+    if (state.current && element.currentTime >= 3 && lastRecordedTrackId !== state.current.id) {
+      if (localStorage.getItem('Norie.historyEnabled') === 'false') return;
+      lastRecordedTrackId = state.current.id;
+      const source =
+        useDownloads.getState().records[state.current.id]?.state === 'downloaded'
+          ? 'download'
+          : 'stream';
+      void api
+        .recordPlay(state.current.id, Math.round(element.currentTime * 1000), source)
+        .catch(() => undefined);
+    }
   });
   element.addEventListener('durationchange', () => {
     if (Number.isFinite(element.duration)) update({ duration: element.duration });
@@ -69,14 +150,17 @@ function attachAudioListeners(): void {
     if (Number.isFinite(element.duration)) update({ duration: element.duration, loading: false });
   });
   element.addEventListener('play', () => update({ playing: true, error: null }));
-  element.addEventListener('pause', () => update({ playing: false }));
+  element.addEventListener('pause', () => {
+    update({ playing: false });
+    saveSession(usePlayer.getState());
+  });
   element.addEventListener('waiting', () => update({ loading: true }));
   element.addEventListener('canplay', () => update({ loading: false }));
   element.addEventListener('error', () => {
     update({
       playing: false,
       loading: false,
-      error: 'Parça oynatılamadı. Dosyanın sunucuda erişilebilir olduğundan emin ol.',
+      error: GRACEFUL_NETWORK_MESSAGE,
     });
   });
   element.addEventListener('ended', () => usePlayer.getState().handleEnded());
@@ -110,13 +194,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   sleepTimer: null,
 
   playTrack: (track, sourceTracks) => {
-    attachAudioListeners();
     const queue = sourceTracks && sourceTracks.length > 0 ? sourceTracks : [track];
     const index = Math.max(0, queue.findIndex((item) => item.id === track.id));
-    const element = getAudio();
-    element.src = track.streamUrl;
-    element.currentTime = 0;
-    set({
+    const nextState = {
       current: track,
       queue,
       index,
@@ -125,8 +205,10 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       currentTime: 0,
       duration: track.duration || 0,
       error: null,
-    });
-    playElement();
+    };
+    set(nextState);
+    saveSession({ ...get(), ...nextState });
+    void startTrack(track);
   },
 
   playQueue: (tracks, startIndex = 0) => {
@@ -139,11 +221,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const { queue } = get();
     const track = queue[index];
     if (!track) return;
-    attachAudioListeners();
-    const element = getAudio();
-    element.src = track.streamUrl;
-    element.currentTime = 0;
-    set({
+    const nextState = {
       current: track,
       index,
       playing: true,
@@ -151,24 +229,31 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       currentTime: 0,
       duration: track.duration || 0,
       error: null,
-    });
-    playElement();
+    };
+    set(nextState);
+    saveSession({ ...get(), ...nextState });
+    void startTrack(track);
   },
 
   toggle: () => {
     const element = getAudio();
-    const { current, queue, index } = get();
+    const { current, queue, index, currentTime } = get();
     if (!current && queue.length > 0) {
       get().playAt(index);
       return;
     }
     if (!current) return;
+    if (!element.currentSrc) {
+      void startTrack(current, currentTime);
+      return;
+    }
     if (element.paused) {
       attachAudioListeners();
       playElement();
     } else {
       element.pause();
     }
+    saveSession(get());
   },
 
   play: () => {
@@ -182,10 +267,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   next: () => {
-    const { queue, index, repeat } = get();
+    const { queue, index, repeat, shuffle } = get();
     if (queue.length === 0) return;
     let nextIndex = index + 1;
-    if (nextIndex >= queue.length) nextIndex = repeat === 'all' ? 0 : queue.length - 1;
+    if (shuffle && queue.length > 1) {
+      while (nextIndex === index) nextIndex = Math.floor(Math.random() * queue.length);
+    } else if (nextIndex >= queue.length) {
+      nextIndex = repeat === 'all' ? 0 : queue.length - 1;
+    }
     if (nextIndex === index && repeat !== 'all') {
       get().seek(getAudio().duration || get().duration);
       get().pause();
@@ -219,6 +308,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     element.muted = volume === 0;
     localStorage.setItem('Norie.volume', String(volume));
     set({ volume, muted: volume === 0 });
+    saveSession(get());
   },
 
   toggleMute: () => {
@@ -226,14 +316,20 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const muted = !element.muted;
     element.muted = muted;
     set({ muted });
+    saveSession(get());
   },
 
-  toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
+  toggleShuffle: () => {
+    set((state) => ({ shuffle: !state.shuffle }));
+    saveSession(get());
+  },
 
-  cycleRepeat: () =>
+  cycleRepeat: () => {
     set((state) => ({
       repeat: state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off',
-    })),
+    }));
+    saveSession(get());
+  },
 
   setQueueOpen: (open) => set({ queueOpen: open }),
 
@@ -274,6 +370,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       queue: nextQueue,
       index: index < currentIndex ? currentIndex - 1 : currentIndex,
     });
+    saveSession(get());
   },
 
   clearQueue: () => {
@@ -291,6 +388,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       duration: 0,
       error: null,
     });
+    saveSession(get());
   },
 
   handleEnded: () => {
@@ -315,5 +413,40 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       return;
     }
     get().playAt(nextIndex);
+  },
+
+  restoreSession: () => {
+    const saved = loadSession();
+    if (!saved?.current) return;
+    const queue = Array.isArray(saved.queue) && saved.queue.length > 0 ? saved.queue : [saved.current];
+    const index = Math.max(0, Math.min(saved.index ?? 0, queue.length - 1));
+    set({
+      current: saved.current,
+      queue,
+      index,
+      playing: false,
+      loading: false,
+      currentTime: saved.currentTime ?? 0,
+      duration: saved.current.duration || 0,
+      shuffle: Boolean(saved.shuffle),
+      repeat: saved.repeat ?? 'off',
+      volume: saved.volume ?? getAudio().volume,
+      muted: Boolean(saved.muted),
+      error: null,
+    });
+    const element = getAudio();
+    element.volume = saved.volume ?? element.volume;
+    element.muted = Boolean(saved.muted);
+    void useDownloads
+      .getState()
+      .resolveSource(saved.current)
+      .then((url) => {
+        if (get().current?.id !== saved.current?.id) return;
+        element.src = url;
+        if (Number.isFinite(saved.currentTime) && saved.currentTime > 0) {
+          element.currentTime = saved.currentTime;
+        }
+      })
+      .catch(() => undefined);
   },
 }));

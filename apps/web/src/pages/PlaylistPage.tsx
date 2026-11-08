@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ListMusic, Pencil, Play, Search, Shuffle } from 'lucide-react';
+import { ChevronLeft, CloudDownload, Copy, ImagePlus, Link2, ListMusic, Pencil, Pin, PinOff, Play, Search, Shuffle } from 'lucide-react';
 import { ApiError, api } from '../api';
 import { Cover } from '../components/Cover';
 import { EditPlaylistDialog } from '../components/EditPlaylistDialog';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton, TrackListSkeleton } from '../components/Skeleton';
 import { TrackList, type TrackListItem } from '../components/TrackList';
+import { resizeImage } from '../lib/image';
+import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { formatDate, formatLongDuration, shuffle } from '../lib/format';
@@ -36,7 +38,9 @@ export function PlaylistPage() {
   const queryClient = useQueryClient();
   const playQueue = usePlayer((state) => state.playQueue);
   const pushToast = useToastStore((state) => state.push);
+  const downloadTrack = useDownloads((state) => state.download);
   const [editing, setEditing] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const playlistQuery = useQuery({
     queryKey: ['playlist', id],
@@ -46,18 +50,73 @@ export function PlaylistPage() {
     retry: false,
   });
 
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['playlist', id] }),
+      queryClient.invalidateQueries({ queryKey: ['playlists'] }),
+    ]);
+  };
+
   const removeMutation = useMutation({
     mutationFn: ({ entryId }: { entryId: number; title: string }) => api.removeTrack(id ?? '', entryId),
     onSuccess: async (_result, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['playlist', id] }),
-        queryClient.invalidateQueries({ queryKey: ['playlists'] }),
-      ]);
+      await invalidate();
       pushToast(`“${variables.title}” listeden çıkarıldı.`, 'info');
     },
     onError: (error) => {
       pushToast(error instanceof Error ? error.message : 'Parça listeden çıkarılamadı.', 'error');
     },
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => api.duplicatePlaylist(id ?? ''),
+    onSuccess: async (copy) => {
+      await invalidate();
+      pushToast('Liste çoğaltıldı.', 'success');
+      navigate(`/playlist/${copy.id}`);
+    },
+    onError: (error) => pushToast(error instanceof Error ? error.message : 'Liste çoğaltılamadı.', 'error'),
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: () => api.pinPlaylist(id ?? ''),
+    onSuccess: async (result) => {
+      await invalidate();
+      pushToast(result.pinned ? 'Liste sabitlendi.' : 'Sabitleme kaldırıldı.', 'success');
+    },
+    onError: (error) => pushToast(error instanceof Error ? error.message : 'Sabitleme güncellenemedi.', 'error'),
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: () => api.sharePlaylist(id ?? ''),
+    onSuccess: async (result) => {
+      await invalidate();
+      const url = `${window.location.origin}/p/${result.shareSlug}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        pushToast('Herkese açık paylaşım bağlantısı kopyalandı.', 'success');
+      } catch {
+        pushToast('Liste herkese açık yapıldı. Bağlantıyı yeniden oluşturmayı dene.', 'info');
+      }
+    },
+    onError: (error) => pushToast(error instanceof Error ? error.message : 'Bağlantı oluşturulamadı.', 'error'),
+  });
+
+  const coverMutation = useMutation({
+    mutationFn: (imageDataUrl: string) => api.uploadPlaylistCover(id ?? '', imageDataUrl),
+    onSuccess: async () => {
+      await invalidate();
+      pushToast('Liste kapağı güncellendi.', 'success');
+    },
+    onError: (error) => pushToast(error instanceof Error ? error.message : 'Kapak güncellenemedi.', 'error'),
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: (entryIds: number[]) => api.reorderPlaylist(id ?? '', entryIds),
+    onSuccess: async () => {
+      await invalidate();
+    },
+    onError: (error) => pushToast(error instanceof Error ? error.message : 'Sıra güncellenemedi.', 'error'),
   });
 
   if (playlistQuery.isPending) return <PlaylistSkeleton />;
@@ -93,6 +152,17 @@ export function PlaylistPage() {
   const removeTrack = (track: TrackListItem) => {
     if (!track.entryId) return;
     removeMutation.mutate({ entryId: track.entryId, title: track.title });
+  };
+
+  const moveTrack = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= tracks.length) return;
+    const entryIds = tracks.map((track) => track.entryId).filter((entryId): entryId is number => typeof entryId === 'number');
+    if (entryIds.length !== tracks.length) return;
+    const moved = entryIds[index];
+    entryIds[index] = entryIds[target];
+    entryIds[target] = moved;
+    reorderMutation.mutate(entryIds);
   };
 
   return (
@@ -147,10 +217,72 @@ export function PlaylistPage() {
               <Shuffle size={16} />
               Karıştır
             </button>
-            <button type="button" className="button ghost" onClick={() => setEditing(true)}>
-              <Pencil size={16} />
-              Düzenle
+            {playlist.isOwner ? (
+              <>
+                <button type="button" className="button ghost" onClick={() => setEditing(true)}>
+                  <Pencil size={16} />
+                  Düzenle
+                </button>
+                <button
+                  type="button"
+                  className="button ghost"
+                  onClick={() => duplicateMutation.mutate()}
+                  disabled={duplicateMutation.isPending}
+                >
+                  <Copy size={16} />
+                  Çoğalt
+                </button>
+                <button
+                  type="button"
+                  className="button ghost"
+                  onClick={() => pinMutation.mutate()}
+                  disabled={pinMutation.isPending}
+                >
+                  {playlist.pinned ? <PinOff size={16} /> : <Pin size={16} />}
+                  Sabitle
+                </button>
+                <button
+                  type="button"
+                  className="button ghost"
+                  onClick={() => shareMutation.mutate()}
+                  disabled={shareMutation.isPending}
+                >
+                  <Link2 size={16} />
+                  Paylaş
+                </button>
+                <button type="button" className="button ghost" onClick={() => coverInputRef.current?.click()}>
+                  <ImagePlus size={16} />
+                  Kapak
+                </button>
+              </>
+            ) : null}
+            <button
+              type="button"
+              className="button ghost"
+              onClick={() => {
+                void Promise.all(tracks.map((track) => downloadTrack(track))).then(() =>
+                  pushToast('Liste indirildi.', 'success'),
+                );
+              }}
+              disabled={tracks.length === 0}
+            >
+              <CloudDownload size={16} />
+              İndir
             </button>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="visually-hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (!file || !id) return;
+                void resizeImage(file, 640)
+                  .then((dataUrl) => coverMutation.mutate(dataUrl))
+                  .catch((error) => pushToast(error instanceof Error ? error.message : 'Görsel işlenemedi.', 'error'));
+              }}
+            />
           </div>
         </div>
       </header>
@@ -172,6 +304,7 @@ export function PlaylistPage() {
             <TrackList
               tracks={tracks}
               onRemove={removeTrack}
+              onMove={playlist.isOwner ? moveTrack : undefined}
               removeLabel="Parçayı listeden çıkar"
             />
           </div>

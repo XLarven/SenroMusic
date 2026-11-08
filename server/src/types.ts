@@ -60,6 +60,9 @@ export type PlaylistSummary = {
   trackCount: number;
   duration: number;
   coverUrl: string | null;
+  visibility: 'private' | 'public';
+  pinned: boolean;
+  isOwner: boolean;
   createdAt: string;
   updatedAt: string;
 };

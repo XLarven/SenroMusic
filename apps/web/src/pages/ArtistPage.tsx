@@ -1,11 +1,15 @@
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Disc3, Shuffle, Sparkles, Users } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, Disc3, Shuffle, Sparkles, UserPlus, UserCheck, Users } from 'lucide-react';
+import { api } from '../api';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistAvatar } from '../components/ArtistAvatar';
 import { EmptyState } from '../components/EmptyState';
 import { TrackList } from '../components/TrackList';
 import { useMusicData } from '../MusicDataContext';
 import { usePlayer } from '../store/player';
+import { useToastStore } from '../store/toast';
 import {
   albumsForArtist,
   artistById,
@@ -19,8 +23,28 @@ export function ArtistPage() {
   const navigate = useNavigate();
   const { library } = useMusicData();
   const playQueue = usePlayer((state) => state.playQueue);
+  const pushToast = useToastStore((state) => state.push);
+  const queryClient = useQueryClient();
+  const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
 
   const artist = id ? artistById(library, id) : null;
+  const followsQuery = useQuery({
+    queryKey: ['artist-follows'],
+    queryFn: api.artistFollows,
+    staleTime: 30_000,
+  });
+  const followed = Boolean(artist && followsQuery.data?.follows.some((follow) => follow.artistId === artist.id));
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      if (!artist) throw new Error('Sanatçı bulunamadı.');
+      return followed ? api.unfollowArtist(artist.id) : api.followArtist(artist.id, artist.name);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['artist-follows'] });
+      pushToast(followed ? 'Takip bırakıldı.' : 'Sanatçı takip ediliyor.', 'success');
+    },
+    onError: (error) => pushToast(error instanceof Error ? error.message : 'Takip güncellenemedi.', 'error'),
+  });
 
   if (!artist) {
     return (
@@ -40,7 +64,17 @@ export function ArtistPage() {
   }
 
   const tracks = tracksForArtist(library, artist);
-  const albums = albumsForArtist(library, artist);
+  const albums = useMemo(
+    () =>
+      [...albumsForArtist(library, artist)].sort((a, b) =>
+        sort === 'newest' ? (b.year ?? 0) - (a.year ?? 0) : (a.year ?? 0) - (b.year ?? 0),
+      ),
+    [artist, library, sort],
+  );
+  const popularTracks = useMemo(
+    () => [...tracks].sort((a, b) => b.duration - a.duration).slice(0, 10),
+    [tracks],
+  );
   const duration = tracks.reduce((sum, track) => sum + track.duration, 0);
 
   return (
@@ -64,6 +98,9 @@ export function ArtistPage() {
             <span aria-hidden="true">·</span>
             <span>{formatLongDuration(duration)}</span>
           </div>
+          <p className="detail-description">
+            {artist.name} hakkında doğrulanmış biyografi bulunamadı. Kütüphanendeki albüm ve parçalar aşağıda listeleniyor.
+          </p>
           <div className="detail-actions">
             <button
               type="button"
@@ -83,6 +120,15 @@ export function ArtistPage() {
               <Shuffle size={16} />
               Karıştır
             </button>
+            <button
+              type="button"
+              className={followed ? 'button ghost' : 'button secondary'}
+              onClick={() => followMutation.mutate()}
+              disabled={followMutation.isPending}
+            >
+              {followed ? <UserCheck size={16} /> : <UserPlus size={16} />}
+              {followed ? 'Takip ediliyor' : 'Takip et'}
+            </button>
           </div>
         </div>
       </header>
@@ -90,9 +136,28 @@ export function ArtistPage() {
       <section className="content-section">
         <div className="section-heading">
           <div>
-            <h2>Albümler</h2>
+            <h2>Popüler parçalar</h2>
+            <p>Kütüphanendeki en uzun kayıtlara göre sıralandı.</p>
+          </div>
+        </div>
+        <div className="surface-panel">
+          <TrackList tracks={popularTracks} />
+        </div>
+      </section>
+
+      <section className="content-section">
+        <div className="section-heading">
+          <div>
+            <h2>Diskografi</h2>
             <p>{artist.name} tarafından kütüphanende bulunan albümler.</p>
           </div>
+          <label className="library-sort">
+            <span>Sırala</span>
+            <select value={sort} onChange={(event) => setSort(event.target.value as 'newest' | 'oldest')}>
+              <option value="newest">En yeni</option>
+              <option value="oldest">En eski</option>
+            </select>
+          </label>
         </div>
         <div className="card-grid album-grid">
           {albums.map((album) => (

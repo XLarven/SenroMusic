@@ -14,6 +14,12 @@ export type UserRow = {
   last_active_at: string | null;
   last_ip: string;
   user_agent: string;
+  bio?: string;
+  avatar_url?: string | null;
+  banner_url?: string | null;
+  profile_visibility?: 'public' | 'private';
+  username?: string | null;
+  favorite_genres?: string | null;
 };
 
 export type PublicUser = {
@@ -24,6 +30,28 @@ export type PublicUser = {
   createdAt: string;
   lastLoginAt: string | null;
   lastActiveAt: string | null;
+  username: string | null;
+  bio: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  profileVisibility: 'public' | 'private';
+  favoriteGenres: string[];
+};
+
+export type PublicProfile = {
+  id: string;
+  displayName: string;
+  username: string | null;
+  bio: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  profileVisibility: 'public' | 'private';
+  favoriteGenres: string[];
+  role: 'admin' | 'user';
+  createdAt: string;
+  publicPlaylistCount: number;
+  followedArtistCount: number;
+  isOwner: boolean;
 };
 
 export function hashPassword(password: string): string {
@@ -117,6 +145,18 @@ export function touchLogin(id: string, ip = '', userAgent = ''): void {
     .run({ id, now: iso, ip: ip.slice(0, 64), ua: userAgent.slice(0, 300) });
 }
 
+function parseGenres(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? parsed.map((item) => item.trim()).filter(Boolean).slice(0, 10)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export function toPublicUser(row: UserRow): PublicUser {
   return {
     id: row.id,
@@ -126,7 +166,72 @@ export function toPublicUser(row: UserRow): PublicUser {
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     lastActiveAt: row.last_active_at,
+    username: row.username ?? null,
+    bio: row.bio ?? '',
+    avatarUrl: row.avatar_url ?? null,
+    bannerUrl: row.banner_url ?? null,
+    profileVisibility: row.profile_visibility ?? 'public',
+    favoriteGenres: parseGenres(row.favorite_genres),
   };
+}
+
+export function toPublicProfile(row: UserRow, isOwner: boolean): PublicProfile {
+  const publicUser = toPublicUser(row);
+  return {
+    id: publicUser.id,
+    displayName: publicUser.displayName,
+    username: publicUser.username,
+    bio: publicUser.bio,
+    avatarUrl: publicUser.avatarUrl,
+    bannerUrl: publicUser.bannerUrl,
+    profileVisibility: publicUser.profileVisibility,
+    favoriteGenres: publicUser.favoriteGenres,
+    role: publicUser.role,
+    createdAt: publicUser.createdAt,
+    publicPlaylistCount: 0,
+    followedArtistCount: 0,
+    isOwner,
+  };
+}
+
+export function updateUserProfile(
+  id: string,
+  update: {
+    displayName?: string;
+    username?: string | null;
+    bio?: string;
+    avatarUrl?: string | null;
+    bannerUrl?: string | null;
+    profileVisibility?: 'public' | 'private';
+    favoriteGenres?: string[];
+  },
+): UserRow | null {
+  const now = new Date().toISOString();
+  getDb()
+    .prepare(
+      `UPDATE users
+        SET display_name = COALESCE(@displayName, display_name),
+            username = COALESCE(@username, username),
+            bio = COALESCE(@bio, bio),
+            avatar_url = COALESCE(@avatarUrl, avatar_url),
+            banner_url = COALESCE(@bannerUrl, banner_url),
+            profile_visibility = COALESCE(@profileVisibility, profile_visibility),
+            favorite_genres = COALESCE(@favoriteGenres, favorite_genres),
+            updated_at = @now
+        WHERE id = @id`,
+    )
+    .run({
+      id,
+      now,
+      displayName: update.displayName ?? null,
+      username: update.username ?? null,
+      bio: update.bio ?? null,
+      avatarUrl: update.avatarUrl ?? null,
+      bannerUrl: update.bannerUrl ?? null,
+      profileVisibility: update.profileVisibility ?? null,
+      favoriteGenres: update.favoriteGenres ? JSON.stringify(update.favoriteGenres) : null,
+    });
+  return findUserById(id);
 }
 
 export function adminStats(): {

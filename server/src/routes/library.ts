@@ -2,12 +2,13 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, extname, relative } from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { requireAuth } from '../auth.js';
+import { requireAdmin, requireAuth } from '../auth.js';
 import { config } from '../config.js';
 import { coverMime, resolveCoverPath } from '../covers.js';
-import { getLibrary } from '../library.js';
+import { getLibrary, searchCatalog } from '../library.js';
 import { getTrackRow } from '../db.js';
 import { parseRange } from '../range.js';
+import { rateLimit } from '../ratelimit.js';
 import { isScanning, scanLibrary } from '../scanner.js';
 
 const AUDIO_MIME: Record<string, string> = {
@@ -50,7 +51,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     return {
       status: 'ok',
       name: 'Norie Music',
-      version: '0.12.0',
+      version: '0.13.0',
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,
@@ -60,11 +61,24 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/library', { preHandler: requireAuth }, async () => getLibrary());
 
-  app.post('/api/scan', { preHandler: requireAuth }, async () => {
-    const alreadyRunning = isScanning();
-    const result = await scanLibrary();
-    return { ...result, alreadyRunning };
+  app.get('/api/search', { preHandler: requireAuth }, async (request, reply) => {
+    const query = String(new URL(request.url, 'http://localhost').searchParams.get('q') ?? '').trim();
+    const limit = Math.min(Math.max(Number(new URL(request.url, 'http://localhost').searchParams.get('limit') ?? '20'), 1), 100);
+    if (query.length < 1 || query.length > 120) {
+      return reply.code(400).send({ error: { code: 'invalid_query', message: 'Arama sorgusu 1-120 karakter olmalı.' } });
+    }
+    return searchCatalog(query, limit);
   });
+
+  app.post(
+    '/api/scan',
+    { preHandler: [requireAdmin, rateLimit({ name: 'scan', max: 10, windowMs: 60_000, keyBy: 'user' })] },
+    async () => {
+      const alreadyRunning = isScanning();
+      const result = await scanLibrary();
+      return { ...result, alreadyRunning };
+    },
+  );
 
   app.get<{ Params: { id: string } }>('/api/covers/:id', { preHandler: requireAuth }, async (request, reply) => {
     const filePath = resolveCoverPath(request.params.id);

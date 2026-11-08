@@ -20,8 +20,11 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { useMusicData } from '../MusicDataContext';
+import { getAppLanguage, setAppLanguage } from '../lib/i18n';
 import { getServerUrl, setServerUrl } from '../lib/serverUrl';
 import { useAuthStore } from '../store/auth';
+import { useDownloads } from '../store/downloads';
+import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import {
   formatBytes,
@@ -53,6 +56,17 @@ export function SettingsPage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [serverUrlInput, setServerUrlInput] = useState(getServerUrl());
   const [serverUrlSaving, setServerUrlSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: api.settings,
+    staleTime: 30_000,
+  });
 
   const healthQuery = useQuery({
     queryKey: ['health'],
@@ -133,7 +147,72 @@ export function SettingsPage() {
     }
   };
 
+  const saveSetting = async (key: string, value: string | number | boolean) => {
+    try {
+      await api.updateSetting(key, value);
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+      if (key === 'historyEnabled') localStorage.setItem('Norie.historyEnabled', value ? 'true' : 'false');
+      if (key === 'appLanguage') {
+        setAppLanguage(value as 'tr' | 'en');
+        window.setTimeout(() => window.location.reload(), 300);
+      }
+      if (key === 'wifiOnly') localStorage.setItem('Norie.wifiOnly', value ? 'true' : 'false');
+      if (key === 'dynamicColors') document.documentElement.classList.toggle('dynamic-colors-off', !value);
+      if (key === 'reducedMotion') document.documentElement.classList.toggle('reduced-motion', Boolean(value));
+      if (key === 'glassEffects') document.documentElement.classList.toggle('glass-off', !value);
+      if (key === 'shuffle') usePlayer.setState({ shuffle: Boolean(value) });
+      if (key === 'repeat') usePlayer.setState({ repeat: value as 'off' | 'all' | 'one' });
+      if (key === 'volume') usePlayer.setState({ volume: Number(value) });
+      pushToast('Ayar kaydedildi.', 'success');
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'Ayar kaydedilemedi.', 'error');
+    }
+  };
+
+  const changePassword = async () => {
+    setPasswordBusy(true);
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      pushToast('Parola güncellendi.', 'success');
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'Parola güncellenemedi.', 'error');
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    setDeleteBusy(true);
+    try {
+      await api.deleteAccount(deletePassword);
+      await logout();
+      pushToast('Hesap silindi.', 'info');
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'Hesap silinemedi.', 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const clearCache = async () => {
+    setClearingCache(true);
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+      pushToast('Uygulama önbelleği temizlendi.', 'success');
+    } catch {
+      pushToast('Önbellek temizlenemedi.', 'error');
+    } finally {
+      setClearingCache(false);
+    }
+  };
+
   const health = healthQuery.data;
+  const settings = settingsQuery.data?.settings ?? {};
   const online = Boolean(health && !healthQuery.isError);
   const lastScan = health?.lastScanAt ?? library.stats.lastScanAt;
 
@@ -261,6 +340,50 @@ export function SettingsPage() {
           </p>
         </section>
 
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <span className="settings-icon"><Clock3 size={19} /></span>
+            <div><h2>Oynatma</h2><p>Varsayılan çalma davranışı.</p></div>
+          </header>
+          <dl className="settings-list">
+            <div><dt>Varsayılan karıştırma</dt><dd><input type="checkbox" checked={Boolean(settings.shuffle)} onChange={(event) => void saveSetting('shuffle', event.target.checked)} /></dd></div>
+            <div><dt>Tekrar</dt><dd><select value={String(settings.repeat ?? 'off')} onChange={(event) => void saveSetting('repeat', event.target.value)}><option value="off">Kapalı</option><option value="all">Tümü</option><option value="one">Tek parça</option></select></dd></div>
+            <div><dt>Başlangıç sesi</dt><dd><input type="range" min={0} max={100} value={Math.round(Number(settings.volume ?? 80))} onChange={(event) => void saveSetting('volume', Number(event.target.value) / 100)} /></dd></div>
+            <div><dt>Dinleme geçmişi kaydı</dt><dd><input type="checkbox" checked={settings.historyEnabled !== false} onChange={(event) => void saveSetting('historyEnabled', event.target.checked)} /></dd></div>
+          </dl>
+          <p className="settings-hint">Oynatma, sayfalar arasında gezinirken aynı oyuncuda devam eder.</p>
+        </section>
+
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <span className="settings-icon"><Download size={19} /></span>
+            <div><h2>İndirmeler ve depolama</h2><p>Yalnızca bu cihazın çevrimdışı dosyaları.</p></div>
+          </header>
+          <dl className="settings-list">
+            <div><dt>Yalnızca Wi-Fi ile indir</dt><dd><input type="checkbox" checked={Boolean(settings.wifiOnly)} onChange={(event) => void saveSetting('wifiOnly', event.target.checked)} /></dd></div>
+            <div><dt>Akış kalitesi</dt><dd>Otomatik (kaynak dosya)</dd></div>
+            <div><dt>İndirme kalitesi</dt><dd>Otomatik (kaynak dosya)</dd></div>
+          </dl>
+          <div className="settings-actions">
+            <button type="button" className="button secondary" onClick={() => void clearCache()} disabled={clearingCache}>{clearingCache ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Önbelleği temizle</button>
+            <button type="button" className="button ghost" onClick={() => void (async () => { const downloads = useDownloads.getState(); for (const record of Object.values(downloads.records)) await downloads.remove(record.trackId); pushToast('Yerel indirilenler kaldırıldı.', 'success'); })()}>İndirilenleri kaldır</button>
+          </div>
+          <p className="settings-hint">İndirilenleri kaldırmak çalma listelerini veya favorileri silmez.</p>
+        </section>
+
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <span className="settings-icon"><Smartphone size={19} /></span>
+            <div><h2>Görünüm</h2><p>Donanım hızlandırma dostu görsel ayarlar.</p></div>
+          </header>
+          <dl className="settings-list">
+            <div><dt>Dinamik albüm renkleri</dt><dd><input type="checkbox" checked={settings.dynamicColors !== false} onChange={(event) => void saveSetting('dynamicColors', event.target.checked)} /></dd></div>
+            <div><dt>Hareketi azalt</dt><dd><input type="checkbox" checked={Boolean(settings.reducedMotion)} onChange={(event) => void saveSetting('reducedMotion', event.target.checked)} /></dd></div>
+            <div><dt>Cam efektleri</dt><dd><input type="checkbox" checked={settings.glassEffects !== false} onChange={(event) => void saveSetting('glassEffects', event.target.checked)} /></dd></div>
+            <div><dt>Uygulama dili</dt><dd><select value={String(settings.appLanguage ?? getAppLanguage())} onChange={(event) => void saveSetting('appLanguage', event.target.value)}><option value="tr">Türkçe</option><option value="en">English</option></select></dd></div>
+          </dl>
+        </section>
+
         <section className="settings-card settings-card-wide">
           <header className="settings-card-head">
             <span className="settings-icon">
@@ -367,6 +490,20 @@ export function SettingsPage() {
             {loggingOut ? <Loader2 size={16} className="spin" /> : <LogOut size={16} />}
             Oturumu kapat
           </button>
+        </section>
+
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <span className="settings-icon"><KeyRound size={19} /></span>
+            <div><h2>Hesap</h2><p>Parola ve hesap gizliliği.</p></div>
+          </header>
+          <label className="field"><span>Mevcut parola</span><input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
+          <label className="field"><span>Yeni parola</span><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+          <button type="button" className="button secondary full" onClick={() => void changePassword()} disabled={passwordBusy || !currentPassword || newPassword.length < 8}>{passwordBusy ? <Loader2 size={16} className="spin" /> : <KeyRound size={16} />} Parolayı değiştir</button>
+          <div className="danger-zone">
+            <label className="field"><span>Hesabı silmek için parolayı gir</span><input type="password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label>
+            <button type="button" className="button danger full" onClick={() => void deleteAccount()} disabled={deleteBusy || !deletePassword}>{deleteBusy ? <Loader2 size={16} className="spin" /> : <LogOut size={16} />} Hesabı sil</button>
+          </div>
         </section>
 
         <section className="settings-card settings-legal">

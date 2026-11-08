@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
+import { rateLimit } from '../ratelimit.js';
 import { scanLibrary } from '../scanner.js';
 
 const execFileAsync = promisify(execFile);
@@ -43,10 +44,75 @@ async function runYtDlp(args: string[]): Promise<string> {
   return stdout + (stderr ? `\n${stderr}` : '');
 }
 
+type YouTubeVideo = {
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  thumbnail: string;
+  url: string;
+};
+
+function parseYouTubeJsonLines(output: string): YouTubeVideo[] {
+  const results: YouTubeVideo[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) continue;
+    try {
+      const item = JSON.parse(trimmed) as {
+        id?: string;
+        title?: string;
+        uploader?: string;
+        channel?: string;
+        duration?: number;
+        thumbnails?: Array<{ url?: string }>;
+        webpage_url?: string;
+        url?: string;
+      };
+      if (!item.id || !item.title) continue;
+      const thumb =
+        item.thumbnails?.[item.thumbnails.length - 1]?.url ||
+        `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`;
+      results.push({
+        id: item.id,
+        title: item.title,
+        uploader: item.uploader || item.channel || 'Unknown',
+        duration: typeof item.duration === 'number' ? item.duration : null,
+        thumbnail: thumb,
+        url: item.webpage_url || item.url || `https://www.youtube.com/watch?v=${item.id}`,
+      });
+    } catch {
+      // ignore non-json lines
+    }
+  }
+  const seen = new Set<string>();
+  return results.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function extractPlaylistId(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    if (!['youtube.com', 'www.youtube.com', 'music.youtube.com', 'youtu.be'].includes(url.hostname)) return null;
+    const list = url.searchParams.get('list');
+    return list && list.length <= 128 ? list : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { q?: string; limit?: string } }>(
     '/api/youtube/search',
-    { preHandler: requireAuth },
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'youtube-search', max: 60, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
     async (request) => {
       const q = (request.query.q ?? '').trim();
       const limit = Math.min(Math.max(Number(request.query.limit) || 10, 1), 25);
@@ -112,9 +178,49 @@ export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  app.get<{ Querystring: { url?: string } }>(
+    '/api/youtube/playlist',
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'youtube-playlist', max: 20, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
+    async (request, reply) => {
+      const rawUrl = (request.query.url ?? '').trim();
+      const playlistId = extractPlaylistId(rawUrl);
+      if (!playlistId) {
+        return reply.code(400).send({
+          error: { code: 'invalid_playlist_url', message: 'Geçerli bir YouTube çalma listesi bağlantısı girin.' },
+        });
+      }
+      try {
+        const output = await runYtDlp([
+          `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`,
+          '--dump-json',
+          '--flat-playlist',
+          '--no-warnings',
+        ]);
+        const items = parseYouTubeJsonLines(output).slice(0, 500);
+        const title = items[0] ? `${items[0].uploader} öğeleri` : 'YouTube çalma listesi';
+        return { title, items, total: items.length };
+      } catch (error) {
+        request.log.warn({ err: error }, 'youtube playlist metadata failed');
+        return reply.code(502).send({
+          error: { code: 'playlist_unavailable', message: 'Liste alınamadı. Özel veya kaldırılmış olabilir.' },
+        });
+      }
+    },
+  );
+
   app.post<{ Body: { id?: string; title?: string; uploader?: string; thumbnail?: string } }>(
     '/api/youtube/download',
-    { preHandler: requireAuth },
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'youtube-download', max: 20, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
     async (request, reply) => {
       const id = (request.body?.id ?? '').trim();
       if (!id || !/^[A-Za-z0-9_-]{6,}$/.test(id)) {

@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
-import { Pause, Play, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Heart, Pause, Play, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { Cover } from './Cover';
 import { AddToPlaylistMenu } from './AddToPlaylistMenu';
+import { DownloadButton } from './DownloadButton';
 import { formatDuration } from '../lib/format';
 import { usePlayer } from '../store/player';
+import { useFavorites } from '../store/favorites';
 import type { Track } from '../types';
 
 export type TrackListItem = Track & { entryId?: number };
@@ -17,6 +19,7 @@ type TrackListProps = {
   className?: string;
   onRemove?: (track: TrackListItem) => void;
   removeLabel?: string;
+  onMove?: (index: number, direction: -1 | 1) => void;
 };
 
 function Equalizer() {
@@ -29,6 +32,26 @@ function Equalizer() {
   );
 }
 
+function FavoriteAction({ track }: { track: Track }) {
+  const isFav = useFavorites((state) => state.ids.includes(track.id));
+  const toggleFav = useFavorites((state) => state.toggle);
+  return (
+    <button
+      type="button"
+      className={clsx('icon-button subtle track-action favorite-button', isFav && 'is-active')}
+      title={isFav ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+      aria-label={isFav ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+      aria-pressed={isFav}
+      onClick={(event) => {
+        event.stopPropagation();
+        void toggleFav(track.id).catch(() => undefined);
+      }}
+    >
+      <Heart size={16} fill={isFav ? 'currentColor' : 'none'} />
+    </button>
+  );
+}
+
 export function TrackList({
   tracks,
   showAlbum = true,
@@ -37,6 +60,7 @@ export function TrackList({
   className,
   onRemove,
   removeLabel = 'Listeden çıkar',
+  onMove,
 }: TrackListProps) {
   const current = usePlayer((state) => state.current);
   const playing = usePlayer((state) => state.playing);
@@ -129,7 +153,39 @@ export function TrackList({
             <span className="track-duration">{formatDuration(track.duration)}</span>
 
             <div className="track-actions">
+              <FavoriteAction track={track} />
+              <DownloadButton track={track} />
               <AddToPlaylistMenu track={track} className="track-action" />
+              {onMove ? (
+                <>
+                  <button
+                    type="button"
+                    className="icon-button subtle track-action"
+                    title="Yukarı taşı"
+                    aria-label="Yukarı taşı"
+                    disabled={index === 0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onMove(index, -1);
+                    }}
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button subtle track-action"
+                    title="Aşağı taşı"
+                    aria-label="Aşağı taşı"
+                    disabled={index === tracks.length - 1}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onMove(index, 1);
+                    }}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                </>
+              ) : null}
               {onRemove ? (
                 <button
                   type="button"

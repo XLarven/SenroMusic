@@ -1,4 +1,5 @@
 import type { Album, Artist, Library, Track } from '../types';
+import { getAppLanguage, localeForLanguage } from './i18n';
 
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
@@ -11,12 +12,13 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatLongDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '0 dk';
+  const language = getAppLanguage();
+  if (!Number.isFinite(seconds) || seconds <= 0) return language === 'en' ? '0 min' : '0 dk';
   const totalMinutes = Math.round(seconds / 60);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours} sa ${minutes} dk`;
-  return `${totalMinutes} dk`;
+  if (hours > 0) return language === 'en' ? `${hours} hr ${minutes} min` : `${hours} sa ${minutes} dk`;
+  return language === 'en' ? `${totalMinutes} min` : `${totalMinutes} dk`;
 }
 
 export function formatBytes(bytes: number): string {
@@ -28,10 +30,11 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatDate(iso: string | null): string {
-  if (!iso) return 'Henüz taranmadı';
+  const language = getAppLanguage();
+  if (!iso) return language === 'en' ? 'Not scanned yet' : 'Henüz taranmadı';
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Bilinmiyor';
-  return new Intl.DateTimeFormat('tr-TR', {
+  if (Number.isNaN(date.getTime())) return language === 'en' ? 'Unknown' : 'Bilinmiyor';
+  return new Intl.DateTimeFormat(localeForLanguage(language), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -42,6 +45,12 @@ export function formatDate(iso: string | null): string {
 
 export function greeting(now = new Date()): string {
   const hour = now.getHours();
+  if (getAppLanguage() === 'en') {
+    if (hour < 6) return 'Good night';
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
   if (hour < 6) return 'İyi geceler';
   if (hour < 12) return 'Günaydın';
   if (hour < 18) return 'İyi günler';
@@ -49,7 +58,7 @@ export function greeting(now = new Date()): string {
 }
 
 export function formatCount(value: number): string {
-  return new Intl.NumberFormat('tr-TR').format(value);
+  return new Intl.NumberFormat(localeForLanguage(getAppLanguage())).format(value);
 }
 
 export function tracksForAlbum(library: Library, album: Album): Track[] {

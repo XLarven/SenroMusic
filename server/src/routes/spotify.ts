@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
+import { rateLimit } from '../ratelimit.js';
 
 const execFileAsync = promisify(execFile);
 const PYTHON = process.env.PYTHON_PATH || 'python';
@@ -88,7 +89,12 @@ async function resolveViaOembed(url: string): Promise<{ type: string; title: str
 export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { url?: string } }>(
     '/api/spotify/resolve',
-    { preHandler: requireAuth },
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'spotify-resolve', max: 20, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
     async (request, reply) => {
       const url = (request.body?.url ?? '').trim();
       if (!url || !url.includes('open.spotify.com')) {

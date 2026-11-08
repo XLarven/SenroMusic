@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../api';
 import type { User } from '../types';
+import { useFavorites } from './favorites';
 
 type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
 
@@ -16,6 +17,7 @@ type AuthState = {
   logout: () => Promise<void>;
   setAnonymous: () => void;
   clearError: () => void;
+  updateUser: (user: User) => void;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -28,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const result = await api.me();
       set({ status: 'authenticated', user: result.user ?? null, error: null });
+      void useFavorites.getState().load();
     } catch {
       set({ status: 'anonymous', user: null });
     }
@@ -38,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const result = await api.login(email, password);
       set({ status: 'authenticated', user: result.user, error: null });
+      void useFavorites.getState().load();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Giriş yapılamadı.';
       set({ error: message });
@@ -50,6 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const result = await api.register(email, password, displayName);
       set({ status: 'authenticated', user: result.user, error: null });
+      void useFavorites.getState().load();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Kayıt oluşturulamadı.';
       set({ error: message });
@@ -79,4 +84,5 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setAnonymous: () => set({ status: 'anonymous', user: null }),
   clearError: () => set({ error: null }),
+  updateUser: (user) => set({ user }),
 }));

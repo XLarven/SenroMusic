@@ -46,6 +46,21 @@ export function SearchPage() {
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [ytPlaylistUrl, setYtPlaylistUrl] = useState('');
+  const [ytPlaylist, setYtPlaylist] = useState<{ title: string; items: YouTubeResult[]; total: number } | null>(null);
+  const [ytPlaylistLoading, setYtPlaylistLoading] = useState(false);
+  const [ytPlaylistError, setYtPlaylistError] = useState<string | null>(null);
+  const [ytPlaylistImporting, setYtPlaylistImporting] = useState(false);
+  const [catalogResults, setCatalogResults] = useState<{ tracks: import('../types').Track[]; albums: import('../types').Album[]; artists: import('../types').Artist[] } | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [history, setHistory] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('Norie.searchHistory');
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const setQuery = (value: string) => {
     const next = new URLSearchParams(params);
@@ -61,7 +76,7 @@ export function SearchPage() {
     setParams(next, { replace: true });
   };
 
-  const results = useMemo(() => {
+  const localResults = useMemo(() => {
     const needle = normalize(deferredQuery);
     if (!needle) {
       return { tracks: [], albums: [], artists: [] };
@@ -78,6 +93,8 @@ export function SearchPage() {
       artists: library.artists.filter((artist) => normalize(artist.name).includes(needle)),
     };
   }, [deferredQuery, library]);
+
+  const results = catalogResults ?? localResults;
 
   const total = results.tracks.length + results.albums.length + results.artists.length;
 
@@ -122,32 +139,131 @@ export function SearchPage() {
     };
   }, [deferredQuery, isSpotifyUrl]);
 
+  useEffect(() => {
+    if (!deferredQuery || deferredQuery.length < 2 || isSpotifyUrl) {
+      setCatalogResults(null);
+      setCatalogLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCatalogLoading(true);
+    const timer = window.setTimeout(() => {
+      void api
+        .search(deferredQuery, 30)
+        .then((found) => {
+          if (!cancelled) setCatalogResults(found);
+        })
+        .catch(() => {
+          if (!cancelled) setCatalogResults(null);
+        })
+        .finally(() => {
+          if (!cancelled) setCatalogLoading(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [deferredQuery, isSpotifyUrl]);
+
+  const pushHistory = (value: string) => {
+    const clean = value.trim();
+    if (clean.length < 2) return;
+    setHistory((current) => {
+      const next = [clean, ...current.filter((item) => item.toLocaleLowerCase('tr') !== clean.toLocaleLowerCase('tr'))].slice(0, 8);
+      try { localStorage.setItem('Norie.searchHistory', JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+  };
+
   const handleSpotifyImport = async () => {
     if (!spotify || importing) return;
     setImporting(true);
     try {
       const playlist = await api.createPlaylist({ name: spotify.title.slice(0, 80) || 'Spotify İçe Aktarma' });
-      pushToast(`“${playlist.name}” oluşturuldu. ${spotify.items.length} şarkı indiriliyor…`, 'info');
       let ok = 0;
       let fail = 0;
       for (const item of spotify.items) {
+        const needle = normalize(item.title);
+        const artist = normalize(item.artist);
+        const match = library.tracks.find(
+          (track) =>
+            normalize(track.title).includes(needle) &&
+            (artist === '' || normalize(track.artist).includes(artist) || normalize(track.albumArtist).includes(artist)),
+        );
+        if (!match) {
+          fail += 1;
+          continue;
+        }
         try {
-          const yt = await api.youtubeSearch(item.youtubeQuery, 1);
-          const first = yt.results[0];
-          if (!first) { fail += 1; continue; }
-          await api.youtubeDownload({ id: first.id, title: item.title, uploader: item.artist, thumbnail: first.thumbnail });
+          await api.addTrack(playlist.id, match.id);
           ok += 1;
         } catch {
           fail += 1;
         }
       }
-      await refreshLibrary();
-      pushToast(`İçe aktarma bitti: ${ok} indirildi${fail ? `, ${fail} bulunamadı` : ''}.`, fail > 0 ? 'info' : 'success');
+      pushToast(
+        `İçe aktarma bitti: ${ok} parça listeye eklendi${fail ? `, ${fail} bulunamadı` : ''}.`,
+        fail > 0 ? 'info' : 'success',
+      );
       navigate(`/playlist/${playlist.id}`);
     } catch (error) {
       pushToast(error instanceof Error ? error.message : 'İçe aktarma başarısız.', 'error');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const fetchYtPlaylist = async () => {
+    if (!ytPlaylistUrl.trim()) return;
+    setYtPlaylistLoading(true);
+    setYtPlaylistError(null);
+    setYtPlaylist(null);
+    try {
+      const result = await api.youtubePlaylist(ytPlaylistUrl.trim());
+      setYtPlaylist(result);
+    } catch (error) {
+      setYtPlaylistError(error instanceof Error ? error.message : 'Çalma listesi alınamadı.');
+    } finally {
+      setYtPlaylistLoading(false);
+    }
+  };
+
+  const importYtPlaylist = async () => {
+    if (!ytPlaylist || ytPlaylistImporting) return;
+    setYtPlaylistImporting(true);
+    try {
+      const playlist = await api.createPlaylist({ name: ytPlaylist.title.slice(0, 80) || 'YouTube İçe Aktarma' });
+      let ok = 0;
+      let fail = 0;
+      for (const item of ytPlaylist.items) {
+        const needle = normalize(item.title);
+        const artist = normalize(item.uploader);
+        const match = library.tracks.find(
+          (track) =>
+            normalize(track.title).includes(needle) &&
+            (artist === '' || normalize(track.artist).includes(artist)),
+        );
+        if (!match) {
+          fail += 1;
+          continue;
+        }
+        try {
+          await api.addTrack(playlist.id, match.id);
+          ok += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+      pushToast(
+        `İçe aktarma bitti: ${ok} parça listeye eklendi${fail ? `, ${fail} bulunamadı` : ''}.`,
+        fail > 0 ? 'info' : 'success',
+      );
+      navigate(`/playlist/${playlist.id}`);
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'İçe aktarma başarısız.', 'error');
+    } finally {
+      setYtPlaylistImporting(false);
     }
   };
 
@@ -190,7 +306,7 @@ export function SearchPage() {
       <div className="section-heading">
         <div>
           <h2>Spotify içe aktar</h2>
-          <p>Bağlantıyı algıladık — playlist olarak oluşturup YouTube üzerinden MP3 indiririz.</p>
+          <p>Bağlantıyı algıladık — yalnızca kütüphanende bulunan parçalar listeye eklenir.</p>
         </div>
       </div>
       {spotifyLoading ? (
@@ -206,11 +322,11 @@ export function SearchPage() {
             <div style={{ flex: 1, minWidth: 200 }}>
               <strong style={{ fontSize: '1rem' }}>{spotify.title}</strong>
               <div style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: 4 }}>
-                {spotify.items.length} şarkı — YouTube'da aranıp indirilecek, çevrimdışı çalınacak.
+                {spotify.items.length} şarkı — yalnızca kütüphanende bulunanlar eşleştirilecek.
               </div>
             </div>
             <button type="button" className="button primary" disabled={importing} onClick={() => void handleSpotifyImport()}>
-              {importing ? <><Loader2 size={16} className="spin" /> İndiriliyor…</> : <><Download size={16} /> Playlist oluştur ve indir</>}
+              {importing ? <><Loader2 size={16} className="spin" /> İçe aktarılıyor…</> : <><Download size={16} /> Playlist oluştur</>}
             </button>
           </div>
           <ul style={{ marginTop: 12, padding: 0, listStyle: 'none' }}>
@@ -301,10 +417,13 @@ export function SearchPage() {
       </header>
 
       <div className="search-box">
-        <Search size={22} aria-hidden="true" />
+        {catalogLoading ? <Loader2 size={22} className="spin" aria-hidden="true" /> : <Search size={22} aria-hidden="true" />}
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') pushHistory(query);
+          }}
           placeholder="Şarkı, albüm, sanatçı veya Spotify linki yapıştır…"
           autoFocus
           aria-label="Kitaplıkta ara"
@@ -322,6 +441,56 @@ export function SearchPage() {
 
       {!query.trim() ? (
         <>
+          <section className="content-section">
+            <div className="section-heading">
+              <div>
+                <h2>YouTube çalma listesi içe aktar</h2>
+                <p>Bağlantıyı yapıştır; yalnızca kütüphanende bulunan parçalar listeye eklenir.</p>
+              </div>
+            </div>
+            <div className="surface-panel import-panel">
+              <input
+                type="url"
+                value={ytPlaylistUrl}
+                onChange={(event) => setYtPlaylistUrl(event.target.value)}
+                placeholder="https://www.youtube.com/playlist?list=…"
+                aria-label="YouTube çalma listesi bağlantısı"
+              />
+              <button type="button" className="button secondary" onClick={() => void fetchYtPlaylist()} disabled={ytPlaylistLoading || !ytPlaylistUrl.trim()}>
+                {ytPlaylistLoading ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
+                {ytPlaylistLoading ? 'Okunuyor…' : 'Önizle'}
+              </button>
+              {ytPlaylistError ? <p className="form-error">{ytPlaylistError}</p> : null}
+              {ytPlaylist ? (
+                <div className="import-preview">
+                  <strong>{ytPlaylist.title}</strong>
+                  <span>{ytPlaylist.items.length} öğe</span>
+                  <ul>
+                    {ytPlaylist.items.slice(0, 6).map((item) => (
+                      <li key={item.id}><strong>{item.title}</strong> <span>{item.uploader}</span></li>
+                    ))}
+                  </ul>
+                  <button type="button" className="button primary" onClick={() => void importYtPlaylist()} disabled={ytPlaylistImporting}>
+                    {ytPlaylistImporting ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+                    {ytPlaylistImporting ? 'İçe aktarılıyor…' : 'Playlist oluştur'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </section>
+          {history.length > 0 ? (
+            <section className="content-section recent-searches" aria-label="Son aramalar">
+              <div className="section-heading">
+                <div><h2>Son aramalar</h2><p>Tek dokunuşla devam et.</p></div>
+                <button type="button" className="text-button" onClick={() => { setHistory([]); try { localStorage.removeItem('Norie.searchHistory'); } catch { /* private mode */ } }}>Temizle</button>
+              </div>
+              <div className="filter-pills">
+                {history.map((item) => (
+                  <button type="button" key={item} className="filter-pill" onClick={() => { setQuery(item); pushHistory(item); }}>{item}</button>
+                ))}
+              </div>
+            </section>
+          ) : null}
           {genres.length > 0 ? (
             <section className="content-section">
               <div className="section-heading">
@@ -402,9 +571,12 @@ export function SearchPage() {
             renderSpotify()
           ) : total === 0 ? (
             <>
-              <p style={{ color: 'var(--muted)', margin: '10px 0 4px' }}>
-                Kütüphanende yok — YouTube'da aradık, aşağıdan çevrimdışı dinlemek için indir.
-              </p>
+              <EmptyState
+                icon={SearchX}
+                title="Sonuç bulunamadı."
+                description="Başka bir şarkı, sanatçı veya albüm deneyin."
+                compact
+              />
               {renderYouTube()}
             </>
           ) : (

@@ -7,6 +7,7 @@ import { useAuthStore } from './store/auth';
 import { AdminPage } from './pages/AdminPage';
 import { AlbumPage } from './pages/AlbumPage';
 import { ArtistPage } from './pages/ArtistPage';
+import { DownloadsPage } from './pages/DownloadsPage';
 import { HomePage } from './pages/HomePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { LoginPage } from './pages/LoginPage';
@@ -17,6 +18,7 @@ import { FavoritesPage } from './pages/FavoritesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SharedPlaylistPage } from './pages/SharedPlaylistPage';
 
 function Splash() {
   return (
@@ -64,10 +66,13 @@ export function App() {
         <Route path="album/:id" element={<AlbumPage />} />
         <Route path="artist/:id" element={<ArtistPage />} />
         <Route path="playlist/:id" element={<PlaylistPage />} />
+        <Route path="p/:slug" element={<SharedPlaylistPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="downloads" element={<DownloadsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="profile/:id" element={<ProfilePage />} />
         <Route path="admin" element={<AdminPage />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFoundPage />} />

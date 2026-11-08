@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ChevronDown,
   Heart,
@@ -19,6 +19,7 @@ import {
 import clsx from 'clsx';
 import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
+import { DownloadButton } from './DownloadButton';
 import { NMLyricsPanel } from './norie/NMLyricsPanel';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
@@ -52,6 +53,52 @@ export function PlayerBar() {
   const favIds = useFavorites((state) => state.ids);
   const toggleFav = useFavorites((state) => state.toggle);
   const liked = current ? favIds.includes(current.id) : false;
+  const [accent, setAccent] = useState<[number, number, number] | null>(null);
+
+  useEffect(() => {
+    if (!current?.coverUrl || document.documentElement.classList.contains('dynamic-colors-off')) {
+      setAccent(null);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 5;
+        canvas.height = 5;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return;
+        context.drawImage(img, 0, 0, 5, 5);
+        const data = context.getImageData(0, 0, 5, 5).data;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if ((data[i + 3] ?? 0) < 128) continue;
+          r += data[i] ?? 0;
+          g += data[i + 1] ?? 0;
+          b += data[i + 2] ?? 0;
+          count += 1;
+        }
+        if (!count || cancelled) return;
+        setAccent([Math.round(r / count), Math.round(g / count), Math.round(b / count)]);
+      } catch {
+        // Tainted or unsupported images simply keep the default accent.
+      }
+    };
+    img.src = current.coverUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.coverUrl]);
+
+  const accentCss = accent ? `rgb(${accent[0]}, ${accent[1]}, ${accent[2]})` : null;
+  const npSheetStyle = accentCss
+    ? { background: `radial-gradient(circle at 50% 0%, ${accentCss}33, transparent 56%), var(--nm-bg)` } as CSSProperties
+    : undefined;
 
   const safeDuration = Math.max(duration || current?.duration || 0, 0);
   const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
@@ -246,7 +293,7 @@ export function PlayerBar() {
     </section>
 
     {expanded && current ? (
-      <div className="np-sheet" role="dialog" aria-label="Şimdi çalınıyor">
+      <div className="np-sheet" role="dialog" aria-label="Şimdi çalınıyor" style={npSheetStyle}>
         <div className="np-top">
           <button
             type="button"
@@ -282,6 +329,8 @@ export function PlayerBar() {
           >
             <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
           </button>
+          <DownloadButton track={current} />
+          <AddToPlaylistMenu track={current} className="player-add" />
         </div>
 
         <div className="np-controls">

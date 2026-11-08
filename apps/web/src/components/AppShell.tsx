@@ -5,6 +5,7 @@ import { Loader2, LogOut, RefreshCw, WifiOff } from 'lucide-react';
 import { api } from '../api';
 import { MusicDataContext, type MusicData } from '../MusicDataContext';
 import { useAuthStore } from '../store/auth';
+import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { Logo } from './Logo';
@@ -118,6 +119,16 @@ export function AppShell() {
       refreshPlaylists,
     };
   }, [library, playlistPayload, refreshLibrary, refreshPlaylists]);
+
+  useEffect(() => {
+    void useDownloads.getState().init();
+    usePlayer.getState().restoreSession();
+  }, []);
+
+  useEffect(() => {
+    if (!library) return;
+    void useDownloads.getState().validateTracks(library.tracks);
+  }, [library]);
 
   useEffect(() => {
     if (!mainRef.current) return;

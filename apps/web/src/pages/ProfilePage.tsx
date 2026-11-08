@@ -1,62 +1,273 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight, LogOut, Settings2 } from 'lucide-react';
-import { Cover } from '../components/Cover';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowRight, Camera, LogOut, Pencil, Settings2, ShieldCheck, UserRound } from 'lucide-react';
+import { api } from '../api';
+import { EmptyState } from '../components/EmptyState';
 import { PlaylistCard } from '../components/PlaylistCard';
+import { Modal } from '../components/Modal';
 import { useMusicData } from '../MusicDataContext';
+import { resizeAvatar, resizeImage } from '../lib/image';
 import { useAuthStore } from '../store/auth';
-import { formatCount } from '../lib/format';
+import { useFavorites } from '../store/favorites';
+import { useToastStore } from '../store/toast';
+import { formatCount, formatLongDuration } from '../lib/format';
+import type { PlaylistSummary, User } from '../types';
 
-export function ProfilePage() {
-  const { library, playlists } = useMusicData();
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-  const name = user?.displayName || user?.email?.split('@')[0] || 'kullanıcı';
-  const initials = name.slice(0, 2).toUpperCase();
+function EditProfileDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const updateUser = useAuthStore((state) => state.updateUser);
+  const pushToast = useToastStore((state) => state.push);
+  const queryClient = useQueryClient();
+  const [displayName, setDisplayName] = useState(user.displayName);
+  const [username, setUsername] = useState(user.username ?? '');
+  const [bio, setBio] = useState(user.bio);
+  const [genres, setGenres] = useState(user.favoriteGenres.join(', '));
+  const [visibility, setVisibility] = useState<'public' | 'private'>(user.profileVisibility);
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl);
+  const [bannerUrl, setBannerUrl] = useState(user.bannerUrl);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const result = await api.updateProfile({
+        displayName,
+        username: username.trim() ? username.trim() : null,
+        bio,
+        avatarUrl,
+        bannerUrl,
+        profileVisibility: visibility,
+        favoriteGenres: genres.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 10),
+      });
+      updateUser(result.user);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profile'] }),
+        queryClient.invalidateQueries({ queryKey: ['playlists'] }),
+      ]);
+      pushToast('Profil kaydedildi.', 'success');
+      onClose();
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : 'Profil kaydedilemedi.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="page">
+    <Modal
+      open
+      onClose={onClose}
+      title="Profili düzenle"
+      description="Profil bilgileriniz hesap genelinde senkronize edilir."
+      className="profile-edit-modal"
+      footer={
+        <>
+          <button type="button" className="button ghost" onClick={onClose} disabled={saving}>İptal</button>
+          <button type="button" className="button primary" onClick={() => void save()} disabled={saving}>
+            {saving ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
+        </>
+      }
+    >
+      <div className="profile-edit-grid">
+        <label className="field">
+          <span>Görünen ad</span>
+          <input value={displayName} maxLength={80} onChange={(event) => setDisplayName(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Kullanıcı adı</span>
+          <input value={username} maxLength={30} onChange={(event) => setUsername(event.target.value.toLocaleLowerCase('tr'))} placeholder="ornek_kullanici" />
+        </label>
+        <label className="field full">
+          <span>Biyografi</span>
+          <textarea value={bio} maxLength={500} rows={3} onChange={(event) => setBio(event.target.value)} />
+        </label>
+        <label className="field full">
+          <span>Favori türler</span>
+          <input value={genres} onChange={(event) => setGenres(event.target.value)} placeholder="Türkçe Pop, Rock, Elektronik" />
+        </label>
+        <label className="field">
+          <span>Profil görünürlüğü</span>
+          <select value={visibility} onChange={(event) => setVisibility(event.target.value as 'public' | 'private')}>
+            <option value="public">Herkese açık</option>
+            <option value="private">Özel</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Profil görseli (750×750)</span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              void resizeAvatar(file).then(setAvatarUrl).catch((error) => pushToast(error instanceof Error ? error.message : 'Görsel işlenemedi.', 'error'));
+            }}
+          />
+        </label>
+        <label className="field">
+          <span>Banner (2660×1140)</span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              void resizeImage(file, 1140).then(setBannerUrl).catch((error) => pushToast(error instanceof Error ? error.message : 'Görsel işlenemedi.', 'error'));
+            }}
+          />
+        </label>
+      </div>
+    </Modal>
+  );
+}
+
+export function ProfilePage() {
+  const { id } = useParams<{ id?: string }>();
+  const { playlists } = useMusicData();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const favoriteIds = useFavorites((state) => state.ids);
+  const pushToast = useToastStore((state) => state.push);
+  const [editing, setEditing] = useState(false);
+
+  const isOwn = !id || id === user?.id;
+  const publicProfileQuery = useQuery({
+    queryKey: ['profile', id],
+    queryFn: () => api.publicProfile(id ?? ''),
+    enabled: Boolean(id) && !isOwn,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const historyStatsQuery = useQuery({
+    queryKey: ['history-stats'],
+    queryFn: api.historyStats,
+    enabled: isOwn,
+    staleTime: 30_000,
+  });
+  const followsQuery = useQuery({
+    queryKey: ['artist-follows'],
+    queryFn: api.artistFollows,
+    enabled: isOwn,
+    staleTime: 30_000,
+  });
+
+  if (!isOwn && publicProfileQuery.isPending) {
+    return <div className="page"><div className="skeleton line-skeleton" aria-busy="true" /></div>;
+  }
+
+  if (!isOwn && (publicProfileQuery.error || !publicProfileQuery.data)) {
+    return (
+      <div className="page">
+        <EmptyState
+          icon={UserRound}
+          title="Profil bulunamadı."
+          description="Bu profil gizli olabilir veya kaldırılmış olabilir."
+          action={<Link to="/" className="button primary">Ana sayfaya dön</Link>}
+        />
+      </div>
+    );
+  }
+
+  const profile = isOwn
+    ? {
+        displayName: user?.displayName || user?.email?.split('@')[0] || 'kullanıcı',
+        username: user?.username ?? null,
+        bio: user?.bio ?? '',
+        avatarUrl: user?.avatarUrl ?? null,
+        bannerUrl: user?.bannerUrl ?? null,
+        profileVisibility: user?.profileVisibility ?? 'public',
+        favoriteGenres: user?.favoriteGenres ?? [],
+        role: user?.role ?? 'user',
+        publicPlaylistCount: playlists.filter((playlist) => playlist.visibility === 'public').length,
+        followedArtistCount: followsQuery.data?.follows.length ?? 0,
+      }
+    : publicProfileQuery.data!.profile;
+
+  const publicPlaylists: PlaylistSummary[] = isOwn
+    ? playlists.filter((playlist) => playlist.visibility === 'public')
+    : publicProfileQuery.data!.playlists;
+  const name = profile.displayName;
+  const initials = name.slice(0, 2).toLocaleUpperCase('tr');
+  const totalPlays = historyStatsQuery.data?.totalPlays ?? 0;
+  const totalMs = historyStatsQuery.data?.totalMs ?? 0;
+
+  return (
+    <div className="page profile-page">
       <header className="page-heading">
         <span className="eyebrow">Profil</span>
-        <h1>Profilin</h1>
+        <h1>{isOwn ? 'Profilin' : `${name} profili`}</h1>
       </header>
 
-      <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, margin: '18px 0 22px' }}>
-        <div style={{
-          width: 112, height: 112, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #780103, #C8102E)',
-          display: 'grid', placeItems: 'center', fontSize: '2rem', fontWeight: 800, color: '#fff',
-          boxShadow: '0 16px 40px rgba(0,0,0,0.45)',
-        }}>
-          {initials}
+      <section className="profile-hero">
+        {profile.bannerUrl ? (
+          <div className="profile-banner" style={{ backgroundImage: `url(${profile.bannerUrl})` }} aria-hidden="true" />
+        ) : null}
+        <div className="profile-hero-content">
+          {profile.avatarUrl ? (
+            <img className="profile-avatar" src={profile.avatarUrl} alt="" />
+          ) : (
+            <div className="profile-avatar profile-avatar-fallback" aria-hidden="true">{initials}</div>
+          )}
+          <div className="profile-copy">
+            <h2>{name}</h2>
+            <p>
+              {profile.username ? `@${profile.username} · ` : ''}
+              {profile.role === 'admin' ? 'Yönetici' : 'Üye'}
+              {isOwn && profile.profileVisibility === 'private' ? <ShieldCheck size={14} aria-label="Özel profil" /> : null}
+            </p>
+            {profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}
+            {profile.favoriteGenres.length ? (
+              <div className="profile-genres" aria-label="Favori türler">
+                {profile.favoriteGenres.map((genre) => <span key={genre}>{genre}</span>)}
+              </div>
+            ) : null}
+          </div>
         </div>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 750, letterSpacing: '-0.02em' }}>{name}</h2>
-        <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>@{user?.email?.split('@')[0] || 'kullanıcı'} · {user?.role === 'admin' ? 'Yönetici' : 'Üye'}</p>
-        <div style={{ display: 'flex', gap: 18, marginTop: 6 }}>
-          <span><strong>{formatCount(playlists.length)}</strong><br /><small style={{ color: 'var(--muted)' }}>Liste</small></span>
-          <span><strong>{formatCount(library.stats.tracks)}</strong><br /><small style={{ color: 'var(--muted)' }}>Şarkı</small></span>
-          <span><strong>{formatCount(library.stats.artists)}</strong><br /><small style={{ color: 'var(--muted)' }}>Sanatçı</small></span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 6 }}>
-          <Link to="/settings" className="button secondary"><Settings2 size={16} /> Profili Düzenle</Link>
-          <button type="button" className="button ghost" onClick={() => void logout()}>
+      </section>
+
+      <section className="profile-stats" aria-label="Profil istatistikleri">
+        <span><strong>{formatCount(profile.publicPlaylistCount)}</strong><small>Herkese açık liste</small></span>
+        <span><strong>{formatCount(favoriteIds.length)}</strong><small>Favori parça</small></span>
+        <span><strong>{formatCount(profile.followedArtistCount)}</strong><small>Takip edilen sanatçı</small></span>
+        {isOwn ? (
+          <span><strong>{formatCount(totalPlays)}</strong><small>Dinleme</small></span>
+        ) : null}
+        {isOwn && totalMs ? <span><strong>{formatLongDuration(totalMs / 1000)}</strong><small>Dinleme süresi</small></span> : null}
+      </section>
+
+      {isOwn ? (
+        <div className="profile-actions">
+          <button type="button" className="button primary" onClick={() => setEditing(true)}>
+            <Pencil size={16} /> Profili düzenle
+          </button>
+          <Link to="/settings" className="button secondary"><Settings2 size={16} /> Ayarlar</Link>
+          <button type="button" className="button ghost" onClick={() => void logout().catch(() => pushToast('Çıkış yapılamadı.', 'error'))}>
             <LogOut size={16} /> Çıkış yap
           </button>
         </div>
-      </section>
+      ) : null}
 
       <section className="content-section">
         <div className="section-heading">
-          <div><h2>Çalma Listelerim</h2><p>Senin oluşturduğun listeler.</p></div>
-          <Link to="/library?tab=playlists" className="section-link">Tümünü gör <ArrowRight size={15} /></Link>
+          <div><h2>{isOwn ? 'Herkese açık listelerin' : 'Herkese açık listeleri'}</h2><p>Yalnızca herkese açık olarak işaretlenen listeler görünür.</p></div>
+          {isOwn ? <Link to="/library?tab=playlists" className="section-link">Tümünü gör <ArrowRight size={15} /></Link> : null}
         </div>
-        {playlists.length > 0 ? (
+        {publicPlaylists.length > 0 ? (
           <div className="card-grid playlist-grid">
-            {playlists.slice(0, 4).map((p) => <PlaylistCard key={p.id} playlist={p} />)}
+            {publicPlaylists.slice(0, 4).map((playlist) => <PlaylistCard key={playlist.id} playlist={playlist} />)}
           </div>
         ) : (
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Henüz playlist yok — kütüphaneden oluştur.</p>
+          <EmptyState
+            icon={<Camera size={22} />}
+            title="Henüz herkese açık liste yok."
+            description="Bir listeyi herkese açık yaparak beğendiklerini başkalarıyla paylaşabilirsin."
+            action={isOwn ? <Link to="/library?tab=playlists" className="button primary">Listeleri aç</Link> : undefined}
+          />
         )}
       </section>
+
+      {editing && user ? <EditProfileDialog user={user} onClose={() => setEditing(false)} /> : null}
     </div>
   );
 }

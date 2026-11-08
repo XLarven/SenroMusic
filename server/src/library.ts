@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { getDb, getMeta, trackToDto, type PlaylistRow, type TrackRow } from './db.js';
-import type { Album, Artist, Library, LibraryStats, Playlist, PlaylistSummary } from './types.js';
+import type { Album, Artist, Library, LibraryStats, Playlist, PlaylistSummary, Track } from './types.js';
+import type { UserRow } from './users.js';
 
 function stableId(prefix: string, value: string): string {
   return `${prefix}_${createHash('sha256').update(value).digest('hex').slice(0, 20)}`;
@@ -87,17 +88,21 @@ export function getLibrary(): Library {
 type PlaylistAggregateRow = PlaylistRow & {
   track_count: number;
   duration: number | null;
-  cover_id: string | null;
+  aggregate_cover_id: string | null;
 };
 
-function playlistSummary(row: PlaylistAggregateRow): PlaylistSummary {
+function playlistSummary(row: PlaylistAggregateRow, user?: UserRow | null): PlaylistSummary {
+  const isOwner = Boolean(user && row.owner_id === user.id);
   return {
     id: row.id,
     name: row.name,
     description: row.description,
     trackCount: row.track_count,
     duration: row.duration ?? 0,
-    coverUrl: coverUrl(row.cover_id),
+    coverUrl: row.cover_url ?? coverUrl(row.cover_id) ?? coverUrl(row.aggregate_cover_id),
+    visibility: row.visibility,
+    pinned: row.pinned === 1,
+    isOwner,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -114,25 +119,49 @@ const PLAYLIST_AGGREGATE = `
       WHERE pt2.playlist_id = p.id AND t2.cover_id IS NOT NULL
       ORDER BY pt2.position
       LIMIT 1
-    ) AS cover_id
+    ) AS aggregate_cover_id
   FROM playlists p
   LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
   LEFT JOIN tracks t ON t.id = pt.track_id
 `;
 
-export function getPlaylists(): PlaylistSummary[] {
-  const rows = getDb()
-    .prepare(`${PLAYLIST_AGGREGATE} GROUP BY p.id ORDER BY p.updated_at DESC`)
-    .all() as PlaylistAggregateRow[];
-  return rows.map(playlistSummary);
+export function getPlaylists(user?: UserRow | null): PlaylistSummary[] {
+  const db = getDb();
+  const rows = (user
+    ? db
+        .prepare(
+          `${PLAYLIST_AGGREGATE}
+           WHERE p.owner_id = ? OR p.visibility = 'public' OR p.owner_id IS NULL
+           GROUP BY p.id ORDER BY p.updated_at DESC`,
+        )
+        .all(user.id)
+    : db
+        .prepare(`${PLAYLIST_AGGREGATE} GROUP BY p.id ORDER BY p.updated_at DESC`)
+        .all()) as PlaylistAggregateRow[];
+  return rows.map((row) => playlistSummary(row, user));
 }
 
-export function getPlaylist(id: string): Playlist | null {
+export function getPublicPlaylists(ownerId: string): PlaylistSummary[] {
+  const rows = getDb()
+    .prepare(
+      `${PLAYLIST_AGGREGATE}
+       WHERE p.owner_id = ? AND p.visibility = 'public'
+       GROUP BY p.id ORDER BY p.updated_at DESC`,
+    )
+    .all(ownerId) as PlaylistAggregateRow[];
+  return rows.map((row) => playlistSummary(row));
+}
+
+export function getPlaylist(id: string, user?: UserRow | null): Playlist | null {
   const db = getDb();
   const row = db
     .prepare(`${PLAYLIST_AGGREGATE} WHERE p.id = ? GROUP BY p.id`)
     .get(id) as PlaylistAggregateRow | undefined;
   if (!row) return null;
+  const canView = Boolean(
+    !user || row.owner_id === user.id || row.owner_id === null || row.visibility === 'public' || user.role === 'admin',
+  );
+  if (!canView) return null;
 
   const entries = db
     .prepare(
@@ -145,7 +174,7 @@ export function getPlaylist(id: string): Playlist | null {
     .all(id) as Array<TrackRow & { entry_id: number }>;
 
   return {
-    ...playlistSummary(row),
+    ...playlistSummary(row, user),
     tracks: entries.map((entry) => ({
       ...trackToDto(entry),
       entryId: entry.entry_id,
@@ -155,4 +184,36 @@ export function getPlaylist(id: string): Playlist | null {
 
 export function playlistExists(id: string): boolean {
   return Boolean(getDb().prepare('SELECT 1 FROM playlists WHERE id = ?').get(id));
+}
+
+export function searchCatalog(
+  query: string,
+  limit = 20,
+): { tracks: Track[]; albums: Album[]; artists: Artist[] } {
+  const escaped = query.replace(/[%_\\]/g, (match) => `\\${match}`);
+  const pattern = `%${escaped}%`;
+  const rows = getDb()
+    .prepare(
+      `SELECT * FROM tracks
+        WHERE lower(title) LIKE lower(?) ESCAPE '\\'
+           OR lower(artist) LIKE lower(?) ESCAPE '\\'
+           OR lower(album) LIKE lower(?) ESCAPE '\\'
+           OR lower(album_artist) LIKE lower(?) ESCAPE '\\'
+           OR lower(COALESCE(genre, '')) LIKE lower(?) ESCAPE '\\'
+        ORDER BY added_at DESC
+        LIMIT ?`,
+    )
+    .all(pattern, pattern, pattern, pattern, pattern, limit * 2) as TrackRow[];
+  const tracks = rows.map(trackToDto).slice(0, limit);
+  const library = getLibrary();
+  const needle = query.toLocaleLowerCase('tr');
+  return {
+    tracks,
+    albums: library.albums
+      .filter((album) => album.name.toLocaleLowerCase('tr').includes(needle) || album.artist.toLocaleLowerCase('tr').includes(needle))
+      .slice(0, limit),
+    artists: library.artists
+      .filter((artist) => artist.name.toLocaleLowerCase('tr').includes(needle))
+      .slice(0, limit),
+  };
 }

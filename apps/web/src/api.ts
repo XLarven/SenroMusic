@@ -1,9 +1,15 @@
 import type {
+  Album,
+  Artist,
+  ArtistFollow,
   Health,
+  HistoryItem,
   Library,
   Playlist,
   PlaylistSummary,
+  PublicProfile,
   ScanResult,
+  Track,
   YouTubeResult,
   User,
   AdminStats,
@@ -77,13 +83,84 @@ export const api = {
       body: { token },
     }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+  updateProfile: (input: {
+    displayName?: string;
+    username?: string | null;
+    bio?: string;
+    avatarUrl?: string | null;
+    bannerUrl?: string | null;
+    profileVisibility?: 'public' | 'private';
+    favoriteGenres?: string[];
+  }) =>
+    request<{ ok: boolean; user: User }>('/api/auth/me', { method: 'PATCH', body: input }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>('/api/auth/change-password', {
+      method: 'POST',
+      body: { currentPassword, newPassword },
+    }),
+  deleteAccount: (password: string) =>
+    request<{ ok: boolean }>('/api/auth/me', { method: 'DELETE', body: { password } }),
+  settings: () => request<{ settings: Record<string, unknown> }>('/api/me/settings'),
+  updateSetting: (key: string, value: unknown) =>
+    request<{ ok: boolean; settings: Record<string, unknown> }>('/api/me/settings', {
+      method: 'PUT',
+      body: { key, value },
+    }),
+  favorites: () => request<{ tracks: Track[] }>('/api/me/favorites'),
+  addFavorite: (trackId: string) =>
+    request<{ ok: boolean; favorited: boolean }>('/api/me/favorites', {
+      method: 'POST',
+      body: { trackId },
+    }),
+  removeFavorite: (trackId: string) =>
+    request<{ ok: boolean; favorited: boolean }>(
+      `/api/me/favorites/${encodeURIComponent(trackId)}`,
+      { method: 'DELETE' },
+    ),
+  history: (limit = 50) =>
+    request<{ items: HistoryItem[] }>(`/api/me/history?limit=${limit}`),
+  recordPlay: (trackId: string, msPlayed: number, source = 'player') =>
+    request<{ ok: boolean; recorded?: boolean }>('/api/me/history', {
+      method: 'POST',
+      body: { trackId, msPlayed, source },
+    }),
+  historyStats: () =>
+    request<{
+      totalPlays: number;
+      totalMs: number;
+      lastPlayedAt: string | null;
+      topArtists: Array<{ artist: string; plays: number }>;
+    }>('/api/me/history/stats'),
+  artistFollows: () => request<{ follows: ArtistFollow[] }>('/api/me/artist-follows'),
+  followArtist: (artistId: string, artistName: string) =>
+    request<{ ok: boolean; followed: boolean }>('/api/me/artist-follows', {
+      method: 'POST',
+      body: { artistId, artistName },
+    }),
+  unfollowArtist: (artistId: string) =>
+    request<{ ok: boolean; followed: boolean }>(
+      `/api/me/artist-follows/${encodeURIComponent(artistId)}`,
+      { method: 'DELETE' },
+    ),
+  publicProfile: (id: string) =>
+    request<{ profile: PublicProfile; playlists: PlaylistSummary[] }>(
+      `/api/profiles/${encodeURIComponent(id)}`,
+    ),
   adminStats: () => request<AdminStats>('/api/admin/stats'),
   spotifyResolve: (url: string) =>
     request<SpotifyResolved>('/api/spotify/resolve', { method: 'POST', body: { url } }),
   library: () => request<Library>('/api/library'),
+  search: (q: string, limit = 20) =>
+    request<{ tracks: Track[]; albums: Album[]; artists: Artist[] }>(
+      `/api/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
   youtubeSearch: (q: string, limit?: number) =>
     request<{ results: YouTubeResult[] }>(
       `/api/youtube/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`,
+    ),
+  youtubePlaylist: (url: string) =>
+    request<{ title: string; items: YouTubeResult[]; total: number }>(
+      `/api/youtube/playlist?url=${encodeURIComponent(url)}`,
     ),
   youtubeDownload: (input: { id: string; title?: string; uploader?: string; thumbnail?: string }) =>
     request<{ ok: boolean; path: string }>(
@@ -95,7 +172,7 @@ export const api = {
   playlist: (id: string) => request<Playlist>(`/api/playlists/${encodeURIComponent(id)}`),
   createPlaylist: (input: { name: string; description?: string }) =>
     request<Playlist>('/api/playlists', { method: 'POST', body: input }),
-  updatePlaylist: (id: string, input: { name?: string; description?: string }) =>
+  updatePlaylist: (id: string, input: { name?: string; description?: string; visibility?: 'private' | 'public' }) =>
     request<Playlist>(`/api/playlists/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: input,
@@ -112,4 +189,30 @@ export const api = {
       `/api/playlists/${encodeURIComponent(playlistId)}/tracks/${entryId}`,
       { method: 'DELETE' },
     ),
+  reorderPlaylist: (playlistId: string, entryIds: number[]) =>
+    request<{ ok: boolean }>(`/api/playlists/${encodeURIComponent(playlistId)}/order`, {
+      method: 'PUT',
+      body: { entryIds },
+    }),
+  duplicatePlaylist: (playlistId: string) =>
+    request<Playlist>(`/api/playlists/${encodeURIComponent(playlistId)}/duplicate`, {
+      method: 'POST',
+    }),
+  pinPlaylist: (playlistId: string) =>
+    request<{ ok: boolean; pinned: boolean }>(
+      `/api/playlists/${encodeURIComponent(playlistId)}/pin`,
+      { method: 'POST' },
+    ),
+  sharePlaylist: (playlistId: string) =>
+    request<{ ok: boolean; shareSlug: string; shareUrl: string }>(
+      `/api/playlists/${encodeURIComponent(playlistId)}/share`,
+      { method: 'POST' },
+    ),
+  publicPlaylistBySlug: (slug: string) =>
+    request<Playlist>(`/api/public-playlists/${encodeURIComponent(slug)}`),
+  uploadPlaylistCover: (playlistId: string, imageDataUrl: string) =>
+    request<Playlist>(`/api/playlists/${encodeURIComponent(playlistId)}/cover`, {
+      method: 'POST',
+      body: { imageDataUrl },
+    }),
 };

@@ -60,6 +60,9 @@ export type PlaylistSummary = {
   trackCount: number;
   duration: number;
   coverUrl: string | null;
+  visibility: 'private' | 'public';
+  pinned: boolean;
+  isOwner: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -118,6 +121,64 @@ export type User = {
   createdAt: string;
   lastLoginAt: string | null;
   lastActiveAt: string | null;
+  username: string | null;
+  bio: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  profileVisibility: 'public' | 'private';
+  favoriteGenres: string[];
+};
+
+export type PublicProfile = {
+  id: string;
+  displayName: string;
+  username: string | null;
+  bio: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  profileVisibility: 'public' | 'private';
+  favoriteGenres: string[];
+  role: 'admin' | 'user';
+  createdAt: string;
+  publicPlaylistCount: number;
+  followedArtistCount: number;
+  isOwner: boolean;
+};
+
+export type HistoryItem = {
+  track: Track;
+  playedAt: string;
+  msPlayed: number;
+  source: string;
+};
+
+export type ArtistFollow = {
+  artistId: string;
+  artistName: string;
+  createdAt: string;
+};
+
+export type DownloadState =
+  | 'not-downloaded'
+  | 'queued'
+  | 'downloading'
+  | 'paused'
+  | 'downloaded'
+  | 'failed'
+  | 'unavailable';
+
+export type DownloadRecord = {
+  trackId: string;
+  state: DownloadState;
+  progress: number;
+  size: number;
+  downloadedAt: string | null;
+  error: string | null;
+  title: string;
+  artist: string;
+  album: string;
+  coverUrl: string | null;
+  duration: number;
 };
 
 export type AdminStats = {

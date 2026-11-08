@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { ensureRuntimeDirs, paths } from './config.js';
+import { applyMigrations } from './migrations.js';
 import type { Track } from './types.js';
 
 export type TrackRow = {
@@ -30,6 +31,12 @@ export type PlaylistRow = {
   id: string;
   name: string;
   description: string;
+  owner_id: string | null;
+  visibility: 'private' | 'public';
+  pinned: number;
+  share_slug: string | null;
+  cover_id: string | null;
+  cover_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -112,6 +119,7 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at DESC);
     CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at DESC);
   `);
+  applyMigrations(database);
   return database;
 }
 
