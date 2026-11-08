@@ -1,20 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  ArrowRight,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Loader2,
-  Mail,
-  Music2,
-  ShieldCheck,
-  Smartphone,
-  User,
-  Wifi,
-  WifiOff,
-  HardDrive,
-} from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Loader2, Mail, User, Wifi, WifiOff } from 'lucide-react';
 import { api } from '../api';
 import { Logo } from '../components/Logo';
 import { useAuthStore } from '../store/auth';
@@ -42,8 +28,6 @@ export function LoginPage() {
     staleTime: 20_000,
   });
 
-
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting) return;
@@ -55,7 +39,7 @@ export function LoginPage() {
         await register(email.trim(), password, displayName.trim());
       }
     } catch {
-      // store handles error
+      // store exposes localized error
     } finally {
       setSubmitting(false);
     }
@@ -64,134 +48,58 @@ export function LoginPage() {
   const busy = submitting || status === 'checking';
 
   return (
-    <main className="login-page">
-      <section className="login-story">
-        <div className="login-story-top">
+    <main className="login-page login-premium" aria-label="Giriş">
+      <div className="login-stage">
+        <div className="login-brand">
           <Logo />
-          <span className="login-story-badge">Kendi müziğin. Kendi sunucun.</span>
-        </div>
-
-        <div className="login-copy">
-          <span className="eyebrow">
-            <span className="status-dot" />
-            Yerel öncelikli müzik
-          </span>
-          <h1>
-            Kütüphanen
-            <br />
-            <span>her cihazında.</span>
-          </h1>
-          <p>
-            Müzik arşivini kendi sunucunda barındır. Telefonunda, tabletinde ve bilgisayarında aynı
-            kütüphaneye bağlan; kayıpsız akışın ve sade bir dinleme deneyiminin keyfini çıkar.
-          </p>
-
-          <div className="login-features">
-            <span>
-              <HardDrive size={16} /> Kendi dosyaların
-            </span>
-            <span>
-              <Smartphone size={16} /> Her ekranda
-            </span>
-            <span>
-              <ShieldCheck size={16} /> Reklamsız
-            </span>
-          </div>
-        </div>
-
-
-
-        <p className="login-story-foot">
-          Norie Music, yalnızca hak sahibi olduğun veya lisansa sahip olduğun dosyaları oynatmak için
-          tasarlandı.
-        </p>
-      </section>
-
-      <section className="login-panel">
-        <div className="login-form-wrap">
-          <div className="login-form-heading">
-            <span className="eyebrow">Hesabına giriş yap</span>
-            <h2>{mode === 'login' ? 'Tekrar hoş geldin.' : 'Hesap oluştur.'}</h2>
-            <p>{mode === 'login' ? 'E-posta ve parolanla kütüphanene bağlan.' : 'İlk hesabın yönetici olur. Sonra aile/arkadaşların kayıt olabilir.'}</p>
-          </div>
-
-          <div className="server-status-row">
+          <span className="login-tagline">Müziğin. Senin alanın.</span>
+          <span className="login-status">
             {healthPending ? (
-              <span className="server-status">
-                <Loader2 size={14} className="spin" /> Sunucu kontrol ediliyor
-              </span>
+              <><Loader2 size={12} className="spin" /> Bağlanıyor…</>
             ) : healthError ? (
-              <span className="server-status is-error">
-                <WifiOff size={14} /> Sunucuya ulaşılamıyor
-                <button type="button" className="text-button" onClick={() => void refetch()}>
-                  Dene
-                </button>
-              </span>
-            ) : health ? (
-              <span className="server-status">
-                <Wifi size={14} /> Sunucu çevrimiçi
-                <span className="status-separator">·</span>
-                {formatCount(health.tracks)} parça
-              </span>
-            ) : null}
+              <><WifiOff size={12} /> Sunucu çevrimdışı <button type="button" className="login-status-retry" onClick={() => void refetch()}>Dene</button></>
+            ) : (
+              <><Wifi size={12} /> {health ? `${formatCount(health.tracks)} parça çevrimiçi` : 'Çevrimiçi'}</>
+            )}
+          </span>
+        </div>
+
+        <section className="login-card nm-glass" aria-label={mode === 'login' ? 'Giriş yap' : 'Kayıt ol'}>
+          <div className="login-form-heading">
+            <h1>{mode === 'login' ? 'Tekrar hoş geldin' : 'Hoş geldin'}</h1>
+            <p>{mode === 'login' ? 'Kütüphanene devam et' : 'Hesabını oluştur, müziğin seninle kalsın'}</p>
           </div>
 
-          <p style={{ marginTop: 6, fontSize: '0.85rem', color: 'var(--muted)' }}>
-            {mode === 'login' ? (
-              <>
-                Hesabın yok mu?{' '}
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => { setMode('register'); clearError(); }}
-                >
-                  Kayıt ol
-                </button>
-              </>
-            ) : (
-              <>
-                Zaten hesabın var mı?{' '}
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => { setMode('login'); clearError(); }}
-                >
-                  Giriş yap
-                </button>
-              </>
-            )}
-          </p>
-
-          <form className="login-form" onSubmit={submit}>
+          <form className="login-form" onSubmit={submit} noValidate>
             {mode === 'register' ? (
-              <label htmlFor="display-name">Ad Soyad</label>
-            ) : null}
-            {mode === 'register' ? (
-              <div className="token-field">
-                <User size={18} aria-hidden="true" />
-                <input
-                  id="display-name"
-                  type="text"
-                  value={displayName}
-                  onChange={(event) => { setDisplayName(event.target.value); if (error) clearError(); }}
-                  placeholder="Ahmet Yılmaz"
-                  autoComplete="name"
-                  autoCapitalize="words"
-                  spellCheck={false}
-                  maxLength={80}
-                />
-              </div>
+              <>
+                <label htmlFor="display-name">Ad Soyad</label>
+                <div className="nm-field">
+                  <User size={16} aria-hidden="true" />
+                  <input
+                    id="display-name"
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => { setDisplayName(e.target.value); if (error) clearError(); }}
+                    placeholder="Adın"
+                    autoComplete="name"
+                    autoCapitalize="words"
+                    spellCheck={false}
+                    maxLength={80}
+                  />
+                </div>
+              </>
             ) : null}
 
             <label htmlFor="email">E-posta</label>
-            <div className="token-field">
-              <Mail size={18} aria-hidden="true" />
+            <div className="nm-field">
+              <Mail size={16} aria-hidden="true" />
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => { setEmail(event.target.value); if (error) clearError(); }}
-                placeholder="ornek@Norie Music.local"
+                onChange={(e) => { setEmail(e.target.value); if (error) clearError(); }}
+                placeholder="ornek@mail.com"
                 autoComplete="email"
                 autoCapitalize="none"
                 spellCheck={false}
@@ -201,17 +109,28 @@ export function LoginPage() {
               />
             </div>
 
-            <label htmlFor="password">Parola</label>
-            <div className="token-field">
-              <KeyRound size={18} aria-hidden="true" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <label htmlFor="password">Parola</label>
+              {mode === 'login' ? (
+                <button
+                  type="button"
+                  className="login-mini-link"
+                  onClick={() => clearError()}
+                  title="Destek için yöneticine yaz"
+                >
+                  Şifremi unuttum
+                </button>
+              ) : null}
+            </div>
+            <div className="nm-field">
+              <KeyRound size={16} aria-hidden="true" />
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(event) => { setPassword(event.target.value); if (error) clearError(); }}
+                onChange={(e) => { setPassword(e.target.value); if (error) clearError(); }}
                 placeholder={mode === 'register' ? 'En az 8 karakter' : 'Parolan'}
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                autoCapitalize="none"
                 spellCheck={false}
                 maxLength={200}
                 aria-invalid={Boolean(error)}
@@ -219,36 +138,39 @@ export function LoginPage() {
               />
               <button
                 type="button"
-                className="token-visibility"
+                className="nm-eye"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? 'Parolayı gizle' : 'Parolayı göster'}
               >
-                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
 
             {error ? (
-              <p className="form-error" id="login-error" role="alert">
-                {error}
-              </p>
+              <p className="form-error" id="login-error" role="alert">{error}</p>
             ) : null}
 
-            <button type="submit" className="button primary login-submit" disabled={!email.trim() || !password || busy}>
-              {busy ? <Loader2 size={18} className="spin" /> : <ArrowRight size={18} />}
-              {busy ? 'Bağlanıyor…' : mode === 'login' ? 'Kütüphaneye gir' : 'Hesap oluştur'}
+            <button type="submit" className="nm-btn nm-btn--primary login-submit" disabled={!email.trim() || !password || busy}>
+              {busy ? <Loader2 size={18} className="spin" /> : null}
+              {busy ? 'Bağlanıyor…' : mode === 'login' ? 'Giriş yap' : 'Hesap oluştur'}
             </button>
           </form>
 
-          <p className="login-privacy">
-            Oturum 30 gün boyunca güvenli bir çerezle saklanır. Parolan güçlü bir şekilde saklanır.
+          <p className="login-switch">
+            {mode === 'login' ? (
+              <>Hesabın yok mu? <button type="button" onClick={() => { setMode('register'); clearError(); }}>Kayıt ol</button></>
+            ) : (
+              <>Zaten hesabın var mı? <button type="button" onClick={() => { setMode('login'); clearError(); }}>Giriş yap</button></>
+            )}
           </p>
 
-          <footer className="login-footer">
-            <span>Norie Music 0.8</span>
-            <span>Yerel öncelikli · Açık arayüz</span>
-          </footer>
-        </div>
-      </section>
+          <p className="login-privacy">30 gün güvenli çerez ile giriş yapılır.</p>
+        </section>
+
+        <footer className="login-footer">
+          <span>Norie Music {health?.version ? `v${health.version}` : 'v0.8.0'}</span>
+        </footer>
+      </div>
     </main>
   );
 }
