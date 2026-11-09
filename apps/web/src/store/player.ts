@@ -1,11 +1,18 @@
 import { create } from 'zustand';
 import { api } from '../api';
+import { destroyYouTubePlayer, youtubePause, youtubePlay, youtubeSeek, youtubeSetMuted, youtubeSetVolume } from '../lib/youtubeEngine';
 import type { Track } from '../types';
 import { useDownloads } from './downloads';
 
 export type RepeatMode = 'off' | 'all' | 'one';
+export type PlaybackProvider = 'local' | 'youtube';
+
+export function isYouTubeTrack(track: Track | null | undefined): boolean {
+  return Boolean(track && (track.id.startsWith('yt_') || track.streamUrl.startsWith('youtube:')));
+}
 
 type PlayerState = {
+  provider: PlaybackProvider;
   current: Track | null;
   queue: Track[];
   index: number;
@@ -52,6 +59,7 @@ const SESSION_KEY = 'Norie.player.session';
 const GRACEFUL_NETWORK_MESSAGE = 'Bağlantı kesildi. Yerel dosya yoksa parça burada duraklatıldı.';
 
 type SavedSession = {
+  provider: PlaybackProvider;
   current: Track | null;
   queue: Track[];
   index: number;
@@ -68,6 +76,7 @@ function saveSession(state: PlayerState): void {
     return;
   }
   const payload: SavedSession = {
+    provider: state.provider,
     current: state.current,
     queue: state.queue,
     index: state.index,
@@ -178,6 +187,7 @@ function playElement(): void {
 }
 
 export const usePlayer = create<PlayerState>((set, get) => ({
+  provider: 'local',
   current: null,
   queue: [],
   index: 0,
@@ -196,7 +206,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playTrack: (track, sourceTracks) => {
     const queue = sourceTracks && sourceTracks.length > 0 ? sourceTracks : [track];
     const index = Math.max(0, queue.findIndex((item) => item.id === track.id));
+    const provider: PlaybackProvider = isYouTubeTrack(track) ? 'youtube' : 'local';
     const nextState = {
+      provider,
       current: track,
       queue,
       index,
@@ -208,7 +220,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     };
     set(nextState);
     saveSession({ ...get(), ...nextState });
-    void startTrack(track);
+    if (provider === 'local') void startTrack(track);
   },
 
   playQueue: (tracks, startIndex = 0) => {
@@ -221,7 +233,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const { queue } = get();
     const track = queue[index];
     if (!track) return;
+    const provider: PlaybackProvider = isYouTubeTrack(track) ? 'youtube' : 'local';
     const nextState = {
+      provider,
       current: track,
       index,
       playing: true,
@@ -232,17 +246,23 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     };
     set(nextState);
     saveSession({ ...get(), ...nextState });
-    void startTrack(track);
+    if (provider === 'local') void startTrack(track);
   },
 
   toggle: () => {
     const element = getAudio();
-    const { current, queue, index, currentTime } = get();
+    const { current, queue, index, currentTime, playing, provider } = get();
     if (!current && queue.length > 0) {
       get().playAt(index);
       return;
     }
     if (!current) return;
+    if (provider === 'youtube') {
+      if (playing) youtubePause();
+      else youtubePlay();
+      saveSession(get());
+      return;
+    }
     if (!element.currentSrc) {
       void startTrack(current, currentTime);
       return;
@@ -257,13 +277,19 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   play: () => {
-    if (!get().current) return;
+    const { current, provider } = get();
+    if (!current) return;
+    if (provider === 'youtube') {
+      youtubePlay();
+      return;
+    }
     attachAudioListeners();
     playElement();
   },
 
   pause: () => {
-    getAudio().pause();
+    if (get().provider === 'youtube') youtubePause();
+    else getAudio().pause();
   },
 
   next: () => {
@@ -294,11 +320,18 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   seek: (time) => {
+    const { provider, currentTime: stateTime, duration: stateDuration } = get();
+    if (provider === 'youtube') {
+      const target = Math.max(0, Math.min(time, stateDuration || 0));
+      youtubeSeek(target);
+      set({ currentTime: target });
+      return;
+    }
     const element = getAudio();
     const duration = Number.isFinite(element.duration) ? element.duration : get().duration;
     const target = Math.max(0, Math.min(time, duration || 0));
     if (Number.isFinite(target)) element.currentTime = target;
-    set({ currentTime: target });
+    set({ currentTime: target ?? stateTime });
   },
 
   setVolume: (value) => {
@@ -306,6 +339,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const volume = Math.max(0, Math.min(1, value));
     element.volume = volume;
     element.muted = volume === 0;
+    youtubeSetVolume(volume);
     localStorage.setItem('Norie.volume', String(volume));
     set({ volume, muted: volume === 0 });
     saveSession(get());
@@ -315,6 +349,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const element = getAudio();
     const muted = !element.muted;
     element.muted = muted;
+    youtubeSetMuted(muted);
     set({ muted });
     saveSession(get());
   },
@@ -378,7 +413,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     element.pause();
     element.removeAttribute('src');
     element.load();
+    destroyYouTubePlayer();
     set({
+      provider: 'local',
       current: null,
       queue: [],
       index: 0,
@@ -420,7 +457,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     if (!saved?.current) return;
     const queue = Array.isArray(saved.queue) && saved.queue.length > 0 ? saved.queue : [saved.current];
     const index = Math.max(0, Math.min(saved.index ?? 0, queue.length - 1));
+    const provider = saved.provider ?? (isYouTubeTrack(saved.current) ? 'youtube' : 'local');
     set({
+      provider,
       current: saved.current,
       queue,
       index,
@@ -437,6 +476,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const element = getAudio();
     element.volume = saved.volume ?? element.volume;
     element.muted = Boolean(saved.muted);
+    if (provider !== 'local') return;
     void useDownloads
       .getState()
       .resolveSource(saved.current)

@@ -2225,6 +2225,28 @@ body::before {
   margin-bottom: 22px;
 }
 
+.player-youtube-host {
+  width: 96px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #000;
+  flex: 0 0 auto;
+}
+
+.player-youtube-host iframe,
+.np-youtube-host iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.np-youtube-host {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
 .youtube-modal {
   position: fixed;
   inset: 0;

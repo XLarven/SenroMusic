@@ -11,10 +11,10 @@ import { EmptyState } from '../components/EmptyState';
 import { ImportPreviewPanel, type PlaylistPreview, type PreviewItem } from '../components/ImportPreviewPanel';
 import { PlayButton } from '../components/PlayButton';
 import { TrackList } from '../components/TrackList';
-import { YouTubePlayerModal } from '../components/YouTubePlayer';
 import { useMusicData } from '../MusicDataContext';
 import { api } from '../api';
 import { useDownloads } from '../store/downloads';
+import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
 import { formatCount, formatDuration } from '../lib/format';
@@ -80,10 +80,34 @@ function withMatches(
   return items.map((item) => ({ ...item, matchedTrack: matchTrack(item, tracks) }));
 }
 
+function youtubeResultToTrack(item: YouTubeResult): Track {
+  return {
+    id: `yt_${item.id}`,
+    title: item.title,
+    artist: item.uploader,
+    album: 'YouTube',
+    albumArtist: item.uploader,
+    genre: null,
+    year: null,
+    trackNo: null,
+    discNo: null,
+    duration: item.duration ?? 0,
+    bitrate: null,
+    sampleRate: null,
+    channels: null,
+    format: 'youtube',
+    size: 0,
+    coverUrl: item.thumbnail,
+    streamUrl: `youtube:${item.id}`,
+    addedAt: new Date().toISOString(),
+  };
+}
+
 export function SearchPage() {
   const { library, playlists, refreshLibrary, refreshPlaylists } = useMusicData();
   const pushToast = useToastStore((state) => state.push);
   const downloadTrack = useDownloads((state) => state.download);
+  const playTrack = usePlayer((state) => state.playTrack);
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const rawTab = params.get('tab');
@@ -110,7 +134,6 @@ export function SearchPage() {
   const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
   const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
-  const [youtubePlaying, setYoutubePlaying] = useState<YouTubeResult | null>(null);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -804,7 +827,7 @@ export function SearchPage() {
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() => setYoutubePlaying(item)}
+                  onClick={() => playTrack(youtubeResultToTrack(item))}
                   style={{ flexShrink: 0 }}
                 >
                   <Play size={16} />
@@ -1093,9 +1116,6 @@ export function SearchPage() {
           {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) && total > 0 ? renderYouTube() : null}
         </>
       )}
-      {youtubePlaying ? (
-        <YouTubePlayerModal videoId={youtubePlaying.id} title={youtubePlaying.title} onClose={() => setYoutubePlaying(null)} />
-      ) : null}
     </div>
   );
 }

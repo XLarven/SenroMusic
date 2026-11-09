@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ChevronDown,
   Heart,
@@ -21,12 +21,14 @@ import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
 import { DownloadButton } from './DownloadButton';
 import { NMLyricsPanel } from './norie/NMLyricsPanel';
+import { destroyYouTubePlayer, playYouTubeVideo, youtubeVideoId } from '../lib/youtubeEngine';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
 import { formatDuration } from '../lib/format';
 
 export function PlayerBar() {
   const current = usePlayer((state) => state.current);
+  const provider = usePlayer((state) => state.provider);
   const queue = usePlayer((state) => state.queue);
   const playing = usePlayer((state) => state.playing);
   const loading = usePlayer((state) => state.loading);
@@ -54,6 +56,40 @@ export function PlayerBar() {
   const toggleFav = useFavorites((state) => state.toggle);
   const liked = current ? favIds.includes(current.id) : false;
   const [accent, setAccent] = useState<[number, number, number] | null>(null);
+  const youtubeHostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (provider !== 'youtube' || !current || !youtubeHostRef.current) {
+      if (provider !== 'youtube') destroyYouTubePlayer();
+      return;
+    }
+    const videoId = youtubeVideoId(current);
+    let cancelled = false;
+    const state = usePlayer.getState();
+    void playYouTubeVideo(videoId, youtubeHostRef.current, {
+      onStateChange: (nextPlaying, buffering) => {
+        if (!cancelled) usePlayer.setState({ playing: nextPlaying, loading: buffering });
+      },
+      onTimeUpdate: (time, dur) => {
+        if (!cancelled) usePlayer.setState({ currentTime: time, duration: dur, loading: false });
+      },
+      onEnded: () => {
+        if (!cancelled) usePlayer.getState().handleEnded();
+      },
+      onError: (message) => {
+        if (!cancelled) usePlayer.setState({ playing: false, loading: false, error: message });
+      },
+      onReady: () => {
+        if (!cancelled) usePlayer.setState({ loading: false, error: null });
+      },
+    }, {
+      autoplay: state.playing,
+      startTime: state.currentTime,
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [current, expanded, provider]);
 
   useEffect(() => {
     if (!current?.coverUrl || document.documentElement.classList.contains('dynamic-colors-off')) {
@@ -116,6 +152,9 @@ export function PlayerBar() {
     <>
     <section className={clsx('player-bar', !current && 'is-empty')} aria-label="Müzik oynatıcı">
       <div className="player-track">
+        {provider === 'youtube' && current && !expanded ? (
+          <div ref={youtubeHostRef} className="player-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
+        ) : null}
         {current ? (
           <button
             type="button"
@@ -308,14 +347,18 @@ export function PlayerBar() {
         </div>
 
         <div className="np-art">
-          <Cover
-            src={current.coverUrl}
-            alt=""
-            seed={`${current.albumArtist}-${current.album}`}
-            className="np-art-cover"
-            iconSize={64}
-            eager
-          />
+          {provider === 'youtube' ? (
+            <div ref={youtubeHostRef} className="np-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
+          ) : (
+            <Cover
+              src={current.coverUrl}
+              alt=""
+              seed={`${current.albumArtist}-${current.album}`}
+              className="np-art-cover"
+              iconSize={64}
+              eager
+            />
+          )}
         </div>
 
         <div className="np-meta">
