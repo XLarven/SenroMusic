@@ -81,6 +81,7 @@ export async function playYouTubeVideo(
   }
 
   destroyYouTubePlayer();
+  callbacks = nextCallbacks;
   playerContainer = container;
   currentVideoId = videoId;
   container.innerHTML = '';
@@ -101,7 +102,8 @@ export async function playYouTubeVideo(
       onReady: () => {
         try {
           if (options.startTime !== undefined) player.seekTo(options.startTime, true);
-          if (!options.autoplay) player.pauseVideo();
+          if (options.autoplay) player.playVideo();
+          else player.pauseVideo();
           player.setVolume(80);
         } catch {
           // ignore

@@ -89,7 +89,7 @@ export function PlayerBar() {
     return () => {
       cancelled = true;
     };
-  }, [current, expanded, provider]);
+  }, [current, provider]);
 
   useEffect(() => {
     if (!current?.coverUrl || document.documentElement.classList.contains('dynamic-colors-off')) {
@@ -152,9 +152,18 @@ export function PlayerBar() {
     <>
     <section className={clsx('player-bar', !current && 'is-empty')} aria-label="Müzik oynatıcı">
       <div className="player-track">
-        {provider === 'youtube' && current && !expanded ? (
-          <div ref={youtubeHostRef} id="norie-youtube-player" className="player-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
-        ) : null}
+        {/*
+          The YouTube host is kept mounted for the whole session so the IFrame
+          API never replaces a React-managed node (which caused removeChild
+          crashes). It is hidden visually when another provider is active.
+        */}
+        <div
+          ref={youtubeHostRef}
+          id="norie-youtube-player"
+          className="player-youtube-host"
+          aria-label={current ? `YouTube oynatıcı: ${current.title}` : 'YouTube oynatıcı'}
+          style={{ display: provider === 'youtube' && current ? undefined : 'none' }}
+        />
         {current ? (
           <button
             type="button"
@@ -347,18 +356,17 @@ export function PlayerBar() {
         </div>
 
         <div className="np-art">
+          <Cover
+            src={current.coverUrl}
+            alt=""
+            seed={`${current.albumArtist}-${current.album}`}
+            className="np-art-cover"
+            iconSize={64}
+            eager
+          />
           {provider === 'youtube' ? (
-            <div ref={youtubeHostRef} id="norie-youtube-player" className="np-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
-          ) : (
-            <Cover
-              src={current.coverUrl}
-              alt=""
-              seed={`${current.albumArtist}-${current.album}`}
-              className="np-art-cover"
-              iconSize={64}
-              eager
-            />
-          )}
+            <p className="settings-hint">YouTube oynatıcı mini oynatıcıda; kontroller ve sözler burada senkron.</p>
+          ) : null}
         </div>
 
         <div className="np-meta">

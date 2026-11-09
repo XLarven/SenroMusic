@@ -807,14 +807,21 @@ export function SearchPage() {
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {ytResults.map((item) => (
               <li key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--border, #333)' }}>
-                <img
-                  src={item.thumbnail}
-                  alt=""
-                  width={48}
-                  height={48}
-                  style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-                  loading="lazy"
-                />
+                <button
+                  type="button"
+                  onClick={() => playTrack(youtubeResultToTrack(item))}
+                  aria-label={`${item.title} oynat`}
+                  style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', flexShrink: 0 }}
+                >
+                  <img
+                    src={item.thumbnail}
+                    alt=""
+                    width={48}
+                    height={48}
+                    style={{ borderRadius: 6, objectFit: 'cover', display: 'block' }}
+                    loading="lazy"
+                  />
+                </button>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.title}
