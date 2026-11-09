@@ -86,7 +86,7 @@ export async function initMysqlSchema(): Promise<boolean> {
       await p.execute(`
         CREATE TABLE IF NOT EXISTS tracks (
           id VARCHAR(64) PRIMARY KEY,
-          path VARCHAR(1024) NOT NULL UNIQUE,
+          path VARCHAR(700) NOT NULL UNIQUE,
           rel_path VARCHAR(1024) NOT NULL,
           title VARCHAR(512) NOT NULL,
           artist VARCHAR(512) NOT NULL,
@@ -106,8 +106,8 @@ export async function initMysqlSchema(): Promise<boolean> {
           cover_id VARCHAR(64),
           added_at VARCHAR(32) NOT NULL,
           updated_at VARCHAR(32) NOT NULL,
-          INDEX idx_tracks_artist (artist),
-          INDEX idx_tracks_album (album_artist, album),
+          INDEX idx_tracks_artist (artist(150)),
+          INDEX idx_tracks_album (album_artist(150), album(150)),
           INDEX idx_tracks_added (added_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
