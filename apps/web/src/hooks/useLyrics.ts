@@ -2,11 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 
 export type LyricLine = { time: number | null; text: string };
 
+// SONORA-inspired title/artist normalization
+function cleanTitle(title: string): string {
+  return String(title ?? '')
+    .replace(/\s*[([](?:feat\.?|ft\.?|with |from |official|lyrics?|audio|video|visuali[sz]er|remaster|live|explicit|prod\.?)[^)\]]*[)\]]/gi, '')
+    .replace(/\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|live|radio edit|single version|from ).*$/i, '')
+    .trim();
+}
+
+function mainArtist(artist: string): string {
+  return String(artist ?? '').split(/,|&| x | feat\.? | ft\.? | and /i)[0].trim();
+}
+
 const CACHE_PREFIX = 'Norie.lyrics.';
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 async function fetchLyrics(artist: string, title: string, duration: number, album?: string): Promise<{ lines: LyricLine[]; synced: boolean; plain: string } | null> {
-  const cacheKey = `${CACHE_PREFIX}${encodeURIComponent(`${artist}::${title}::${album ?? ''}::${Math.round(duration)}`)}`;
+  const cacheKey = `${CACHE_PREFIX}${encodeURIComponent(`${mainArtist(artist)}::${cleanTitle(title)}::${album ?? ''}::${Math.round(duration)}`)}`;
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
@@ -38,9 +50,11 @@ async function fetchLyrics(artist: string, title: string, duration: number, albu
     }
     return null;
   };
+  const cleanedTitle = cleanTitle(title) || title;
+  const cleanedArtist = mainArtist(artist);
   const params = new URLSearchParams({
-    artist_name: artist,
-    track_name: title,
+    artist_name: cleanedArtist,
+    track_name: cleanedTitle,
     ...(album ? { album_name: album } : {}),
     ...(duration > 0 ? { duration: String(Math.round(duration)) } : {}),
   });
@@ -57,7 +71,7 @@ async function fetchLyrics(artist: string, title: string, duration: number, albu
   // prefer the first candidate with synced lyrics for this artist + title.
   if (!result || !result.synced) {
     try {
-      const q = `${artist} ${title}`.trim();
+      const q = `${mainArtist(artist)} ${cleanTitle(title)}`.trim();
       const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(q)}`, {
         headers: { Accept: 'application/json' },
       });

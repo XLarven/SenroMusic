@@ -15,6 +15,7 @@ import { meRoutes } from './routes/me.js';
 import { playlistRoutes } from './routes/playlists.js';
 import { youtubeRoutes } from './routes/youtube.js';
 import { spotifyRoutes } from './routes/spotify.js';
+import { searchRoutes } from './routes/search.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -75,6 +76,7 @@ export async function buildServer() {
   await app.register(playlistRoutes);
   await app.register(youtubeRoutes);
   await app.register(spotifyRoutes);
+  await app.register(searchRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
