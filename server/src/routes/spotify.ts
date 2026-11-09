@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { rateLimit } from '../ratelimit.js';
 import { getSpotifyAccessToken, getSpotifyPlaylist, isSpotifyConfigured, searchSpotify, type SpotifyItem } from '../spotifyApi.js';
+import { resolveSpotify, resolvePending } from '../spotifyEmbed.js';
 
 const execFileAsync = promisify(execFile);
 const PYTHON = process.env.PYTHON_PATH || 'python';
@@ -289,6 +290,38 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
       if (!url || !url.includes('open.spotify.com')) {
         return reply.code(400).send({ error: { code: 'bad_request', message: 'Geçerli bir Spotify bağlantısı yapıştırın (open.spotify.com).' } });
       }
+      // Primary: SONORA-style embed-page scraping (no official API needed)
+      try {
+        const resolved = await resolveSpotify(url);
+        const items = resolved.tracks.map((t: any) => ({
+          providerTrackId: t.videoId ?? null,
+          title: t.title,
+          artist: t.uploader ?? 'Unknown',
+          album: t.album ?? null,
+          duration: t.duration ?? null,
+          artworkUrl: t.thumbnail ?? null,
+          sourceUrl: t.url ?? url,
+          youtubeQuery: t.pending ? `${t.uploader ?? ''} ${t.title}`.trim() : null,
+          pending: t.pending ?? false,
+          videoId: t.videoId ?? null,
+        }));
+        return {
+          type: resolved.playlistTitle ? 'playlist' : 'track',
+          title: resolved.playlistTitle ?? resolved.tracks[0]?.title ?? 'Spotify',
+          description: null,
+          artworkUrl: resolved.tracks[0]?.thumbnail ?? null,
+          creator: null,
+          totalDuration: resolved.tracks.reduce((s: number, t: any) => s + (t.duration ?? 0), 0) || null,
+          totalTracks: resolved.tracks.length,
+          items,
+          capped: resolved.capped ?? false,
+          source: 'spotify-embed',
+        };
+      } catch (error) {
+        request.log.warn({ err: error }, 'spotify embed resolve failed; falling back to official API');
+      }
+
+      // Fallback 1: official Spotify Web API (works for metadata, not tracks due to 403)
       const playlistId = extractPlaylistId(url);
       if (playlistId && isSpotifyConfigured()) {
         try {
@@ -310,17 +343,51 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
           request.log.warn({ err: error }, 'spotify web api playlist failed; falling back');
         }
       }
+
+      // Fallback 2: yt-dlp (fails on Spotify DRM)
       const viaYt = await resolveViaYtDlp(url);
       if (viaYt) return viaYt;
+
+      // Fallback 3: oEmbed (metadata only)
       const viaOembed = await resolveViaOembed(url);
       if (viaOembed) return viaOembed;
+
       return reply.code(422).send({
         error: {
           code: 'unresolvable',
           message:
-            'Spotify bağlantısı çözülemedi. Bağlantının herkese açık olduğundan ve Spotify\'ın bölge kısıtlaması olmadığından emin olun. (yt-dlp + oEmbed ikisi de başarısız oldu.)',
+            'Spotify bağlantısı çözülemedi. Bağlantının herkese açık olduğundan ve Spotify\'ın bölge kısıtlaması olmadığından emin olun.',
         },
       });
+    },
+  );
+
+  // Resolve a pending (Spotify) track to a playable YouTube Music track
+  app.post<{ Body: { track?: any } }>(
+    '/api/spotify/resolve-pending',
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'spotify-resolve-pending', max: 60, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
+    async (request, reply) => {
+      const track = request.body?.track;
+      if (!track || !track.title) {
+        return reply.code(400).send({ error: { code: 'invalid_track', message: 'Geçerli bir track gereklidir.' } });
+      }
+      try {
+        const resolved = await resolvePending(track);
+        return resolved;
+      } catch (error) {
+        request.log.warn({ err: error }, 'resolve pending failed');
+        return reply.code(422).send({
+          error: {
+            code: 'unresolvable',
+            message: error instanceof Error ? error.message : 'Track çözülemedi.',
+          },
+        });
+      }
     },
   );
 }

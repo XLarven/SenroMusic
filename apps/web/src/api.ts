@@ -168,6 +168,8 @@ export const api = {
   adminStats: () => request<AdminStats>('/api/admin/stats'),
   spotifyResolve: (url: string) =>
     request<SpotifyResolved>('/api/spotify/resolve', { method: 'POST', body: { url } }),
+  spotifyResolvePending: (track: { title: string; artist?: string; duration?: number | null; thumbnail?: string | null }) =>
+    request<any>('/api/spotify/resolve-pending', { method: 'POST', body: { track } }),
   spotifySearch: (q: string, limit = 10) =>
     request<SpotifyCatalogSearch>(
       `/api/spotify/search?q=${encodeURIComponent(q)}&limit=${limit}`,

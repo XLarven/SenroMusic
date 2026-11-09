@@ -134,6 +134,40 @@ export function SearchPage() {
   const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
   const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
+  const [resolvingSpotifyId, setResolvingSpotifyId] = useState<string | null>(null);
+  const playResolvedSpotify = async (track: { title: string; artist: string; duration?: number | null; thumbnail?: string | null; artworkUrl?: string | null }) => {
+    setResolvingSpotifyId(track.title);
+    try {
+      const resolved = await api.spotifyResolvePending({ title: track.title, artist: track.artist, duration: track.duration ?? null, thumbnail: track.artworkUrl ?? track.thumbnail ?? null });
+      if (resolved?.videoId || resolved?.url) {
+        const ytTrack: Track = {
+          id: `yt_${resolved.videoId ?? resolved.id ?? Date.now()}`,
+          title: resolved.title ?? track.title,
+          artist: resolved.uploader ?? track.artist,
+          album: resolved.album ?? 'YouTube',
+          albumArtist: resolved.uploader ?? track.artist,
+          genre: null,
+          year: null,
+          trackNo: null,
+          discNo: null,
+          duration: resolved.duration ?? track.duration ?? 0,
+          bitrate: null,
+          sampleRate: null,
+          channels: null,
+          format: 'youtube',
+          size: 0,
+          coverUrl: resolved.thumbnail ?? track.artworkUrl ?? null,
+          streamUrl: `youtube:${resolved.videoId}`,
+          addedAt: new Date().toISOString(),
+        };
+        playTrack(ytTrack);
+      }
+    } catch (e) {
+      console.error('Failed to resolve Spotify track:', e);
+    } finally {
+      setResolvingSpotifyId(null);
+    }
+  };
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -721,9 +755,15 @@ export function SearchPage() {
                       <DownloadButton track={local} />
                     </>
                   ) : (
+                    <>
+                    <button type="button" className="button secondary" style={{ flexShrink: 0, padding: '4px 8px', fontSize: '0.8rem' }} disabled={resolvingSpotifyId === track.title} onClick={() => void playResolvedSpotify({ title: track.title, artist: track.artist, duration: track.duration, artworkUrl: track.artworkUrl })} title="YouTube'da çal">
+                      {resolvingSpotifyId === track.title ? <Loader2 size={14} className="spin" /> : <Play size={14} fill="currentColor" />}
+                      {' '}Çal
+                    </button>
                     <a className="icon-button subtle import-source" href={track.sourceUrl ?? undefined} target="_blank" rel="noreferrer" title="Spotify'da aç" aria-label="Spotify'da aç">
                       <Link2 size={16} />
                     </a>
+                    </>
                   )}
                 </article>
               );
