@@ -168,8 +168,19 @@ export const api = {
   adminStats: () => request<AdminStats>('/api/admin/stats'),
   spotifyResolve: (url: string) =>
     request<SpotifyResolved>('/api/spotify/resolve', { method: 'POST', body: { url } }),
-  spotifyResolvePending: (track: { title: string; artist?: string; duration?: number | null; thumbnail?: string | null }) =>
-    request<any>('/api/spotify/resolve-pending', { method: 'POST', body: { track } }),
+  spotifyResolvePending: (track: {
+    title: string;
+    artist?: string;
+    duration?: number | null;
+    thumbnail?: string | null;
+    exclude?: string[];
+  }) => {
+    const { exclude, ...rest } = track;
+    return request<any>('/api/spotify/resolve-pending', {
+      method: 'POST',
+      body: { track: rest, exclude: exclude ?? [] },
+    });
+  },
   spotifySearch: (q: string, limit = 10) =>
     request<SpotifyCatalogSearch>(
       `/api/spotify/search?q=${encodeURIComponent(q)}&limit=${limit}`,
@@ -185,6 +196,22 @@ export const api = {
     request<{ results: YouTubeResult[] }>(
       `/api/youtube/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`,
     ),
+  searchSuggestions: (q: string) =>
+    request<{
+      texts: string[];
+      songs: Array<{ id: string; title: string; artist: string; thumbnail: string; duration: number | null; url: string }>;
+    }>(`/api/search/suggestions?q=${encodeURIComponent(q)}`),
+  youtubeSimilar: (input: { title?: string; artist?: string; q?: string; exclude?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (input.q) params.set('q', input.q);
+    if (input.title) params.set('title', input.title);
+    if (input.artist) params.set('artist', input.artist);
+    if (input.exclude) params.set('exclude', input.exclude);
+    if (input.limit) params.set('limit', String(input.limit));
+    return request<{ results: Array<{ id: string; title: string; artist: string; thumbnail: string; duration: number | null; url: string }> }>(
+      `/api/youtube/similar?${params.toString()}`,
+    );
+  },
   youtubePlaylist: (url: string) =>
     request<{ title: string; items: YouTubeResult[]; total: number }>(
       `/api/youtube/playlist?url=${encodeURIComponent(url)}`,

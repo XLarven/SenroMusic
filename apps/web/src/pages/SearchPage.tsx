@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDeferredValue, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Disc3, Download, Link2, Loader2, Music, Play, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
@@ -10,6 +10,7 @@ import { DownloadButton } from '../components/DownloadButton';
 import { EmptyState } from '../components/EmptyState';
 import { ImportPreviewPanel, type PlaylistPreview, type PreviewItem } from '../components/ImportPreviewPanel';
 import { PlayButton } from '../components/PlayButton';
+import { SearchSuggestions, songToTrack, type SuggestionSong } from '../components/SearchSuggestions';
 import { TrackList } from '../components/TrackList';
 import { useMusicData } from '../MusicDataContext';
 import { api } from '../api';
@@ -135,31 +136,52 @@ export function SearchPage() {
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
   const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
   const [resolvingSpotifyId, setResolvingSpotifyId] = useState<string | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  // Cache of resolved Spotify->YouTube mappings so a click can start playback
+  // synchronously (an async gap between click and playVideo loses the user
+  // gesture and the browser blocks autoplay).
+  const resolvedSpotifyRef = useRef<Map<string, Track>>(new Map());
+
+  const spotifyKey = (title: string, artist: string) => `${title}::${artist}`.toLocaleLowerCase('tr');
+
+  const toYtTrack = (
+    resolved: any,
+    fallback: { title: string; artist: string; duration?: number | null; artworkUrl?: string | null },
+  ): Track => ({
+    id: `yt_${resolved.videoId ?? resolved.id ?? Date.now()}`,
+    title: resolved.title ?? fallback.title,
+    artist: resolved.uploader ?? fallback.artist,
+    album: resolved.album ?? 'YouTube',
+    albumArtist: resolved.uploader ?? fallback.artist,
+    genre: null,
+    year: null,
+    trackNo: null,
+    discNo: null,
+    duration: resolved.duration ?? fallback.duration ?? 0,
+    bitrate: null,
+    sampleRate: null,
+    channels: null,
+    format: 'youtube',
+    size: 0,
+    coverUrl: resolved.thumbnail ?? fallback.artworkUrl ?? null,
+    streamUrl: `youtube:${resolved.videoId}`,
+    addedAt: new Date().toISOString(),
+  });
+
   const playResolvedSpotify = async (track: { title: string; artist: string; duration?: number | null; thumbnail?: string | null; artworkUrl?: string | null }) => {
+    // Fast path: already resolved in the background — play synchronously so the
+    // click gesture is preserved and autoplay is not blocked.
+    const cached = resolvedSpotifyRef.current.get(spotifyKey(track.title, track.artist));
+    if (cached) {
+      playTrack(cached);
+      return;
+    }
     setResolvingSpotifyId(track.title);
     try {
       const resolved = await api.spotifyResolvePending({ title: track.title, artist: track.artist, duration: track.duration ?? null, thumbnail: track.artworkUrl ?? track.thumbnail ?? null });
       if (resolved?.videoId || resolved?.url) {
-        const ytTrack: Track = {
-          id: `yt_${resolved.videoId ?? resolved.id ?? Date.now()}`,
-          title: resolved.title ?? track.title,
-          artist: resolved.uploader ?? track.artist,
-          album: resolved.album ?? 'YouTube',
-          albumArtist: resolved.uploader ?? track.artist,
-          genre: null,
-          year: null,
-          trackNo: null,
-          discNo: null,
-          duration: resolved.duration ?? track.duration ?? 0,
-          bitrate: null,
-          sampleRate: null,
-          channels: null,
-          format: 'youtube',
-          size: 0,
-          coverUrl: resolved.thumbnail ?? track.artworkUrl ?? null,
-          streamUrl: `youtube:${resolved.videoId}`,
-          addedAt: new Date().toISOString(),
-        };
+        const ytTrack = toYtTrack(resolved, track);
+        resolvedSpotifyRef.current.set(spotifyKey(track.title, track.artist), ytTrack);
         playTrack(ytTrack);
       }
     } catch (e) {
@@ -168,6 +190,35 @@ export function SearchPage() {
       setResolvingSpotifyId(null);
     }
   };
+
+  // Pre-resolve the first few Spotify catalog tracks in the background so
+  // clicking them starts playback immediately instead of after a fetch.
+  useEffect(() => {
+    if (!spotifyCatalog) return;
+    let cancelled = false;
+    const pending = spotifyCatalog.tracks
+      .filter((t) => !matchTrack(t, library.tracks))
+      .slice(0, 6)
+      .filter((t) => !resolvedSpotifyRef.current.has(spotifyKey(t.title, t.artist)));
+    if (pending.length === 0) return;
+    void (async () => {
+      for (const t of pending) {
+        if (cancelled) return;
+        try {
+          const resolved = await api.spotifyResolvePending({ title: t.title, artist: t.artist, duration: t.duration, thumbnail: t.artworkUrl });
+          if (cancelled) return;
+          if (resolved?.videoId || resolved?.url) {
+            resolvedSpotifyRef.current.set(spotifyKey(t.title, t.artist), toYtTrack(resolved, { title: t.title, artist: t.artist, duration: t.duration, artworkUrl: t.artworkUrl }));
+          }
+        } catch {
+          // leave unresolved; the click handler will retry
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [spotifyCatalog, library.tracks]);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -919,9 +970,16 @@ export function SearchPage() {
         {catalogLoading ? <Loader2 size={22} className="spin" aria-hidden="true" /> : <Search size={22} aria-hidden="true" />}
         <input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setSuggestOpen(event.target.value.trim().length >= 2);
+          }}
+          onBlur={() => window.setTimeout(() => setSuggestOpen(false), 150)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') pushHistory(query);
+            if (event.key === 'Enter') {
+              pushHistory(query);
+              setSuggestOpen(false);
+            }
           }}
           placeholder="Şarkı, albüm, sanatçı veya Spotify linki yapıştır…"
           autoFocus
@@ -930,12 +988,31 @@ export function SearchPage() {
           spellCheck={false}
         />
         {query ? (
-          <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label="Aramayı temizle">
+          <button type="button" className="search-clear" onClick={() => { setQuery(''); setSuggestOpen(false); }} aria-label="Aramayı temizle">
             <X size={17} />
           </button>
         ) : (
           <span className="search-hint">Kitaplığında {formatCount(library.stats.tracks)} parça</span>
         )}
+        <SearchSuggestions
+          query={query}
+          open={suggestOpen}
+          onClose={() => setSuggestOpen(false)}
+          onPickText={(text) => {
+            setQuery(text);
+            pushHistory(text);
+            setSuggestOpen(false);
+          }}
+          onPickSong={(song: SuggestionSong) => {
+            playTrack(songToTrack(song));
+            pushHistory(song.title);
+            setSuggestOpen(false);
+          }}
+          onPlaySong={(song: SuggestionSong) => {
+            playTrack(songToTrack(song));
+            setSuggestOpen(false);
+          }}
+        />
       </div>
 
       {isPlaylistUrl(deferredQuery) ? (
@@ -1160,7 +1237,7 @@ export function SearchPage() {
           )}
 
           {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) ? renderSpotifyCatalog() : null}
-          {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) && total > 0 ? renderYouTube() : null}
+          {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) ? renderYouTube() : null}
         </>
       )}
     </div>

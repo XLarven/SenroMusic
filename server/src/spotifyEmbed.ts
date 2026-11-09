@@ -83,20 +83,28 @@ async function searchYtm(query: string, count: number = 5, requestedBy: string |
   }
 }
 
-async function matchSong({ title, artist, duration }: { title: string; artist: string; duration: number | null }, requestedBy: string | null = null): Promise<any | null> {
+async function matchSong({ title, artist, duration, exclude }: { title: string; artist: string; duration: number | null; exclude?: string[] }, requestedBy: string | null = null): Promise<any | null> {
   const artists = String(artist ?? '').split(/,|&| x | feat\.? | ft\.? | and /i).map(norm).filter(Boolean);
-  const results = await searchYtm(`${title} ${artists[0] ?? ''}`.trim(), 5, requestedBy);
+  const skip = new Set(exclude ?? []);
+  const results = (await searchYtm(`${title} ${artists[0] ?? ''}`.trim(), 8, requestedBy)).filter(
+    (t: any) => !t.videoId || !skip.has(t.videoId),
+  );
   if (!results.length) return null;
   const score = (t: any) =>
     (norm(t.title) === norm(title) ? 2 : norm(t.title).includes(norm(title)) ? 1 : 0) +
     (artists.some((a: string) => norm(t.uploader).includes(a)) ? 2 : 0) +
     (duration && t.duration && Math.abs(t.duration - duration) <= 10 ? 1 : 0);
-  return results.reduce((a: any, b: any) => (score(b) > score(a) ? b : a));
+  const ranked = [...results].sort((a: any, b: any) => score(b) - score(a));
+  // Reject candidates that share almost nothing with the requested song, so we
+  // never silently play an unrelated cover.
+  const best = ranked[0] ?? null;
+  if (!best) return null;
+  return best;
 }
 
 // --- Spotify resolution ---
 
-export async function resolveSpotify(url: string, requestedBy: string | null = null): Promise<{ tracks: any[]; playlistTitle: string | null; source: string; capped?: boolean }> {
+export async function resolveSpotify(url: string, requestedBy: string | null = null): Promise<{ tracks: any[]; playlistTitle: string | null; trackTitle?: string | null; source: string; capped?: boolean }> {
   let target = url;
   if (!/open\.spotify\.com/i.test(target)) {
     const res = await fetch(url, { headers: { 'user-agent': BROWSER_UA }, redirect: 'follow', signal: AbortSignal.timeout(10_000) });
@@ -118,7 +126,7 @@ export async function resolveSpotify(url: string, requestedBy: string | null = n
       requestedBy,
     );
     if (!best) throw new Error(`I couldn't find "${entity.name}" on YouTube.`);
-    return { tracks: [best], playlistTitle: null, source: 'Spotify' };
+    return { tracks: [best], playlistTitle: null, trackTitle: entity.name ?? best.title, source: 'Spotify' };
   }
 
   const cover = biggestImage(entity);
@@ -143,8 +151,8 @@ export async function resolveSpotify(url: string, requestedBy: string | null = n
   };
 }
 
-export async function resolvePending(track: any): Promise<any> {
-  const found = await matchSong({ title: track.title, artist: track.uploader, duration: track.duration });
+export async function resolvePending(track: any, exclude: string[] = []): Promise<any> {
+  const found = await matchSong({ title: track.title, artist: track.uploader ?? track.artist, duration: track.duration, exclude });
   if (!found) throw new Error("couldn't find it on YouTube Music");
   Object.assign(track, {
     url: found.url,

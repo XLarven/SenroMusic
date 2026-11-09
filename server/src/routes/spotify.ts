@@ -307,7 +307,7 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
         }));
         return {
           type: resolved.playlistTitle ? 'playlist' : 'track',
-          title: resolved.playlistTitle ?? resolved.tracks[0]?.title ?? 'Spotify',
+          title: resolved.playlistTitle ?? resolved.trackTitle ?? resolved.tracks[0]?.title ?? 'Spotify',
           description: null,
           artworkUrl: resolved.tracks[0]?.thumbnail ?? null,
           creator: null,
@@ -363,12 +363,12 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // Resolve a pending (Spotify) track to a playable YouTube Music track
-  app.post<{ Body: { track?: any } }>(
+  app.post<{ Body: { track?: any; exclude?: string[] } }>(
     '/api/spotify/resolve-pending',
     {
       preHandler: [
         requireAuth,
-        rateLimit({ name: 'spotify-resolve-pending', max: 60, windowMs: 60_000, keyBy: 'user' }),
+        rateLimit({ name: 'spotify-resolve-pending', max: 120, windowMs: 60_000, keyBy: 'user' }),
       ],
     },
     async (request, reply) => {
@@ -376,8 +376,11 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
       if (!track || !track.title) {
         return reply.code(400).send({ error: { code: 'invalid_track', message: 'Geçerli bir track gereklidir.' } });
       }
+      const exclude = Array.isArray(request.body?.exclude)
+        ? request.body!.exclude.filter((id): id is string => typeof id === 'string').slice(0, 20)
+        : [];
       try {
-        const resolved = await resolvePending(track);
+        const resolved = await resolvePending(track, exclude);
         return resolved;
       } catch (error) {
         request.log.warn({ err: error }, 'resolve pending failed');

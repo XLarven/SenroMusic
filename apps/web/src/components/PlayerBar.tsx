@@ -17,6 +17,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { api } from '../api';
 import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
 import { DownloadButton } from './DownloadButton';
@@ -24,7 +25,45 @@ import { NMLyricsPanel } from './norie/NMLyricsPanel';
 import { destroyYouTubePlayer, playYouTubeVideo, youtubeVideoId } from '../lib/youtubeEngine';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
+import type { Track } from '../types';
 import { formatDuration } from '../lib/format';
+
+// Tracks how many times each song has been rematched so a broken match cannot
+// loop forever.
+const rematchAttempts = new Map<string, number>();
+
+async function rematchYouTubeTrack(track: Track | null): Promise<void> {
+  if (!track) return;
+  const key = `${track.title}::${track.artist}`;
+  const attempts = (rematchAttempts.get(key) ?? 0) + 1;
+  if (attempts > 3) {
+    rematchAttempts.delete(key);
+    return;
+  }
+  rematchAttempts.set(key, attempts);
+  const failedId = track.streamUrl.startsWith('youtube:') ? track.streamUrl.slice('youtube:'.length) : '';
+  try {
+    const resolved = await api.spotifyResolvePending({
+      title: track.title,
+      artist: track.artist,
+      duration: track.duration ?? null,
+      exclude: failedId ? [failedId] : [],
+    });
+    if (!resolved?.videoId || resolved.videoId === failedId) return;
+    rematchAttempts.delete(key);
+    usePlayer.getState().playTrack({
+      ...track,
+      id: `yt_${resolved.videoId}`,
+      streamUrl: `youtube:${resolved.videoId}`,
+      title: resolved.title ?? track.title,
+      artist: resolved.uploader ?? track.artist,
+      duration: resolved.duration ?? track.duration,
+      coverUrl: resolved.thumbnail ?? track.coverUrl,
+    });
+  } catch {
+    // give up quietly — the error banner already explains what happened
+  }
+}
 
 export function PlayerBar() {
   const current = usePlayer((state) => state.current);
@@ -76,8 +115,15 @@ export function PlayerBar() {
       onEnded: () => {
         if (!cancelled) usePlayer.getState().handleEnded();
       },
-      onError: (message) => {
-        if (!cancelled) usePlayer.setState({ playing: false, loading: false, error: message });
+      onError: (message, code) => {
+        if (cancelled) return;
+        usePlayer.setState({ playing: false, loading: false, error: message });
+        // YouTube 101/150 means the owner disabled embedding — the track can
+        // never play here. Ask the server for a different recording of the
+        // same song (excluding the ones already tried), then continue.
+        if (code === 101 || code === 150) {
+          void rematchYouTubeTrack(current);
+        }
       },
       onReady: () => {
         if (!cancelled) usePlayer.setState({ loading: false, error: null });

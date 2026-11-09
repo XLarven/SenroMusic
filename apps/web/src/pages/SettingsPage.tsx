@@ -152,6 +152,7 @@ export function SettingsPage() {
       await api.updateSetting(key, value);
       await queryClient.invalidateQueries({ queryKey: ['settings'] });
       if (key === 'historyEnabled') localStorage.setItem('Norie.historyEnabled', value ? 'true' : 'false');
+      if (key === 'autoplay') localStorage.setItem('Norie.autoplay', value ? 'true' : 'false');
       if (key === 'appLanguage') {
         setAppLanguage(value as 'tr' | 'en');
         window.setTimeout(() => window.location.reload(), 300);
@@ -350,6 +351,7 @@ export function SettingsPage() {
             <div><dt>Tekrar</dt><dd><select value={String(settings.repeat ?? 'off')} onChange={(event) => void saveSetting('repeat', event.target.value)}><option value="off">Kapalı</option><option value="all">Tümü</option><option value="one">Tek parça</option></select></dd></div>
             <div><dt>Başlangıç sesi</dt><dd><input type="range" min={0} max={100} value={Math.round(Number(settings.volume ?? 80))} onChange={(event) => void saveSetting('volume', Number(event.target.value) / 100)} /></dd></div>
             <div><dt>Dinleme geçmişi kaydı</dt><dd><input type="checkbox" checked={settings.historyEnabled !== false} onChange={(event) => void saveSetting('historyEnabled', event.target.checked)} /></dd></div>
+            <div><dt>Otomatik devam (benzer parçalar)</dt><dd><input type="checkbox" checked={settings.autoplay === true || localStorage.getItem('Norie.autoplay') === 'true'} onChange={(event) => void saveSetting('autoplay', event.target.checked)} /></dd></div>
           </dl>
           <p className="settings-hint">Oynatma, sayfalar arasında gezinirken aynı oyuncuda devam eder.</p>
         </section>

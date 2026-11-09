@@ -13,7 +13,7 @@ export type YouTubeCallbacks = {
   onStateChange: (playing: boolean, buffering: boolean) => void;
   onTimeUpdate: (currentTime: number, duration: number) => void;
   onEnded: () => void;
-  onError: (message: string) => void;
+  onError: (message: string, code?: number) => void;
   onReady: () => void;
 };
 
@@ -117,8 +117,8 @@ export async function playYouTubeVideo(
         else if (event.data === 2) callbacks?.onStateChange(false, false);
         else if (event.data === 0) callbacks?.onEnded();
       },
-      onError: () => {
-        callbacks?.onError('YouTube oynatılamadı. Video kısıtlı veya gömülemez olabilir.');
+      onError: (event: { data?: number }) => {
+        callbacks?.onError('YouTube oynatılamadı. Video kısıtlı veya gömülemez olabilir.', event?.data);
       },
     },
   });

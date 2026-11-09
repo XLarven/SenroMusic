@@ -186,6 +186,63 @@ function playElement(): void {
   });
 }
 
+// Autoplay support: when the queue runs out, ask the server for songs similar to
+// the last track and append them. Guards against repeats and failure loops.
+let autoplayInFlight = false;
+
+async function extendWithSimilar(get: () => PlayerState): Promise<void> {
+  if (autoplayInFlight) return;
+  const { current, queue } = get();
+  if (!current) {
+    usePlayer.setState({ playing: false });
+    return;
+  }
+  autoplayInFlight = true;
+  usePlayer.setState({ loading: true });
+  try {
+    const exclude = current.id.startsWith('yt_') ? current.id.slice(3) : '';
+    const payload = await api.youtubeSimilar({
+      title: current.title,
+      artist: current.artist,
+      exclude,
+      limit: 8,
+    });
+    const existing = new Set(queue.map((t) => t.id));
+    const additions: Track[] = (payload.results ?? [])
+      .filter((item) => item.id && !existing.has(`yt_${item.id}`))
+      .map((item) => ({
+        id: `yt_${item.id}`,
+        title: item.title,
+        artist: item.artist,
+        album: 'YouTube',
+        albumArtist: item.artist,
+        genre: null,
+        year: null,
+        trackNo: null,
+        discNo: null,
+        duration: item.duration ?? 0,
+        bitrate: null,
+        sampleRate: null,
+        channels: null,
+        format: 'youtube',
+        size: 0,
+        coverUrl: item.thumbnail,
+        streamUrl: `youtube:${item.id}`,
+        addedAt: new Date().toISOString(),
+      }));
+    if (additions.length === 0) {
+      usePlayer.setState({ playing: false, loading: false });
+      return;
+    }
+    usePlayer.setState({ queue: [...queue, ...additions] });
+    get().playAt(queue.length);
+  } catch {
+    usePlayer.setState({ playing: false, loading: false });
+  } finally {
+    autoplayInFlight = false;
+  }
+}
+
 export const usePlayer = create<PlayerState>((set, get) => ({
   provider: 'local',
   current: null,
@@ -445,8 +502,17 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     }
     const nextIndex = index + 1;
     if (nextIndex >= queue.length) {
-      if (repeat === 'all') get().playAt(0);
-      else set({ playing: false });
+      if (repeat === 'all') {
+        get().playAt(0);
+        return;
+      }
+      // Autoplay: last track in the queue ended — extend the queue with related
+      // songs so playback continues. Opt-in via localStorage flag.
+      if (localStorage.getItem('Norie.autoplay') === 'true') {
+        void extendWithSimilar(get);
+        return;
+      }
+      set({ playing: false });
       return;
     }
     get().playAt(nextIndex);
