@@ -85,11 +85,13 @@ export async function playYouTubeVideo(
   currentVideoId = videoId;
   container.innerHTML = '';
 
-  player = new YT.Player(container, {
+  if (!container.id) container.id = 'norie-youtube-player';
+  player = new YT.Player(container.id, {
     videoId,
     height: '100%',
     width: '100%',
     playerVars: {
+      origin: window.location.origin,
       autoplay: options.autoplay ? 1 : 0,
       playsinline: 1,
       rel: 0,

@@ -153,7 +153,7 @@ export function PlayerBar() {
     <section className={clsx('player-bar', !current && 'is-empty')} aria-label="Müzik oynatıcı">
       <div className="player-track">
         {provider === 'youtube' && current && !expanded ? (
-          <div ref={youtubeHostRef} className="player-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
+          <div ref={youtubeHostRef} id="norie-youtube-player" className="player-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
         ) : null}
         {current ? (
           <button
@@ -348,7 +348,7 @@ export function PlayerBar() {
 
         <div className="np-art">
           {provider === 'youtube' ? (
-            <div ref={youtubeHostRef} className="np-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
+            <div ref={youtubeHostRef} id="norie-youtube-player" className="np-youtube-host" aria-label={`YouTube oynatıcı: ${current.title}`} />
           ) : (
             <Cover
               src={current.coverUrl}

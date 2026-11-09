@@ -1,6 +1,6 @@
 {
   "name": "Norie Music",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "description": "Self-hosted, cross-platform music library and player",
   "scripts": {
