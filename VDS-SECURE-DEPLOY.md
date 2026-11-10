@@ -23,7 +23,7 @@ Amaç: Kendi VDS'inizde, yalnızca HTTPS üzerinden, yalnızca güçlü anahtarl
 - `POST /api/auth/login` : başarısız denemelerde **15 dk'da 10 deneme → 429**, `Retry-After` başlığı. Kaynak IP `X-Forwarded-For` üzerinden okunur (Caddy arkasında doğru).
 - Üretimde `MUSIC_TOKEN` **en az 32 karakter**, `MUSIC_SESSION_SECRET` **zorunlu**. Token kısa ise sunucu başlamaz.
 - Üretimde varsayılan `HOST=127.0.0.1` (dışarıdan doğrudan erişim yok).
-- Başlıklar: `CSP`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, HTTPS'de `HSTS`.
+- Başlıklar: `CSP` (`script-src`/`frame-src` YouTube IFrame API'sine izin verir), `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` (gömülü oynatıcı için gerekli), `Permissions-Policy`, HTTPS'de `HSTS`.
 - `SECURE_COOKIES=true` iken çerez `Secure` ve `SameSite=None` (mobil çapraz site için) / `Lax` (HTTP dev).
 
 ## 3. `.env` (üretim)

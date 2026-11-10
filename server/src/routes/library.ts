@@ -53,7 +53,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     return {
       status: 'ok',
       name: 'Norie Music',
-      version: '0.20.0',
+      version: '0.20.1',
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,

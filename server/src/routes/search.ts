@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
 import { rateLimit } from '../ratelimit.js';
+import { artistOf, rankCandidates } from '../searchQuality.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -23,7 +24,7 @@ function toSong(item: YtItem) {
   return {
     id: item.id,
     title: item.title,
-    artist: item.uploader || item.channel || 'Unknown',
+    artist: artistOf({ title: item.title, uploader: item.uploader, artist: item.channel }),
     thumbnail:
       item.thumbnails?.[item.thumbnails.length - 1]?.url ||
       `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`,
@@ -65,18 +66,13 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
       if (q.length < 2) return { texts: [], songs: [] };
 
       try {
-        const items = await ytSearchJson(`ytsearch8:${q}`, 8);
-        const songs: Array<NonNullable<ReturnType<typeof toSong>>> = [];
-        const seen = new Set<string>();
-        for (const item of items) {
-          const song = toSong(item);
-          if (!song || seen.has(song.id)) continue;
-          seen.add(song.id);
-          songs.push(song);
-          if (songs.length >= 6) break;
-        }
-        const texts = songs.map((s) => s.title).slice(0, 5);
-        return { texts, songs };
+        const items = await ytSearchJson(`ytsearch16:${q}`, 16);
+        const songs = items
+          .map((item) => toSong(item))
+          .filter((song): song is NonNullable<ReturnType<typeof toSong>> => song !== null);
+        const ranked = rankCandidates(songs, q, 6);
+        const texts = ranked.map((s) => s.title).slice(0, 5);
+        return { texts, songs: ranked };
       } catch {
         return { texts: [], songs: [] };
       }
@@ -99,20 +95,20 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
       const explicit = (request.query.q ?? '').trim();
       const title = (request.query.title ?? '').trim();
       const artist = (request.query.artist ?? '').trim();
-      const query = explicit || `${artist} ${title}`.trim();
+      const hasArtist = artist && !/^unknown$/i.test(artist);
+      // Recommendations favour more from the same artist, which is what
+      // listeners expect after a track ends; fall back to title+artist.
+      const query = explicit || (hasArtist ? artist : `${artist} ${title}`.trim());
       if (!query) return { results: [] };
 
       try {
-        const items = await ytSearchJson(`ytsearch${limit + 4}:${query} audio`, limit + 4);
-        const results: Array<NonNullable<ReturnType<typeof toSong>>> = [];
-        const seen = new Set<string>(exclude ? [exclude] : []);
-        for (const item of items) {
-          const song = toSong(item);
-          if (!song || seen.has(song.id)) continue;
-          seen.add(song.id);
-          results.push(song);
-          if (results.length >= limit) break;
-        }
+        const fetchCount = Math.min(limit * 3, 40);
+        const items = await ytSearchJson(`ytsearch${fetchCount}:${query}`, fetchCount);
+        const songs = items
+          .map((item) => toSong(item))
+          .filter((song): song is NonNullable<ReturnType<typeof toSong>> => song !== null);
+        const ranked = rankCandidates(songs, hasArtist ? title : query, limit + 2, { strict: false });
+        const results = ranked.filter((song) => song.id !== exclude).slice(0, limit);
         return { results };
       } catch {
         return { results: [] };

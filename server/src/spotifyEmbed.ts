@@ -3,6 +3,7 @@
 // and yt-dlp for YouTube Music search (reliable, no undocumented endpoints).
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { cleanTrackTitle, qualityScore } from './searchQuality.js';
 const execFileAsync = promisify(execFile);
 const PYTHON = process.env.PYTHON_PATH || 'python';
 
@@ -86,20 +87,46 @@ async function searchYtm(query: string, count: number = 5, requestedBy: string |
 async function matchSong({ title, artist, duration, exclude }: { title: string; artist: string; duration: number | null; exclude?: string[] }, requestedBy: string | null = null): Promise<any | null> {
   const artists = String(artist ?? '').split(/,|&| x | feat\.? | ft\.? | and /i).map(norm).filter(Boolean);
   const skip = new Set(exclude ?? []);
-  const results = (await searchYtm(`${title} ${artists[0] ?? ''}`.trim(), 8, requestedBy)).filter(
+  const results = (await searchYtm(`${title} ${artists[0] ?? ''}`.trim(), 12, requestedBy)).filter(
     (t: any) => !t.videoId || !skip.has(t.videoId),
   );
   if (!results.length) return null;
-  const score = (t: any) =>
-    (norm(t.title) === norm(title) ? 2 : norm(t.title).includes(norm(title)) ? 1 : 0) +
-    (artists.some((a: string) => norm(t.uploader).includes(a)) ? 2 : 0) +
-    (duration && t.duration && Math.abs(t.duration - duration) <= 10 ? 1 : 0);
-  const ranked = [...results].sort((a: any, b: any) => score(b) - score(a));
-  // Reject candidates that share almost nothing with the requested song, so we
-  // never silently play an unrelated cover.
-  const best = ranked[0] ?? null;
-  if (!best) return null;
-  return best;
+
+  // Two-axis ranking: how well the candidate matches the requested recording,
+  // and how good a *recording* it is (official upload vs karaoke edit).
+  const matchScore = (t: any) => {
+    const titleText = cleanTrackTitle(t.title ?? '');
+    const wanted = cleanTrackTitle(title);
+    let s = 0;
+    if (titleText === wanted) s += 12;
+    else if (titleText.startsWith(wanted)) s += 9;
+    else if (titleText.includes(wanted)) s += 6;
+    else if (wanted && similarity(titleText, wanted) >= 0.7) s += 4;
+    if (artists.some((a: string) => norm(t.uploader).includes(a))) s += 8;
+    if (duration && t.duration && Math.abs(t.duration - duration) <= 5) s += 6;
+    else if (duration && t.duration && Math.abs(t.duration - duration) <= 15) s += 3;
+    else if (duration && t.duration && Math.abs(t.duration - duration) > 90) s -= 6;
+    return s + qualityScore(t) / 4;
+  };
+
+  const ranked = [...results]
+    .map((t: any) => ({ track: t, score: matchScore(t) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  // No candidate shares enough with the request — report failure instead of
+  // silently playing an unrelated cover.
+  return ranked[0]?.track ?? null;
+}
+
+/** Cheap token-overlap similarity, 0..1. */
+function similarity(a: string, b: string): number {
+  const at = new Set(a.split(' ').filter(Boolean));
+  const bt = new Set(b.split(' ').filter(Boolean));
+  if (at.size === 0 || bt.size === 0) return 0;
+  let shared = 0;
+  for (const token of at) if (bt.has(token)) shared += 1;
+  return shared / Math.max(at.size, bt.size);
 }
 
 // --- Spotify resolution ---

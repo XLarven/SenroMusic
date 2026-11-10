@@ -29,35 +29,40 @@ import type { Track } from '../types';
 import { formatDuration } from '../lib/format';
 
 // Tracks how many times each song has been rematched so a broken match cannot
-// loop forever.
-const rematchAttempts = new Map<string, number>();
+// loop forever. The key is the *requested* song, never the resolved upload —
+// rewriting the title/artist on each try used to reset the counter and make two
+// embed-blocked uploads ping-pong indefinitely.
+type RematchState = { attempts: number; excluded: string[] };
+const rematchState = new Map<string, RematchState>();
+
+function resetRematch(key: string): void {
+  rematchState.delete(key);
+}
 
 async function rematchYouTubeTrack(track: Track | null): Promise<void> {
   if (!track) return;
   const key = `${track.title}::${track.artist}`;
-  const attempts = (rematchAttempts.get(key) ?? 0) + 1;
-  if (attempts > 3) {
-    rematchAttempts.delete(key);
-    return;
-  }
-  rematchAttempts.set(key, attempts);
+  const entry = rematchState.get(key) ?? { attempts: 0, excluded: [] };
   const failedId = track.streamUrl.startsWith('youtube:') ? track.streamUrl.slice('youtube:'.length) : '';
+  if (failedId && !entry.excluded.includes(failedId)) entry.excluded.push(failedId);
+  entry.attempts += 1;
+  rematchState.set(key, entry);
+  if (entry.attempts > 3) return;
+
   try {
     const resolved = await api.spotifyResolvePending({
       title: track.title,
       artist: track.artist,
       duration: track.duration ?? null,
-      exclude: failedId ? [failedId] : [],
+      exclude: entry.excluded,
     });
-    if (!resolved?.videoId || resolved.videoId === failedId) return;
-    rematchAttempts.delete(key);
+    if (!resolved?.videoId || entry.excluded.includes(resolved.videoId)) return;
+    // Keep the requested metadata so the song identity stays stable for the
+    // attempt counter, the queue and lyric lookup; only the stream changes.
     usePlayer.getState().playTrack({
       ...track,
       id: `yt_${resolved.videoId}`,
       streamUrl: `youtube:${resolved.videoId}`,
-      title: resolved.title ?? track.title,
-      artist: resolved.uploader ?? track.artist,
-      duration: resolved.duration ?? track.duration,
       coverUrl: resolved.thumbnail ?? track.coverUrl,
     });
   } catch {
@@ -103,6 +108,7 @@ export function PlayerBar() {
       return;
     }
     const videoId = youtubeVideoId(current);
+    const songKey = `${current.title}::${current.artist}`;
     let cancelled = false;
     const state = usePlayer.getState();
     void playYouTubeVideo(videoId, youtubeHostRef.current, {
@@ -111,6 +117,9 @@ export function PlayerBar() {
       },
       onTimeUpdate: (time, dur) => {
         if (!cancelled) usePlayer.setState({ currentTime: time, duration: dur, loading: false });
+        // The stream is genuinely playing, so any earlier rematch budget for
+        // this song is spent and can be released.
+        if (time > 5) resetRematch(songKey);
       },
       onEnded: () => {
         if (!cancelled) usePlayer.getState().handleEnded();

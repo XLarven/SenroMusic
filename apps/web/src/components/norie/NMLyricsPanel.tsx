@@ -63,6 +63,8 @@ export function NMLyricsPanel({ artist, title, duration, album }: Props) {
       {data.lines.map((line, i) => (
         <div
           key={i}
+          data-index={i}
+          data-time={line.time ?? undefined}
           className={`lyrics-line ${i === activeIdx ? 'is-active' : ''} ${i < activeIdx ? 'is-past' : ''}`}
           onClick={() => {
             if (line.time !== null) seek(line.time);

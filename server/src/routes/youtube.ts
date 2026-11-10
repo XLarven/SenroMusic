@@ -7,6 +7,7 @@ import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
 import { rateLimit } from '../ratelimit.js';
 import { scanLibrary } from '../scanner.js';
+import { artistOf, rankCandidates } from '../searchQuality.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -118,8 +119,10 @@ export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
       const limit = Math.min(Math.max(Number(request.query.limit) || 10, 1), 25);
       if (!q) return { results: [] };
 
+      // Over-fetch so quality filtering and dedupe still leave a full page.
+      const fetchCount = Math.min(limit * 5, 50);
       const output = await runYtDlp([
-        `ytsearch${limit}:${q}`,
+        `ytsearch${fetchCount}:${q}`,
         '--dump-json',
         '--flat-playlist',
         '--no-warnings',
@@ -156,7 +159,7 @@ export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
           results.push({
             id: item.id,
             title: item.title,
-            uploader: item.uploader || item.channel || 'Unknown',
+            uploader: artistOf({ title: item.title, uploader: item.uploader, artist: item.channel }),
             duration: typeof item.duration === 'number' ? item.duration : null,
             thumbnail: thumb,
             url: item.webpage_url || item.url || `https://www.youtube.com/watch?v=${item.id}`,
@@ -174,7 +177,9 @@ export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
         return true;
       });
 
-      return { results: unique };
+      // Rank by query relevance + recording quality, dropping karaoke,
+      // instrumental, nightcore, reaction and duplicate uploads.
+      return { results: rankCandidates(unique, q, limit) };
     },
   );
 

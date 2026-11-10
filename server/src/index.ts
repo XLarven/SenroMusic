@@ -44,9 +44,16 @@ export async function buildServer() {
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('Referrer-Policy', 'no-referrer');
+    // The player loads the YouTube IFrame API from youtube.com; a bare
+    // 'self' policy blocks the script and the frame in production, which is
+    // why playback silently failed there. The embed also needs a Referer, so
+    // the policy stays strict-origin-when-cross-origin rather than no-referrer.
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     reply.header('X-Frame-Options', 'DENY');
-    reply.header('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'");
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'",
+    );
     reply.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     if (request.protocol === 'https' || config.secureCookies) {
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
