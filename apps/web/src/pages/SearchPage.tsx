@@ -8,6 +8,7 @@ import { ArtistCard } from '../components/ArtistCard';
 import { Cover } from '../components/Cover';
 import { DownloadButton } from '../components/DownloadButton';
 import { EmptyState } from '../components/EmptyState';
+import { RemotePlaylistView } from '../components/RemotePlaylistView';
 import { ImportPreviewPanel, type PlaylistPreview, type PreviewItem } from '../components/ImportPreviewPanel';
 import { PlayButton } from '../components/PlayButton';
 import { SearchSuggestions, songToTrack, type SuggestionSong } from '../components/SearchSuggestions';
@@ -168,6 +169,45 @@ export function SearchPage() {
     addedAt: new Date().toISOString(),
   });
 
+  // A pasted Spotify playlist becomes a playable queue: tracks that carry a
+  // YouTube id play from that upload, the rest are resolved from metadata.
+  const spotifyTracks = useMemo<Track[]>(() => {
+    if (!spotify) return [];
+    const seen = new Map<string, number>();
+    return spotify.items.map((item, index) => {
+      const videoId = item.providerTrackId && /^[\w-]{11}$/.test(item.providerTrackId) ? item.providerTrackId : null;
+      const key = videoId ?? `${normalize(item.title)}::${normalize(item.artist)}`;
+      const repeat = seen.get(key) ?? 0;
+      seen.set(key, repeat + 1);
+      const slug = key.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 44) || `parca-${index}`;
+      return {
+        id: videoId ? `yt_${videoId}` : `sp_${slug}-${repeat}`,
+        title: item.title,
+        artist: item.artist,
+        album: item.album ?? spotify.title,
+        albumArtist: item.artist,
+        genre: null,
+        year: null,
+        trackNo: index + 1,
+        discNo: null,
+        duration: item.duration ?? 0,
+        bitrate: null,
+        sampleRate: null,
+        channels: null,
+        format: videoId ? 'youtube' : 'spotify',
+        size: 0,
+        coverUrl: item.artworkUrl ?? spotify.artworkUrl ?? null,
+        streamUrl: videoId ? `youtube:${videoId}` : `spotify:${slug}-${repeat}`,
+        addedAt: new Date().toISOString(),
+      } satisfies Track;
+    });
+  }, [spotify]);
+
+  const ytPlaylistTracks = useMemo<Track[]>(
+    () => (ytPlaylist?.items ?? []).map((item) => youtubeResultToTrack(item)),
+    [ytPlaylist],
+  );
+
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -250,7 +290,27 @@ export function SearchPage() {
     if (isPlaylistUrl(needle)) {
       setYtResults([]);
       setYtError(null);
-      return;
+      if (!/(?:youtube\.com|youtu\.be)/i.test(needle)) return;
+      let cancelled = false;
+      setYtPlaylistLoading(true);
+      setYtPlaylistError(null);
+      setYtPlaylist(null);
+      api
+        .youtubePlaylist(needle)
+        .then((payload) => {
+          if (cancelled) return;
+          setYtPlaylist({ title: payload.title, items: payload.items, total: payload.total });
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setYtPlaylistError(error instanceof Error ? error.message : 'Liste okunamadı.');
+        })
+        .finally(() => {
+          if (!cancelled) setYtPlaylistLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
     if (!needle || needle.length < 2) {
       setYtResults([]);
@@ -810,45 +870,68 @@ export function SearchPage() {
     );
   };
 
-  const renderSpotify = () => (
-    <section className="content-section">
-      <div className="section-heading">
-        <div>
-          <h2>Spotify içe aktar</h2>
-          <p>Bağlantıyı algıladık — yalnızca kütüphanende bulunan parçalar listeye eklenir.</p>
-        </div>
-      </div>
-      {spotifyLoading ? (
-        <div className="surface-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Loader2 size={18} className="spin" />
-          <span>Spotify bağlantısı çözülüyor…</span>
-        </div>
-      ) : spotifyError ? (
-        <EmptyState icon={SearchX} title="Spotify çözülemedi" description={spotifyError} />
-      ) : spotify ? (
-        <div className="surface-panel" style={{ padding: 18 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <strong style={{ fontSize: '1rem' }}>{spotify.title}</strong>
-              <div style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: 4 }}>
-                {spotify.items.length} şarkı — yalnızca kütüphanende bulunanlar eşleştirilecek.
-              </div>
-            </div>
-            <button type="button" className="button primary" disabled={importing} onClick={() => void handleSpotifyImport()}>
-              {importing ? <><Loader2 size={16} className="spin" /> İçe aktarılıyor…</> : <><Download size={16} /> Playlist oluştur</>}
-            </button>
+  const renderSpotify = () => {
+    if (spotifyLoading) {
+      return (
+        <section className="content-section">
+          <div className="section-heading"><div><h2>Spotify listesi</h2><p>Bağlantı çözülüyor…</p></div></div>
+          <div className="surface-panel remote-loading">
+            <Loader2 size={18} className="spin" />
+            <span>Spotify bağlantısı okunuyor…</span>
           </div>
-          <ul style={{ marginTop: 12, padding: 0, listStyle: 'none' }}>
-            {spotify.items.slice(0, 8).map((item, i) => (
-              <li key={i} style={{ padding: '6px 0', borderTop: '1px solid var(--border)', fontSize: '0.85rem' }}>
-                <strong>{item.title}</strong> <span style={{ color: 'var(--muted)' }}>· {item.artist}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </section>
-  );
+        </section>
+      );
+    }
+    if (spotifyError) {
+      return <EmptyState icon={SearchX} title="Spotify bağlantısı okunamadı" description={spotifyError} />;
+    }
+    if (!spotify) return null;
+    return (
+      <RemotePlaylistView
+        source="spotify"
+        title={spotify.title}
+        description={spotify.description}
+        creator={spotify.creator}
+        coverUrl={spotify.artworkUrl}
+        sourceUrl={deferredQuery}
+        tracks={spotifyTracks}
+        totalDuration={spotify.totalDuration}
+        importing={importing}
+        onImport={() => void handleSpotifyImport()}
+        importLabel="Norie listesine kaydet"
+      />
+    );
+  };
+
+  const renderYouTubePlaylist = () => {
+    if (ytPlaylistLoading) {
+      return (
+        <section className="content-section">
+          <div className="section-heading"><div><h2>YouTube listesi</h2><p>Bağlantı çözülüyor…</p></div></div>
+          <div className="surface-panel remote-loading">
+            <Loader2 size={18} className="spin" />
+            <span>YouTube listesi okunuyor…</span>
+          </div>
+        </section>
+      );
+    }
+    if (ytPlaylistError) {
+      return <EmptyState icon={SearchX} title="YouTube listesi okunamadı" description={ytPlaylistError} />;
+    }
+    if (!ytPlaylist) return null;
+    return (
+      <RemotePlaylistView
+        source="youtube"
+        title={ytPlaylist.title}
+        coverUrl={ytPlaylist.items[0]?.thumbnail ?? null}
+        sourceUrl={deferredQuery}
+        tracks={ytPlaylistTracks}
+        importing={ytPlaylistImporting}
+        onImport={() => void importYtPlaylist()}
+        importLabel="Norie listesine kaydet"
+      />
+    );
+  };
 
   const renderYouTube = () => (
     <section className="content-section">
@@ -990,7 +1073,7 @@ export function SearchPage() {
         />
       </div>
 
-      {isPlaylistUrl(deferredQuery) ? (
+      {isPlaylistUrl(deferredQuery) && !/(?:youtube\.com|youtu\.be|open\.spotify\.com)/i.test(deferredQuery) ? (
         previewLoading ? (
           <div className="surface-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Loader2 size={18} className="spin" />
@@ -1013,8 +1096,8 @@ export function SearchPage() {
           <section className="content-section">
             <div className="section-heading">
               <div>
-                <h2>YouTube çalma listesi içe aktar</h2>
-                <p>Bağlantıyı yapıştır; yalnızca kütüphanende bulunan parçalar listeye eklenir.</p>
+                <h2>Bağlantıyla aç</h2>
+                <p>Spotify veya YouTube çalma listesi bağlantısını yukarıdaki arama kutusuna yapıştır; içerik görsel olarak açılır ve doğrudan çalar.</p>
               </div>
             </div>
             <div className="surface-panel import-panel">
@@ -1022,29 +1105,24 @@ export function SearchPage() {
                 type="url"
                 value={ytPlaylistUrl}
                 onChange={(event) => setYtPlaylistUrl(event.target.value)}
-                placeholder="https://www.youtube.com/playlist?list=…"
-                aria-label="YouTube çalma listesi bağlantısı"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    setQuery(ytPlaylistUrl.trim());
+                  }
+                }}
+                placeholder="https://open.spotify.com/playlist/… veya https://www.youtube.com/playlist?list=…"
+                aria-label="Çalma listesi bağlantısı"
               />
-              <button type="button" className="button secondary" onClick={() => void fetchYtPlaylist()} disabled={ytPlaylistLoading || !ytPlaylistUrl.trim()}>
-                {ytPlaylistLoading ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
-                {ytPlaylistLoading ? 'Okunuyor…' : 'Önizle'}
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setQuery(ytPlaylistUrl.trim())}
+                disabled={!ytPlaylistUrl.trim()}
+              >
+                <Link2 size={16} />
+                Aç
               </button>
-              {ytPlaylistError ? <p className="form-error">{ytPlaylistError}</p> : null}
-              {ytPlaylist ? (
-                <div className="import-preview">
-                  <strong>{ytPlaylist.title}</strong>
-                  <span>{ytPlaylist.items.length} öğe</span>
-                  <ul>
-                    {ytPlaylist.items.slice(0, 6).map((item) => (
-                      <li key={item.id}><strong>{item.title}</strong> <span>{item.uploader}</span></li>
-                    ))}
-                  </ul>
-                  <button type="button" className="button primary" onClick={() => void importYtPlaylist()} disabled={ytPlaylistImporting}>
-                    {ytPlaylistImporting ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-                    {ytPlaylistImporting ? 'İçe aktarılıyor…' : 'Playlist oluştur'}
-                  </button>
-                </div>
-              ) : null}
             </div>
           </section>
           {history.length > 0 ? (
@@ -1120,8 +1198,10 @@ export function SearchPage() {
         </>
       ) : (
         <>
-          {isPlaylistUrl(deferredQuery) ? null : isSpotifyUrl ? (
+          {isSpotifyUrl ? (
             renderSpotify()
+          ) : isPlaylistUrl(deferredQuery) ? (
+            renderYouTubePlaylist()
           ) : (
             <>
               {renderSpotifyCatalog()}
