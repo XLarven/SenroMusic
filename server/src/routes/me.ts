@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { getDb, getTrackRow, trackToDto } from '../db.js';
 import { getPublicPlaylists } from '../library.js';
 import { getRelationship } from '../friends.js';
+import { presenceStore, publishActivity, publishPresence } from '../presence.js';
 import { rateLimit } from '../ratelimit.js';
 import {
   findUserById,
@@ -49,7 +50,14 @@ const SETTINGS_KEYS = new Set([
   'downloadQuality',
   'streamingQuality',
   'historyEnabled',
+  // Presence / listening privacy (Phase 3)
+  'presenceVisible',
+  'lastSeenVisible',
+  'activityVisible',
+  'invisible',
 ]);
+
+const PRESENCE_SETTING_KEYS = new Set(['presenceVisible', 'lastSeenVisible', 'activityVisible', 'invisible']);
 
 function badRequest(reply: FastifyReply, message: string) {
   return reply.code(400).send({ error: { code: 'invalid_request', message } });
@@ -361,6 +369,15 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
            ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
         )
         .run(request.user!.id, key, JSON.stringify(value));
+      // Privacy keys take effect immediately, including for open streams.
+      if (PRESENCE_SETTING_KEYS.has(key)) {
+        try {
+          publishPresence(getDb(), presenceStore, request.user!.id);
+          publishActivity(getDb(), presenceStore, request.user!.id);
+        } catch {
+          // a broadcast failure must not fail the setting save
+        }
+      }
       return { ok: true, settings: readSettings(request.user!.id) };
     },
   );

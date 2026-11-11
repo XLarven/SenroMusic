@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Check, Inbox, Loader2, Search, Send, UsersRound, X } from 'lucide-react';
+import { ArrowUpRight, Check, Inbox, Loader2, Play, Search, Send, UsersRound, X } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../api';
 import { Cover } from '../../components/Cover';
 import { EmptyState } from '../../components/EmptyState';
 import { t } from '../../lib/i18n';
+import { activityToTrack } from '../../lib/presenceTrack';
+import { usePlayer } from '../../store/player';
 import { useToastStore } from '../../store/toast';
+import { useFriendsPresence } from './useFriendsPresence';
 import type { FriendCounts, FriendRequestEntry, FriendUser } from '../../types';
 
 type Tab = 'friends' | 'incoming' | 'outgoing';
@@ -19,6 +22,8 @@ const PAGE = 20;
  */
 export function FriendsPanel() {
   const pushToast = useToastStore((state) => state.push);
+  const playTrack = usePlayer((state) => state.playTrack);
+  const presence = useFriendsPresence();
   const [tab, setTab] = useState<Tab>('friends');
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [incoming, setIncoming] = useState<FriendRequestEntry[]>([]);
@@ -186,33 +191,63 @@ export function FriendsPanel() {
             />
           ) : (
             <div className="surface-panel people-list">
-              {visibleFriends.map((friend) => (
-                <div className="person-row" key={friend.id}>
-                  <Cover src={friend.avatarUrl} alt="" seed={friend.id} className="person-avatar" iconSize={16} />
-                  <Link className="person-copy" to={friend.username ? `/u/${friend.username}` : `/profile/${friend.id}`}>
-                    <strong>{friend.displayName}</strong>
-                    <small>{friend.username ? `@${friend.username}` : t('Profil', 'Profile')}</small>
-                  </Link>
-                  <button
-                    type="button"
-                    className="icon-button subtle friend-remove"
-                    disabled={busyId === friend.id}
-                    onClick={() =>
-                      void run(
-                        friend.id,
-                        async () => {
-                          await api.removeFriend(friend.id);
-                        },
-                        t('Arkadaşlıktan çıkarıldı.', 'Friend removed.'),
-                      )
-                    }
-                    aria-label={t('Arkadaşlıktan çıkar', 'Remove friend')}
-                    title={t('Arkadaşlıktan çıkar', 'Remove friend')}
-                  >
-                    {busyId === friend.id ? <Loader2 size={16} className="spin" /> : <X size={16} />}
-                  </button>
-                </div>
-              ))}
+              {visibleFriends.map((friend) => {
+                const live = presence.get(friend.id);
+                const listening = live?.activity ?? null;
+                return (
+                  <div className="person-row friend-row" key={friend.id}>
+                    <span className="friend-avatar-wrap">
+                      <Cover src={friend.avatarUrl} alt="" seed={friend.id} className="person-avatar" iconSize={16} />
+                      {live && live.status !== 'offline' ? (
+                        <span
+                          className={`presence-dot-wrap is-${live.status}`}
+                          title={live.status === 'online' ? t('Çevrimiçi', 'Online') : t('Uzakta', 'Away')}
+                          aria-label={live.status === 'online' ? t('Çevrimiçi', 'Online') : t('Uzakta', 'Away')}
+                        />
+                      ) : null}
+                    </span>
+                    <Link className="person-copy" to={friend.username ? `/u/${friend.username}` : `/profile/${friend.id}`}>
+                      <strong>{friend.displayName}</strong>
+                      {listening ? (
+                        <small className="friend-now-playing">
+                          【{t('dinliyor', 'listening')}】 {listening.title} · {listening.artist}
+                        </small>
+                      ) : (
+                        <small>{friend.username ? `@${friend.username}` : t('Profil', 'Profile')}</small>
+                      )}
+                    </Link>
+                    {listening ? (
+                      <button
+                        type="button"
+                        className="icon-button subtle friend-play"
+                        onClick={() => playTrack(activityToTrack(listening))}
+                        aria-label={t('Şarkıyı aç', 'Open track')}
+                        title={t('Şarkıyı aç', 'Open track')}
+                      >
+                        <Play size={15} fill="currentColor" />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="icon-button subtle friend-remove"
+                      disabled={busyId === friend.id}
+                      onClick={() =>
+                        void run(
+                          friend.id,
+                          async () => {
+                            await api.removeFriend(friend.id);
+                          },
+                          t('Arkadaşlıktan çıkarıldı.', 'Friend removed.'),
+                        )
+                      }
+                      aria-label={t('Arkadaşlıktan çıkar', 'Remove friend')}
+                      title={t('Arkadaşlıktan çıkar', 'Remove friend')}
+                    >
+                      {busyId === friend.id ? <Loader2 size={16} className="spin" /> : <X size={16} />}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 

@@ -200,6 +200,37 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 6,
+    name: 'presence and listening activity',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_presence (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'offline',
+          last_seen_at TEXT,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS user_activity (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          session_id TEXT NOT NULL,
+          track_id TEXT,
+          title TEXT NOT NULL,
+          artist TEXT NOT NULL,
+          album TEXT,
+          cover_url TEXT,
+          source TEXT,
+          duration REAL,
+          position REAL NOT NULL DEFAULT 0,
+          playing INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_activity_updated
+          ON user_activity(updated_at DESC);
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

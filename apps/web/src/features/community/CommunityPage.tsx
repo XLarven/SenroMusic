@@ -15,6 +15,7 @@ import {
 import { CommunitySection } from './CommunitySection';
 import { PeopleSearch } from './PeopleSearch';
 import { FriendsPanel } from './FriendsPanel';
+import { ListeningNow } from './ListeningNow';
 import { t } from '../../lib/i18n';
 
 /**
@@ -58,6 +59,8 @@ export function CommunityPage() {
         </div>
         <PeopleSearch />
       </section>
+
+      <ListeningNow />
 
       <div className="community-grid">
         <CommunitySection

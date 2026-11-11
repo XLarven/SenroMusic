@@ -5,6 +5,7 @@ import {
   Clock3,
   Database,
   Download,
+  EyeOff,
   HardDrive,
   Info,
   KeyRound,
@@ -282,6 +283,35 @@ export function SettingsPage() {
           <p className="settings-hint">
             Dinamik albüm renkleri, tam ekran oynatıcının arka planını çalan şarkının kapağından üretir.
             Hareketi azalt, tüm animasyon ve geçişleri kapatır.
+          </p>
+        </section>
+
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <span className="settings-icon"><EyeOff size={19} /></span>
+            <div><h2>Gizlilik</h2><p>Kim, neyi görebilsin?</p></div>
+          </header>
+          <dl className="settings-list">
+            <div>
+              <dt>Çevrimiçi durumumu göster</dt>
+              <dd><input type="checkbox" checked={settings.presenceVisible !== false} onChange={(event) => void saveSetting('presenceVisible', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Şu an dinlediğimi göster</dt>
+              <dd><input type="checkbox" checked={settings.activityVisible !== false} onChange={(event) => void saveSetting('activityVisible', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Son görülme zamanımı göster</dt>
+              <dd><input type="checkbox" checked={settings.lastSeenVisible !== false} onChange={(event) => void saveSetting('lastSeenVisible', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Görünmez mod</dt>
+              <dd><input type="checkbox" checked={settings.invisible === true} onChange={(event) => void saveSetting('invisible', event.target.checked)} /></dd>
+            </div>
+          </dl>
+          <p className="settings-hint">
+            Görünmez modda arkadaşlarına çevrimdışı görünürsün ve dinlediğin şarkı paylaşılmaz.
+            Bu kurallar sunucuda uygulanır.
           </p>
         </section>
 

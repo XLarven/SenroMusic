@@ -9,6 +9,7 @@ import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { applyUiSettings } from '../lib/uiSettings';
+import { reportPlayback, startPresence } from '../lib/presence';
 import { Logo } from './Logo';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
@@ -129,6 +130,16 @@ export function AppShell() {
       .settings()
       .then((payload) => applyUiSettings(payload.settings))
       .catch(() => undefined);
+
+    // Presence: heartbeats for this tab, playback mirrored to the server.
+    const stopPresence = startPresence();
+    const unsubscribe = usePlayer.subscribe((state) => {
+      reportPlayback(state.current, state.playing, state.currentTime);
+    });
+    return () => {
+      unsubscribe();
+      stopPresence();
+    };
   }, []);
 
   useEffect(() => {

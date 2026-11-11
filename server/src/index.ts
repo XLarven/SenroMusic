@@ -20,6 +20,9 @@ import { mediaRoutes } from './routes/media.js';
 import { artworkRoutes } from './routes/artwork.js';
 import { localeRoutes } from './routes/locale.js';
 import { friendsRoutes } from './routes/friends.js';
+import { presenceRoutes, sweepPresence } from './routes/presence.js';
+import { getDb } from './db.js';
+import { presenceStore } from './presence.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -90,6 +93,7 @@ export async function buildServer() {
   await app.register(artworkRoutes);
   await app.register(localeRoutes);
   await app.register(friendsRoutes);
+  await app.register(presenceRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
@@ -129,6 +133,16 @@ async function main(): Promise<void> {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Music directory: ${resolve(config.musicDir)}`);
   app.log.info(`Data directory: ${resolve(config.dataDir)}`);
+
+  // Presence expiry: silent sessions drop to away/offline and friends are told.
+  const presenceSweeper = setInterval(() => {
+    try {
+      sweepPresence(getDb(), presenceStore);
+    } catch (error) {
+      app.log.error({ err: error }, 'presence sweep failed');
+    }
+  }, 15_000);
+  presenceSweeper.unref?.();
 
   if (config.scanOnStart) {
     void scanLibrary()

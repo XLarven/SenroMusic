@@ -243,6 +243,32 @@ export type FriendNotification = {
   actor: FriendUser | null;
 };
 
+export type PresenceStatus = 'online' | 'away' | 'offline';
+
+export type ListeningActivity = {
+  trackId: string | null;
+  title: string;
+  artist: string;
+  album: string | null;
+  coverUrl: string | null;
+  source: string | null;
+  duration: number | null;
+  position: number;
+  playing: boolean;
+  updatedAt: string;
+};
+
+export type FriendPresence = {
+  userId: string;
+  status: PresenceStatus;
+  lastSeenAt: string | null;
+  activity: ListeningActivity | null;
+};
+
+export type PresenceEvent =
+  | { type: 'presence'; userId: string; status: PresenceStatus; lastSeenAt: string | null; at: string }
+  | { type: 'activity'; userId: string; activity: ListeningActivity | null; at: string };
+
 export type PublicProfile = {
   id: string;
   displayName: string;

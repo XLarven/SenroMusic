@@ -23,6 +23,7 @@ import type {
   FriendCounts,
   FriendNotification,
   Relationship,
+  FriendPresence,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -303,6 +304,32 @@ export const api = {
     }),
   searchUsers: (q: string) =>
     request<{ users: UserSearchResult[] }>(`/api/users/search?q=${encodeURIComponent(q)}`),
+  presenceFriends: () =>
+    request<{ friends: Array<{ user: FriendUser; presence: FriendPresence }>; at: string }>('/api/presence/friends'),
+  presenceUser: (userId: string) =>
+    request<{ presence: FriendPresence }>(`/api/presence/user/${encodeURIComponent(userId)}`),
+  presenceHeartbeat: (sessionId: string, away: boolean) =>
+    request<{ ok: boolean; status: string }>('/api/presence/heartbeat', {
+      method: 'POST',
+      body: { sessionId, away },
+    }),
+  presenceActivity: (
+    sessionId: string,
+    activity: {
+      trackId: string | null;
+      title: string;
+      artist: string;
+      album: string | null;
+      coverUrl: string | null;
+      source: string | null;
+      duration: number | null;
+      position: number;
+      playing: boolean;
+    } | null,
+  ) =>
+    request<{ ok: boolean }>('/api/presence/activity', { method: 'POST', body: { sessionId, activity } }),
+  presenceOffline: (sessionId: string) =>
+    request<{ ok: boolean }>('/api/presence/offline', { method: 'POST', body: { sessionId } }),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

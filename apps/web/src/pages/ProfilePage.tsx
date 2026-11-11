@@ -5,6 +5,7 @@ import { ArrowRight, Camera, Image as ImageIcon, LogOut, Pencil, Settings2, Shie
 import { api } from '../api';
 import { FriendButton } from '../features/community/FriendButton';
 import { BlockButton } from '../features/community/BlockButton';
+import { ProfilePresence } from '../features/community/ProfilePresence';
 import { EmptyState } from '../components/EmptyState';
 import { ImageCropEditor } from '../components/ImageCropEditor';
 import { PlaylistCard } from '../components/PlaylistCard';
@@ -342,6 +343,10 @@ export function ProfilePage() {
           />
         </div>
       )}
+
+      {!isOwn && publicProfileQuery.data?.profile.id ? (
+        <ProfilePresence userId={publicProfileQuery.data.profile.id} />
+      ) : null}
 
       <section className="content-section">
         <div className="section-heading">
