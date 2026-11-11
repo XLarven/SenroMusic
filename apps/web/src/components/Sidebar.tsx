@@ -3,7 +3,6 @@ import { Link, NavLink } from 'react-router-dom';
 import {
   ArrowUpRight,
   Bell,
-  CloudDownload,
   Heart,
   Home,
   LibraryBig,
@@ -13,6 +12,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Cover } from './Cover';
@@ -28,7 +28,7 @@ const NAV_ITEMS = [
   { to: '/', labelTr: 'Ana sayfa', labelEn: 'Home', icon: Home, end: true },
   { to: '/search', labelTr: 'Ara', labelEn: 'Search', icon: Search, end: false },
   { to: '/library', labelTr: 'Kütüphane', labelEn: 'Library', icon: LibraryBig, end: false },
-  { to: '/downloads', labelTr: 'İndirilenler', labelEn: 'Downloads', icon: CloudDownload, end: false },
+  { to: '/community', labelTr: 'Topluluk', labelEn: 'Community', icon: Users, end: false },
   { to: '/favorites', labelTr: 'Favoriler', labelEn: 'Favorites', icon: Heart, end: false },
   { to: '/notifications', labelTr: 'Bildirimler', labelEn: 'Notifications', icon: Bell, end: false },
 ];

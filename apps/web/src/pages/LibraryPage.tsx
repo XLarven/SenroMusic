@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  CloudDownload,
   Disc3,
   HardDrive,
   LayoutGrid,
@@ -23,6 +24,8 @@ import { EmptyState } from '../components/EmptyState';
 import { PlaylistCard } from '../components/PlaylistCard';
 import { PlayButton } from '../components/PlayButton';
 import { TrackList } from '../components/TrackList';
+import { DownloadsPanel } from '../features/downloads/DownloadsPanel';
+import { t } from '../lib/i18n';
 import { useMusicData } from '../MusicDataContext';
 import { useDownloads } from '../store/downloads';
 import { useFavorites } from '../store/favorites';
@@ -35,13 +38,15 @@ import {
   formatLongDuration,
 } from '../lib/format';
 
-type LibraryTab = 'tracks' | 'albums' | 'artists' | 'playlists';
+type LibraryTab = 'tracks' | 'albums' | 'artists' | 'playlists' | 'downloads';
 
 const TABS: Array<{ id: LibraryTab; label: string; icon: typeof ListMusic }> = [
-  { id: 'tracks', label: 'Şarkılar', icon: ListMusic },
-  { id: 'albums', label: 'Albümler', icon: Disc3 },
-  { id: 'artists', label: 'Sanatçılar', icon: Users },
-  { id: 'playlists', label: 'Çalma listeleri', icon: LibraryBig },
+  { id: 'tracks', label: t('Şarkılar', 'Songs'), icon: ListMusic },
+  { id: 'albums', label: t('Albümler', 'Albums'), icon: Disc3 },
+  { id: 'artists', label: t('Sanatçılar', 'Artists'), icon: Users },
+  { id: 'playlists', label: t('Çalma listeleri', 'Playlists'), icon: LibraryBig },
+  // Downloads live here now: same device-local store, one tab away.
+  { id: 'downloads', label: t('İndirilenler', 'Downloads'), icon: CloudDownload },
 ];
 
 export function LibraryPage() {
@@ -206,7 +211,9 @@ export function LibraryPage() {
                 ? library.albums.length
                 : id === 'artists'
                   ? library.artists.length
-                  : playlists.length;
+                  : id === 'playlists'
+                    ? playlists.length
+                    : Object.values(downloadRecords).filter((record) => record.state === 'downloaded').length;
           return (
             <button
               type="button"
@@ -224,6 +231,10 @@ export function LibraryPage() {
         })}
       </div>
 
+      {tab === 'downloads' ? (
+        <DownloadsPanel compact />
+      ) : (
+        <>
       <div className="library-controls">
         <div className="view-toggle" role="group" aria-label="Görünüm biçimi">
           <button type="button" className={clsx('icon-button', view === 'list' && 'is-active')} onClick={() => setView('list')} aria-label="Liste görünümü" title="Liste görünümü"><List size={16} /></button>
@@ -394,6 +405,8 @@ export function LibraryPage() {
           <Link to="/search">arama sayfasından</Link> parça ekleyebilirsin.
         </p>
       ) : null}
+        </>
+      )}
     </div>
   );
 }
