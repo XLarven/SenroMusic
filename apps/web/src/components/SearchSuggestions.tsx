@@ -1,4 +1,4 @@
-import { Loader2, Music, Play, Search, TrendingUp } from 'lucide-react';
+import { Loader2, Music, Play, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Track } from '../types';
@@ -16,17 +16,16 @@ type Props = {
   query: string;
   open: boolean;
   onClose: () => void;
-  onPickText: (text: string) => void;
   onPickSong: (song: SuggestionSong) => void;
   onPlaySong: (song: SuggestionSong) => void;
 };
 
 function songToTrack(song: SuggestionSong): Track {
   return {
-    id: `yt_${song.id}`,
+    id: `sp_${song.id}`,
     title: song.title,
     artist: song.artist,
-    album: 'YouTube',
+    album: 'Spotify',
     albumArtist: song.artist,
     genre: null,
     year: null,
@@ -36,75 +35,79 @@ function songToTrack(song: SuggestionSong): Track {
     bitrate: null,
     sampleRate: null,
     channels: null,
-    format: 'youtube',
+    format: 'spotify',
     size: 0,
-    coverUrl: song.thumbnail,
-    streamUrl: `youtube:${song.id}`,
+    coverUrl: song.thumbnail || null,
+    // Metadata identity: the resolver picks the audio source at play time.
+    streamUrl: `spotify:${song.id}`,
     addedAt: new Date().toISOString(),
   };
 }
 
-export function SearchSuggestions({ query, open, onClose, onPickText, onPickSong, onPlaySong }: Props) {
-  const [texts, setTexts] = useState<string[]>([]);
+/**
+ * Live suggestions for the search boxes.
+ *
+ * Spotify is the catalogue that matters here, so the list is built from Spotify
+ * tracks (with artwork). The old autocomplete text rows came from YouTube's
+ * suggestion feed and filled the panel with noise, so they are gone: no matches
+ * means no panel, not a list of guesses.
+ */
+export function SearchSuggestions({ query, open, onClose, onPickSong, onPlaySong }: Props) {
   const [songs, setSongs] = useState<SuggestionSong[]>([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const abortRef = useRef<AbortController | null>(null);
-  const cacheRef = useRef<Map<string, { texts: string[]; songs: SuggestionSong[] }>>(new Map());
-
-  const rows = [
-    ...songs.map((song) => ({ kind: 'song' as const, song })),
-    ...texts.map((text) => ({ kind: 'text' as const, text })),
-  ];
+  const cacheRef = useRef<Map<string, SuggestionSong[]>>(new Map());
 
   useEffect(() => {
     const needle = query.trim();
-    if (!needle || needle.length < 2 || needle.includes('open.spotify.com') || needle.includes('youtube.com/')) {
-      setTexts([]);
+    if (!needle || needle.length < 2 || needle.includes('open.spotify.com') || /(?:youtube\.com|youtu\.be)/.test(needle)) {
       setSongs([]);
       setLoading(false);
+      setFailed(false);
       setActiveIndex(-1);
       return;
     }
     const cached = cacheRef.current.get(needle);
     if (cached) {
-      setTexts(cached.texts);
-      setSongs(cached.songs);
+      setSongs(cached);
       setLoading(false);
+      setFailed(false);
       setActiveIndex(-1);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     const timer = window.setTimeout(() => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      api
-        .searchSuggestions(needle)
-        .then((payload) => {
+      void api
+        .spotifySearch(needle, 6)
+        .then((result) => {
           if (cancelled) return;
-          const nextTexts = payload.texts ?? [];
-          const nextSongs = payload.songs ?? [];
-          cacheRef.current.set(needle, { texts: nextTexts, songs: nextSongs });
+          const next = (result.tracks ?? []).slice(0, 6).map((track) => ({
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            thumbnail: track.artworkUrl ?? '',
+            duration: track.duration ?? null,
+            url: track.sourceUrl ?? '',
+          }));
+          cacheRef.current.set(needle, next);
           if (cacheRef.current.size > 60) {
             const first = cacheRef.current.keys().next().value;
             if (first) cacheRef.current.delete(first);
           }
-          setTexts(nextTexts);
-          setSongs(nextSongs);
-          setActiveIndex(-1);
+          setSongs(next);
         })
         .catch(() => {
-          if (!cancelled) {
-            setTexts([]);
-            setSongs([]);
-          }
+          if (cancelled) return;
+          setSongs([]);
+          setFailed(true);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
-    }, 200);
+    }, 250);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -117,93 +120,83 @@ export function SearchSuggestions({ query, open, onClose, onPickText, onPickSong
       return;
     }
     const handler = (event: KeyboardEvent) => {
-      if (!open || rows.length === 0) return;
+      if (!open || songs.length === 0) return;
       if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setActiveIndex((i) => (i + 1) % rows.length);
+        setActiveIndex((i) => (i + 1) % songs.length);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setActiveIndex((i) => (i - 1 + rows.length) % rows.length);
+        setActiveIndex((i) => (i - 1 + songs.length) % songs.length);
       } else if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
       } else if (event.key === 'Enter' && activeIndex >= 0) {
+        const song = songs[activeIndex];
+        if (!song) return;
         event.preventDefault();
-        const row = rows[activeIndex];
-        if (!row) return;
-        if (row.kind === 'song') onPlaySong(row.song);
-        else onPickText(row.text);
+        onPlaySong(song);
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [open, activeIndex, rows, onClose, onPickText, onPlaySong]);
+  }, [open, activeIndex, songs, onClose, onPlaySong]);
 
   if (!open || query.trim().length < 2) return null;
-  if (!loading && rows.length === 0) return null;
+  if (!loading && songs.length === 0 && !failed) return null;
 
   return (
-    <div className="search-suggestions" role="listbox" aria-label="Arama önerileri">
+    <div className="search-suggestions" role="listbox" aria-label="Spotify önerileri">
       {loading ? (
         <div className="search-suggestion-status">
-          <Loader2 size={15} className="spin" /> Öneriler aranıyor…
+          <Loader2 size={15} className="spin" /> Spotify'da aranıyor…
         </div>
       ) : null}
-      {rows.map((row, index) => {
+      {failed ? (
+        <div className="search-suggestion-status">
+          <Search size={15} /> Spotify önerileri alınamadı.
+        </div>
+      ) : null}
+      {songs.map((song, index) => {
         const active = index === activeIndex;
-        if (row.kind === 'song') {
-          return (
-            <button
-              type="button"
-              key={`song-${row.song.id}`}
-              role="option"
-              aria-selected={active}
-              className={`search-suggestion-row ${active ? 'is-active' : ''}`}
-              onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => onPickSong(row.song)}
-            >
-              {row.song.thumbnail ? (
-                <img className="search-suggestion-art" src={row.song.thumbnail} alt="" width={40} height={40} loading="lazy" />
-              ) : (
-                <span className="search-suggestion-art search-suggestion-art-empty"><Music size={16} /></span>
-              )}
-              <span className="search-suggestion-copy">
-                <strong>{row.song.title}</strong>
-                <small>{row.song.artist} · YouTube</small>
-              </span>
-              <span
-                className="search-suggestion-play"
-                role="button"
-                tabIndex={-1}
-                aria-label={`${row.song.title} oynat`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onPlaySong(row.song);
-                }}
-              >
-                <Play size={14} fill="currentColor" />
-              </span>
-            </button>
-          );
-        }
         return (
           <button
             type="button"
-            key={`text-${row.text}-${index}`}
+            key={`spotify-${song.id}`}
             role="option"
             aria-selected={active}
-            className={`search-suggestion-row search-suggestion-text ${active ? 'is-active' : ''}`}
+            className={`search-suggestion-row ${active ? 'is-active' : ''}`}
             onMouseEnter={() => setActiveIndex(index)}
-            onClick={() => onPickText(row.text)}
+            onClick={() => onPickSong(song)}
           >
-            <span className="search-suggestion-icon"><Search size={15} /></span>
-            <span className="search-suggestion-copy"><strong>{row.text}</strong></span>
+            {song.thumbnail ? (
+              <img className="search-suggestion-art" src={song.thumbnail} alt="" width={40} height={40} loading="lazy" />
+            ) : (
+              <span className="search-suggestion-art search-suggestion-art-empty">
+                <Music size={16} />
+              </span>
+            )}
+            <span className="search-suggestion-copy">
+              <strong>{song.title}</strong>
+              <small>{song.artist} · Spotify</small>
+            </span>
+            <span
+              className="search-suggestion-play"
+              role="button"
+              tabIndex={-1}
+              aria-label={`${song.title} oynat`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onPlaySong(song);
+              }}
+            >
+              <Play size={14} fill="currentColor" />
+            </span>
           </button>
         );
       })}
-      <div className="search-suggestion-hint">
-        <TrendingUp size={13} /> ↑↓ gez · Enter seç · Esc kapat
-      </div>
+      {songs.length > 0 ? (
+        <div className="search-suggestion-hint">↑↓ gez · Enter çal · Esc kapat</div>
+      ) : null}
     </div>
   );
 }

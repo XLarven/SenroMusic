@@ -1084,11 +1084,6 @@ export function SearchPage() {
           query={query}
           open={suggestOpen}
           onClose={() => setSuggestOpen(false)}
-          onPickText={(text) => {
-            setQuery(text);
-            pushHistory(text);
-            setSuggestOpen(false);
-          }}
           onPickSong={(song: SuggestionSong) => {
             playTrack(songToTrack(song));
             pushHistory(song.title);

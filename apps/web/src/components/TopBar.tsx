@@ -25,12 +25,6 @@ export function TopBar() {
     navigate(target ? `/search?q=${encodeURIComponent(target)}` : '/search');
   };
 
-  const pickText = (text: string) => {
-    setQ(text);
-    setSuggestOpen(false);
-    navigate(`/search?q=${encodeURIComponent(text)}`);
-  };
-
   const playSuggestion = (song: SuggestionSong) => {
     playTrack(songToTrack(song));
     setSuggestOpen(false);
@@ -77,7 +71,6 @@ export function TopBar() {
             query={q}
             open={suggestOpen}
             onClose={() => setSuggestOpen(false)}
-            onPickText={pickText}
             onPickSong={(song) => {
               playSuggestion(song);
             }}
