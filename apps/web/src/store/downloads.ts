@@ -130,6 +130,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       const chunks: BlobPart[] = [];
       let received = 0;
       let lastProgressUpdate = 0;
+      const declaredTotal = Number(response.headers.get('content-length') || 0);
+      const expectedTotal = declaredTotal > 0 ? declaredTotal : track.size > 0 ? track.size : 0;
       if (response.body) {
         const reader = response.body.getReader();
         while (true) {
@@ -138,13 +140,19 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           if (value) {
             chunks.push(value);
             received += value.byteLength;
-            const total = Number(response.headers.get('content-length') || track.size || 0);
-            const progress = total > 0 ? Math.min(99, Math.round((received / total) * 100)) : 0;
+            // Only report a percentage we can actually back with bytes; when the
+            // provider hides the length the UI shows an indeterminate bar.
+            const progress = expectedTotal > 0 ? Math.min(99, Math.floor((received / expectedTotal) * 100)) : 0;
             const stamp = Date.now();
-            if (progress !== record.progress && stamp - lastProgressUpdate > 250) {
+            if (stamp - lastProgressUpdate > 200 && (progress !== record.progress || expectedTotal === 0)) {
               record.progress = progress;
+              record.received = received;
+              record.total = expectedTotal;
+              // Keep the state explicit: this update is built from the record
+              // captured at start, which still says "queued".
+              record.state = 'downloading';
               lastProgressUpdate = stamp;
-              void setRecord({ progress });
+              void setRecord({ state: 'downloading', progress, received, total: expectedTotal });
             }
           }
         }
@@ -158,6 +166,8 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       await setRecord({
         state: 'downloaded',
         progress: 100,
+        received: blob.size,
+        total: blob.size,
         size: blob.size,
         downloadedAt: now(),
         error: null,

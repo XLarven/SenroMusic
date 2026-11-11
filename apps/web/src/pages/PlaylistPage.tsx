@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Cloud, CloudDownload, Copy, ImagePlus, Link2, ListMusic, Pencil, Pin, PinOff, Play, Search, ShieldCheck, Shuffle, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, Cloud, CloudDownload, Copy, ImagePlus, Link2, ListMusic, Pencil, Pin, PinOff, Play, Search, ShieldCheck, Shuffle } from 'lucide-react';
 import { ApiError, api } from '../api';
 import { Cover } from '../components/Cover';
 import { DownloadButton } from '../components/DownloadButton';

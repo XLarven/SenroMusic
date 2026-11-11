@@ -192,6 +192,14 @@ export type User = {
   favoriteGenres: string[];
 };
 
+export type UserSearchResult = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+};
+
 export type PublicProfile = {
   id: string;
   displayName: string;
@@ -248,6 +256,9 @@ export type DownloadRecord = {
   album: string;
   coverUrl: string | null;
   duration: number;
+  /** Bytes received so far, and the expected total when the server sent one. */
+  received?: number;
+  total?: number;
 };
 
 export type AdminStats = {

@@ -16,6 +16,7 @@ import type {
   AdminStats,
   SpotifyCatalogSearch,
   SpotifyResolved,
+  UserSearchResult,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -294,4 +295,6 @@ export const api = {
       method: 'POST',
       body: { items },
     }),
+  searchUsers: (q: string) =>
+    request<{ users: UserSearchResult[] }>(`/api/users/search?q=${encodeURIComponent(q)}`),
 };

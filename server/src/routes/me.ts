@@ -468,4 +468,46 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       return { profile, playlists: getPublicPlaylists(target.id) };
     },
   );
+
+  // People search: only public profiles, only public fields.
+  app.get<{ Querystring: { q?: string } }>(
+    '/api/users/search',
+    {
+      preHandler: [
+        requireAuth,
+        rateLimit({ name: 'user-search', max: 60, windowMs: 60_000, keyBy: 'user' }),
+      ],
+    },
+    async (request) => {
+      const q = (request.query.q ?? '').trim();
+      if (q.length < 2) return { users: [] };
+      const needle = `%${q.toLocaleLowerCase('tr')}%`;
+      const prefix = `${q.toLocaleLowerCase('tr')}%`;
+      const rows = getDb()
+        .prepare(
+          `SELECT id, username, display_name, avatar_url, bio
+           FROM users
+           WHERE COALESCE(profile_visibility, 'public') != 'private'
+             AND (lower(COALESCE(username, '')) LIKE ? OR lower(display_name) LIKE ?)
+           ORDER BY lower(COALESCE(username, '')) LIKE ? DESC, lower(display_name) LIKE ? DESC
+           LIMIT 6`,
+        )
+        .all(needle, needle, prefix, prefix) as Array<{
+        id: string;
+        username: string | null;
+        display_name: string;
+        avatar_url: string | null;
+        bio: string | null;
+      }>;
+      return {
+        users: rows.map((row) => ({
+          id: row.id,
+          username: row.username,
+          displayName: row.display_name,
+          avatarUrl: row.avatar_url,
+          bio: row.bio,
+        })),
+      };
+    },
+  );
 }

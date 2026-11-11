@@ -1789,9 +1789,166 @@
   padding: 4px;
 }
 
+/* ---------- people ---------- */
+.people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+}
+
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  min-width: 0;
+}
+
+.person-row:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.person-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.person-avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: var(--violet);
+  color: var(--violet-ink);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.person-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.person-copy strong {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-copy small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.person-bio {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-arrow {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.source-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+}
+
+.source-error p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .person-bio {
+    display: none;
+  }
+}
+
 /* ---------- downloads ---------- */
 .downloads-page {
   gap: 22px;
+}
+
+.download-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.download-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.download-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.download-group-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.download-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.download-percent {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.download-progress.is-indeterminate > span {
+  width: 40% !important;
+  animation: nm-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes nm-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+.download-error {
+  font-size: 11.5px;
+  font-style: normal;
+  color: var(--rose);
 }
 
 .download-grid {

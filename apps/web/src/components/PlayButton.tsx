@@ -17,7 +17,10 @@ export function PlayButton({ tracks, index = 0, size = 'md', className, label }:
   const loading = usePlayer((state) => state.loading);
   const playQueue = usePlayer((state) => state.playQueue);
   const toggle = usePlayer((state) => state.toggle);
-  const isCurrent = Boolean(current && tracks.some((track) => track.id === current.id));
+  // Compare against the track this button *starts*, never the whole list: a
+  // playlist row that merely contains the playing song must stay a play button.
+  const target = tracks[index] ?? tracks[0] ?? null;
+  const isCurrent = Boolean(current && target && current.id === target.id);
   const isPlaying = isCurrent && playing;
   const disabled = tracks.length === 0;
 

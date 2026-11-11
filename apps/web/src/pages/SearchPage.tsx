@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Disc3, Download, Link2, Loader2, Music, Play, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { t } from '../lib/i18n';
+import { Disc3, Link2, Loader2, Music, Play, Search, SearchX, Sparkles, X, ArrowUpRight } from 'lucide-react';
 import clsx from 'clsx';
 import { AlbumCard } from '../components/AlbumCard';
 import { ArtistCard } from '../components/ArtistCard';
@@ -20,7 +21,7 @@ import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
 import { formatCount, formatDuration } from '../lib/format';
-import type { Track, YouTubeResult, SpotifyResolved, SpotifyCatalogSearch } from '../types';
+import type { Track, YouTubeResult, SpotifyResolved, SpotifyCatalogSearch, UserSearchResult } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 type SearchTab = 'all' | 'tracks' | 'albums' | 'artists';
@@ -106,7 +107,7 @@ function youtubeResultToTrack(item: YouTubeResult): Track {
 }
 
 export function SearchPage() {
-  const { library, playlists, refreshLibrary, refreshPlaylists } = useMusicData();
+  const { library, playlists, refreshPlaylists } = useMusicData();
   const pushToast = useToastStore((state) => state.push);
   const downloadTrack = useDownloads((state) => state.download);
   const playTrack = usePlayer((state) => state.playTrack);
@@ -128,7 +129,6 @@ export function SearchPage() {
   const [ytResults, setYtResults] = useState<YouTubeResult[]>([]);
   const [ytLoading, setYtLoading] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const isSpotifyUrl = deferredQuery.includes('open.spotify.com');
   const [spotify, setSpotify] = useState<SpotifyResolved | null>(null);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
@@ -144,6 +144,8 @@ export function SearchPage() {
   const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
   const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
+  const [spotifyRetry, setSpotifyRetry] = useState(0);
+  const [people, setPeople] = useState<UserSearchResult[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
 
   const spotifyCatalogTrackToTrack = (track: SpotifyCatalogSearch['tracks'][number]): Track => ({
@@ -383,8 +385,9 @@ export function SearchPage() {
         })
         .catch((error) => {
           if (cancelled) return;
-          const message = error instanceof Error ? error.message : 'Spotify kataloğu alınamadı.';
-          setSpotifyCatalogError(message.includes('yapılandırılmadı') ? null : message);
+          // Never swallow this: a missing Spotify section used to look like
+          // "no results" when the real cause was a failed or unconfigured API.
+          setSpotifyCatalogError(error instanceof Error ? error.message : 'Spotify sonuçları alınamadı.');
           setSpotifyCatalog(null);
         })
         .finally(() => {
@@ -395,11 +398,34 @@ export function SearchPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
+  }, [deferredQuery, spotifyRetry]);
+
+  // People search: skipped for URLs and very short queries.
+  useEffect(() => {
+    const needle = deferredQuery;
+    if (!needle || needle.length < 2 || needle.includes('open.spotify.com') || /(?:youtube\.com|youtu\.be)/.test(needle)) {
+      setPeople([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void api
+        .searchUsers(needle)
+        .then((result) => {
+          if (!cancelled) setPeople(result.users ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setPeople([]);
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [deferredQuery]);
 
   useEffect(() => {
-    if (!spotify || !isPlaylistUrl(deferredQuery) || !deferredQuery.includes('open.spotify.com')) return;
-    const items = withMatches(
+    if (!spotify || !isPlaylistUrl(deferredQuery) || !deferredQuery.includes('open.spotify.com')) return;    const items = withMatches(
       spotify.items.map((item) => ({
         providerTrackId: item.providerTrackId ?? null,
         title: item.title,
@@ -678,21 +704,6 @@ export function SearchPage() {
     }
   };
 
-  const fetchYtPlaylist = async () => {
-    if (!ytPlaylistUrl.trim()) return;
-    setYtPlaylistLoading(true);
-    setYtPlaylistError(null);
-    setYtPlaylist(null);
-    try {
-      const result = await api.youtubePlaylist(ytPlaylistUrl.trim());
-      setYtPlaylist(result);
-    } catch (error) {
-      setYtPlaylistError(error instanceof Error ? error.message : 'Çalma listesi alınamadı.');
-    } finally {
-      setYtPlaylistLoading(false);
-    }
-  };
-
   const importYtPlaylist = async () => {
     if (!ytPlaylist || ytPlaylistImporting) return;
     setYtPlaylistImporting(true);
@@ -730,19 +741,6 @@ export function SearchPage() {
       pushToast(error instanceof Error ? error.message : 'İçe aktarma başarısız.', 'error');
     } finally {
       setYtPlaylistImporting(false);
-    }
-  };
-
-  const handleDownload = async (item: YouTubeResult) => {
-    setDownloadingId(item.id);
-    try {
-      await api.youtubeDownload({ id: item.id, title: item.title, uploader: item.uploader, thumbnail: item.thumbnail });
-      pushToast(`“${item.title}” indirildi ve kütüphaneye eklendi.`, 'success');
-      await refreshLibrary();
-    } catch (error) {
-      pushToast(error instanceof Error ? error.message : 'İndirme başarısız.', 'error');
-    } finally {
-      setDownloadingId(null);
     }
   };
 
@@ -788,7 +786,17 @@ export function SearchPage() {
       return (
         <section className="content-section">
           <div className="section-heading"><div><h2>Spotify</h2></div></div>
-          <EmptyState icon={SearchX} title="Spotify sonuçları alınamadı" description={spotifyCatalogError} compact />
+          <div className="surface-panel source-error">
+            <p>{spotifyCatalogError || t('Spotify sonuçları alınamadı.', 'Spotify results could not be loaded.')}</p>
+            <button
+              type="button"
+              className="button secondary compact"
+              onClick={() => setSpotifyRetry((value) => value + 1)}
+            >
+              <Loader2 size={15} className={spotifyCatalogLoading ? 'spin' : undefined} />
+              {t('Yeniden dene', 'Try again')}
+            </button>
+          </div>
         </section>
       );
     }
@@ -934,6 +942,43 @@ export function SearchPage() {
     );
   };
 
+  const renderPeople = () => {
+    if (people.length === 0) return null;
+    return (
+      <section className="content-section people-section" aria-label={t('NorieMusic kullanıcıları', 'NorieMusic users')}>
+        <div className="section-heading">
+          <div>
+            <h2>{t('NorieMusic Kullanıcıları', 'NorieMusic Users')}</h2>
+            <p>{t('Profilleri eşleşen kişiler.', 'People whose profiles match.')}</p>
+          </div>
+        </div>
+        <div className="surface-panel people-list">
+          {people.map((person) => (
+            <Link
+              key={person.id}
+              className="person-row"
+              to={person.username ? `/u/${person.username}` : `/profile/${person.id}`}
+            >
+              {person.avatarUrl ? (
+                <img className="person-avatar" src={person.avatarUrl} alt="" loading="lazy" />
+              ) : (
+                <span className="person-avatar person-avatar-fallback" aria-hidden="true">
+                  {person.displayName.slice(0, 2).toLocaleUpperCase('tr')}
+                </span>
+              )}
+              <span className="person-copy">
+                <strong>{person.displayName}</strong>
+                <small>{person.username ? `@${person.username}` : t('Profil', 'Profile')}</small>
+              </span>
+              {person.bio ? <span className="person-bio">{person.bio}</span> : null}
+              <ArrowUpRight size={16} className="person-arrow" />
+            </Link>
+          ))}
+        </div>
+      </section>
+    );
+  };
+
   const renderYouTube = () => (
     <section className="content-section">
       <div className="section-heading">
@@ -990,25 +1035,7 @@ export function SearchPage() {
                   <Play size={16} />
                   Oynat
                 </button>
-                <button
-                  type="button"
-                  className="button primary"
-                  disabled={downloadingId === item.id}
-                  onClick={() => void handleDownload(item)}
-                  style={{ flexShrink: 0 }}
-                >
-                  {downloadingId === item.id ? (
-                    <>
-                      <Loader2 size={16} className="spin" />
-                      İndiriliyor…
-                    </>
-                  ) : (
-                    <>
-                      <Download size={16} />
-                      İndir
-                    </>
-                  )}
-                </button>
+                <DownloadButton track={youtubeResultToTrack(item)} />
               </li>
             ))}
           </ul>
@@ -1207,6 +1234,8 @@ export function SearchPage() {
             <>
               {renderSpotifyCatalog()}
               {renderYouTube()}
+
+              {renderPeople()}
 
               {total > 0 ? (
                 <div className="search-results">

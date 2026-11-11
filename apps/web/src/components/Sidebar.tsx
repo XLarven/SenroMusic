@@ -9,7 +9,6 @@ import {
   LibraryBig,
   Loader2,
   LogOut,
-  Play,
   Plus,
   Search,
   Settings2,
