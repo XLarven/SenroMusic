@@ -1,6 +1,6 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { basename, extname, relative } from 'node:path';
+import { basename, extname, join, relative } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { config } from '../config.js';
@@ -28,6 +28,18 @@ const AUDIO_MIME: Record<string, string> = {
   wma: 'audio/x-ms-wma',
 };
 
+/** Read once so the health payload can never disagree with package.json. */
+const APP_VERSION: string = (() => {
+  try {
+    const parsed = JSON.parse(readFileSync(join(config.serverRoot, 'package.json'), 'utf8')) as {
+      version?: unknown;
+    };
+    return typeof parsed.version === 'string' ? parsed.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
+
 function isInside(root: string, candidate: string): boolean {
   const rel = relative(root, candidate);
   return rel !== '' && !rel.startsWith('..') && !rel.includes('..\\') && !rel.includes('../');
@@ -53,7 +65,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     return {
       status: 'ok',
       name: 'Norie Music',
-      version: '0.20.1',
+      version: APP_VERSION,
       tracks: library.stats.tracks,
       scanning: isScanning(),
       demoToken: config.demoToken,
