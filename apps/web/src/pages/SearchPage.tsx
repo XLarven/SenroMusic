@@ -698,13 +698,19 @@ export function SearchPage() {
     artists: results.artists.length,
   };
 
+  // The empty state is only honest once every provider has answered: Spotify
+  // and YouTube results arrive after the local catalogue.
+  const spotifyHits = spotifyCatalog?.tracks.length ?? 0;
+  const remoteLoading = ytLoading || spotifyCatalogLoading;
+  const showEmptyState = total === 0 && ytResults.length === 0 && spotifyHits === 0 && !remoteLoading;
+
   const renderSpotifyCatalog = () => {
     if (spotifyCatalogLoading) {
       return (
         <section className="content-section">
-          <div className="section-heading"><div><h2>Spotify kataloğu</h2><p>Resmi Spotify Web API üzerinden aranıyor…</p></div></div>
+          <div className="section-heading"><div><h2>Spotify</h2><p>Spotify'da aranıyor…</p></div></div>
           <div className="surface-panel" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Loader2 size={18} className="spin" /><span>Spotify katalogunda aranıyor…</span>
+            <Loader2 size={18} className="spin" /><span>Spotify'da aranıyor…</span>
           </div>
         </section>
       );
@@ -712,8 +718,8 @@ export function SearchPage() {
     if (spotifyCatalogError) {
       return (
         <section className="content-section">
-          <div className="section-heading"><div><h2>Spotify kataloğu</h2></div></div>
-          <EmptyState icon={SearchX} title="Spotify kataloğu alınamadı" description={spotifyCatalogError} compact />
+          <div className="section-heading"><div><h2>Spotify</h2></div></div>
+          <EmptyState icon={SearchX} title="Spotify sonuçları alınamadı" description={spotifyCatalogError} compact />
         </section>
       );
     }
@@ -724,8 +730,8 @@ export function SearchPage() {
       <section className="content-section" aria-label="Spotify kataloğu">
         <div className="section-heading">
           <div>
-            <h2>Spotify kataloğu</h2>
-            <p>Resmi meta veri. Ses, çalma anında kaynak havuzundan (JioSaavn / YouTube) çözülür; Spotify aboneliği gerekmez.</p>
+            <h2>Spotify</h2>
+            <p>Spotify'da bulunan şarkılar. Abonelik gerekmez; dokun ve dinle.</p>
           </div>
         </div>
         {spotifyCatalog.tracks.length ? (
@@ -734,12 +740,21 @@ export function SearchPage() {
               const local = matchTrack(track, library.tracks);
               return (
                 <article className={`import-track-row ${local ? 'is-playable' : 'is-unavailable'}`} key={`spotify-${track.id}`}>
-                  <span className="import-order">♪</span>
-                  <span className="import-cover import-cover-placeholder" aria-hidden="true" />
+                  <Cover
+                    src={track.artworkUrl}
+                    alt=""
+                    seed={track.id}
+                    className="import-cover"
+                    iconSize={16}
+                  />
                   <div className="import-copy">
                     <strong>{track.title}</strong>
-                    <span>{track.artist}{track.album ? ` · ${track.album}` : ''}</span>
-                    <small>{local ? 'Kütüphanende var' : 'Kaynak havuzundan çalınır'}{track.duration ? ` · ${formatDuration(track.duration)}` : ''}</small>
+                    <span>{track.artist}{track.album && track.album !== track.title ? ` · ${track.album}` : ''}</span>
+                    <small>
+                      {local ? 'Kütüphanende var' : ''}
+                      {local && track.duration ? ' · ' : ''}
+                      {track.duration ? formatDuration(track.duration) : ''}
+                    </small>
                   </div>
                   {local ? (
                     <>
@@ -751,14 +766,14 @@ export function SearchPage() {
                     <button
                       type="button"
                       className="button secondary"
-                      style={{ flexShrink: 0, padding: '4px 8px', fontSize: '0.8rem' }}
+                      style={{ flexShrink: 0, padding: '4px 12px', fontSize: '0.8rem' }}
                       onClick={() => {
                         const queue = spotifyCatalog.tracks
                           .filter((entry) => !matchTrack(entry, library.tracks))
                           .map(spotifyCatalogTrackToTrack);
                         playTrack(spotifyCatalogTrackToTrack(track), queue);
                       }}
-                      title="Kaynak havuzundan çal"
+                      title="Çal"
                     >
                       <Play size={14} fill="currentColor" /> Çal
                     </button>
@@ -830,8 +845,8 @@ export function SearchPage() {
     <section className="content-section">
       <div className="section-heading">
         <div>
-          <h2>YouTube sonuçları</h2>
-          <p>Her arama otomatik YouTube'da da aranır — kompaktla MP3 indir, çevrimdışı dinle.</p>
+          <h2>YouTube</h2>
+          <p>YouTube'da bulunan sonuçlar. Oynat ya da indir.</p>
         </div>
       </div>
 
@@ -914,7 +929,7 @@ export function SearchPage() {
       <header className="page-heading search-heading">
         <span className="eyebrow">Keşfet</span>
         <h1>Ne dinlemek istiyorsun?</h1>
-        <p>Şarkı, albüm, sanatçı ve türlerde kütüphanenin tamamında ara.</p>
+        <p>Şarkı, sanatçı veya albüm ara.</p>
       </header>
 
       <div className="search-box">
@@ -1096,36 +1111,30 @@ export function SearchPage() {
         </>
       ) : (
         <>
-          <div className="search-tabs" role="tablist" aria-label="Arama sonucu filtreleri">
-            {TABS.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                role="tab"
-                aria-selected={tab === item.id}
-                className={clsx('filter-chip', tab === item.id && 'is-active')}
-                onClick={() => setTab(item.id)}
-              >
-                {item.label}
-                <span>{counts[item.id]}</span>
-              </button>
-            ))}
-          </div>
-
           {isPlaylistUrl(deferredQuery) ? null : isSpotifyUrl ? (
             renderSpotify()
-          ) : total === 0 ? (
-            <>
-              <EmptyState
-                icon={SearchX}
-                title="Sonuç bulunamadı."
-                description="Başka bir şarkı, sanatçı veya albüm deneyin."
-                compact
-              />
-              {renderYouTube()}
-            </>
           ) : (
-            <div className="search-results">
+            <>
+              {renderSpotifyCatalog()}
+              {renderYouTube()}
+
+              {total > 0 ? (
+                <div className="search-results">
+                  <div className="search-tabs" role="tablist" aria-label="Kütüphane sonuçları">
+                    {TABS.map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        role="tab"
+                        aria-selected={tab === item.id}
+                        className={clsx('filter-chip', tab === item.id && 'is-active')}
+                        onClick={() => setTab(item.id)}
+                      >
+                        {item.label}
+                        <span>{counts[item.id]}</span>
+                      </button>
+                    ))}
+                  </div>
               {results.tracks.length > 0 && (tab === 'all' || tab === 'tracks') ? (
                 <section className="content-section">
                   <div className="section-heading">
@@ -1184,11 +1193,19 @@ export function SearchPage() {
                   }
                 />
               ) : null}
-            </div>
-          )}
+                </div>
+              ) : null}
 
-          {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) ? renderSpotifyCatalog() : null}
-          {!isSpotifyUrl && !isPlaylistUrl(deferredQuery) ? renderYouTube() : null}
+              {showEmptyState ? (
+                <EmptyState
+                  icon={SearchX}
+                  title="Sonuç bulunamadı."
+                  description="Başka bir şarkı, sanatçı veya albüm deneyin."
+                  compact
+                />
+              ) : null}
+            </>
+          )}
         </>
       )}
     </div>

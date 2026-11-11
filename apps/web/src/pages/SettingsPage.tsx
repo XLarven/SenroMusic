@@ -12,26 +12,17 @@ import {
   LogOut,
   Monitor,
   RefreshCw,
-  Server,
   ShieldCheck,
   Smartphone,
-  Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { api } from '../api';
 import { useMusicData } from '../MusicDataContext';
 import { getAppLanguage, setAppLanguage } from '../lib/i18n';
-import { getServerUrl, setServerUrl } from '../lib/serverUrl';
 import { useAuthStore } from '../store/auth';
 import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
-import {
-  formatBytes,
-  formatCount,
-  formatDate,
-  formatLongDuration,
-} from '../lib/format';
+import { formatBytes, formatCount, formatLongDuration } from '../lib/format';
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -47,15 +38,12 @@ function isStandalone(): boolean {
 
 export function SettingsPage() {
   const { library, refreshLibrary, refreshPlaylists } = useMusicData();
-  const demoToken = useAuthStore((state) => state.demoToken);
   const logout = useAuthStore((state) => state.logout);
   const pushToast = useToastStore((state) => state.push);
   const queryClient = useQueryClient();
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(isStandalone);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [serverUrlInput, setServerUrlInput] = useState(getServerUrl());
-  const [serverUrlSaving, setServerUrlSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
@@ -66,14 +54,6 @@ export function SettingsPage() {
     queryKey: ['settings'],
     queryFn: api.settings,
     staleTime: 30_000,
-  });
-
-  const healthQuery = useQuery({
-    queryKey: ['health'],
-    queryFn: api.health,
-    refetchInterval: 30_000,
-    staleTime: 10_000,
-    retry: false,
   });
 
   useEffect(() => {
@@ -99,7 +79,6 @@ export function SettingsPage() {
       await refreshLibrary();
       await refreshPlaylists();
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['health'] }),
         queryClient.invalidateQueries({ queryKey: ['playlist'] }),
       ]);
       pushToast(
@@ -131,19 +110,6 @@ export function SettingsPage() {
       await logout();
     } finally {
       setLoggingOut(false);
-    }
-  };
-
-  const handleSaveServerUrl = () => {
-    setServerUrlSaving(true);
-    try {
-      setServerUrl(serverUrlInput);
-      pushToast('Sunucu adresi kaydedildi. Sayfa yenileniyor…', 'success');
-      window.setTimeout(() => window.location.reload(), 600);
-    } catch (error) {
-      pushToast(error instanceof Error ? error.message : 'Kaydedilemedi.', 'error');
-    } finally {
-      setServerUrlSaving(false);
     }
   };
 
@@ -212,98 +178,25 @@ export function SettingsPage() {
     }
   };
 
-  const health = healthQuery.data;
   const settings = settingsQuery.data?.settings ?? {};
-  const online = Boolean(health && !healthQuery.isError);
-  const lastScan = health?.lastScanAt ?? library.stats.lastScanAt;
 
   return (
     <div className="page settings-page">
       <header className="page-heading settings-heading">
-        <span className="eyebrow">Uygulama ve sunucu</span>
-        <h1>Ayarlar</h1>
-        <p>Bağlantıyı, kütüphaneyi ve kurulumu tek yerden yönet.</p>
+        <span className="eyebrow">Ayarlar</span>
+        <h1>Kendine göre ayarla</h1>
+        <p>Çalma, indirme ve görünüm tercihlerin burada.</p>
       </header>
 
       <div className="settings-grid">
         <section className="settings-card">
           <header className="settings-card-head">
             <span className="settings-icon">
-              <Server size={19} />
-            </span>
-            <div>
-              <h2>Sunucu</h2>
-              <p>Norie Music sunucunun durumu.</p>
-            </div>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => void healthQuery.refetch()}
-              aria-label="Sunucu durumunu yenile"
-              title="Yenile"
-            >
-              <RefreshCw size={16} className={healthQuery.isFetching ? 'spin' : undefined} />
-            </button>
-          </header>
-
-          <div className={online ? 'connection-pill is-online' : 'connection-pill is-offline'}>
-            {online ? <Wifi size={15} /> : <WifiOff size={15} />}
-            <span>{online ? 'Bağlı ve çalışıyor' : healthQuery.isPending ? 'Kontrol ediliyor' : 'Bağlantı yok'}</span>
-            {health ? <small>v{health.version}</small> : null}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input
-              type="url"
-              value={serverUrlInput}
-              onChange={(e) => setServerUrlInput(e.target.value)}
-              placeholder="http://192.168.1.10:8787"
-              style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #333)', background: 'var(--surface, #111)', color: 'inherit' }}
-            />
-            <button
-              type="button"
-              className="button primary"
-              onClick={handleSaveServerUrl}
-              disabled={serverUrlSaving}
-            >
-              {serverUrlSaving ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
-              Kaydet
-            </button>
-          </div>
-          <p className="settings-hint" style={{ marginTop: 0 }}>
-            Mobil veya uzak cihazdan bağlanırken sunucunun adresini gir. Örn: http://192.168.1.10:8787
-          </p>
-
-          <dl className="settings-list">
-            <div>
-              <dt>Sunucu adresi</dt>
-              <dd>
-                <code>{getServerUrl()}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Sunucu sürümü</dt>
-              <dd>{health?.version ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Son kitaplık taraması</dt>
-              <dd>{formatDate(lastScan)}</dd>
-            </div>
-            <div>
-              <dt>Parça sayısı</dt>
-              <dd>{formatCount(health?.tracks ?? library.stats.tracks)}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="settings-card">
-          <header className="settings-card-head">
-            <span className="settings-icon">
               <HardDrive size={19} />
             </span>
             <div>
-              <h2>Kitaplık</h2>
-              <p>Sunucudaki müzik arşivin.</p>
+              <h2>Kütüphane</h2>
+              <p>Müzik arşivin.</p>
             </div>
           </header>
 
@@ -336,8 +229,7 @@ export function SettingsPage() {
             {scanMutation.isPending ? 'Kitaplık taranıyor…' : 'Kitaplığı yeniden tara'}
           </button>
           <p className="settings-hint">
-            Yeni dosyaları ekledikten sonra tara. Metadata, kapaklar ve çalma listeleri otomatik
-            güncellenir.
+            Yeni şarkı eklediysen tara; kapaklar ve bilgiler kendiliğinden yenilenir.
           </p>
         </section>
 
@@ -363,8 +255,8 @@ export function SettingsPage() {
           </header>
           <dl className="settings-list">
             <div><dt>Yalnızca Wi-Fi ile indir</dt><dd><input type="checkbox" checked={Boolean(settings.wifiOnly)} onChange={(event) => void saveSetting('wifiOnly', event.target.checked)} /></dd></div>
-            <div><dt>Akış kalitesi</dt><dd>Otomatik (kaynak dosya)</dd></div>
-            <div><dt>İndirme kalitesi</dt><dd>Otomatik (kaynak dosya)</dd></div>
+            <div><dt>Akış kalitesi</dt><dd>Otomatik</dd></div>
+            <div><dt>İndirme kalitesi</dt><dd>Otomatik</dd></div>
           </dl>
           <div className="settings-actions">
             <button type="button" className="button secondary" onClick={() => void clearCache()} disabled={clearingCache}>{clearingCache ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Önbelleği temizle</button>
@@ -376,12 +268,11 @@ export function SettingsPage() {
         <section className="settings-card">
           <header className="settings-card-head">
             <span className="settings-icon"><Smartphone size={19} /></span>
-            <div><h2>Görünüm</h2><p>Donanım hızlandırma dostu görsel ayarlar.</p></div>
+            <div><h2>Görünüm</h2><p>Ekran ve dil tercihleri.</p></div>
           </header>
           <dl className="settings-list">
             <div><dt>Dinamik albüm renkleri</dt><dd><input type="checkbox" checked={settings.dynamicColors !== false} onChange={(event) => void saveSetting('dynamicColors', event.target.checked)} /></dd></div>
             <div><dt>Hareketi azalt</dt><dd><input type="checkbox" checked={Boolean(settings.reducedMotion)} onChange={(event) => void saveSetting('reducedMotion', event.target.checked)} /></dd></div>
-            <div><dt>Cam efektleri</dt><dd><input type="checkbox" checked={settings.glassEffects !== false} onChange={(event) => void saveSetting('glassEffects', event.target.checked)} /></dd></div>
             <div><dt>Uygulama dili</dt><dd><select value={String(settings.appLanguage ?? getAppLanguage())} onChange={(event) => void saveSetting('appLanguage', event.target.value)}><option value="tr">Türkçe</option><option value="en">English</option></select></dd></div>
           </dl>
         </section>
@@ -393,17 +284,14 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Uygulama</h2>
-              <p>Norie Music'i her cihazında kullan.</p>
+              <p>Her cihazında kullan.</p>
             </div>
           </header>
 
           <div className="install-row">
             <div className="install-copy">
               <h3>Ana ekrana ekle</h3>
-              <p>
-                PWA olarak yükle; tarayıcı çerçevesi olmadan, uygulama gibi açılsın. Müzik akışı için
-                sunucunun erişilebilir olması gerekir.
-              </p>
+              <p>Tarayıcı çerçevesi olmadan, uygulama gibi açılsın.</p>
             </div>
             {installed ? (
               <span className="installed-pill">
@@ -424,17 +312,17 @@ export function SettingsPage() {
             <div>
               <Monitor size={18} />
               <strong>Windows</strong>
-              <span>Tarayıcı veya Electron paketi</span>
+              <span>Tarayıcıdan aç</span>
             </div>
             <div>
               <Smartphone size={18} />
               <strong>Android</strong>
-              <span>PWA · ana ekrana ekle</span>
+              <span>Ana ekrana ekle</span>
             </div>
             <div>
               <Smartphone size={18} />
               <strong>iPhone / iPad</strong>
-              <span>Safari · Paylaş → Ana Ekrana Ekle</span>
+              <span>Paylaş → Ana Ekrana Ekle</span>
             </div>
           </div>
         </section>
@@ -445,43 +333,14 @@ export function SettingsPage() {
               <ShieldCheck size={19} />
             </span>
             <div>
-              <h2>Güvenlik</h2>
-              <p>Oturum ve erişim bilgileri.</p>
+              <h2>Oturum</h2>
+              <p>30 gün boyunca açık kalır.</p>
             </div>
           </header>
 
-          {demoToken ? (
-            <div className="settings-warning">
-              <KeyRound size={17} />
-              <div>
-                <strong>Demo anahtarı kullanılıyor</strong>
-                <p>
-                  Sunucu <code>Norie-demo</code> anahtarıyla çalışıyor. İnternete açmadan önce
-                  <code> MUSIC_TOKEN</code> değerini değiştir.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="settings-ok">
-              <Check size={16} />
-              Özel sunucu anahtarı kullanılıyor.
-            </div>
-          )}
-
-          <dl className="settings-list">
-            <div>
-              <dt>Oturum süresi</dt>
-              <dd>30 gün</dd>
-            </div>
-            <div>
-              <dt>Oturum biçimi</dt>
-              <dd>HttpOnly çerez</dd>
-            </div>
-            <div>
-              <dt>Sunucu anahtarı</dt>
-              <dd>••••••••</dd>
-            </div>
-          </dl>
+          <p className="settings-hint">
+            Bu cihazda oturumun açık kaldığı sürece şifre girmen gerekmez.
+          </p>
 
           <button
             type="button"
@@ -497,7 +356,7 @@ export function SettingsPage() {
         <section className="settings-card">
           <header className="settings-card-head">
             <span className="settings-icon"><KeyRound size={19} /></span>
-            <div><h2>Hesap</h2><p>Parola ve hesap gizliliği.</p></div>
+            <div><h2>Hesap</h2><p>Parolanı değiştir veya hesabını sil.</p></div>
           </header>
           <label className="field"><span>Mevcut parola</span><input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
           <label className="field"><span>Yeni parola</span><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
@@ -515,23 +374,19 @@ export function SettingsPage() {
             </span>
             <div>
               <h2>Hakkında</h2>
-              <p>Norie Music 0.8 · Yerel öncelikli müzik.</p>
+              <p>Kişisel müzik arşivin.</p>
             </div>
           </header>
-          <p>
-            Norie Music kendi barındırdığın arşivler için tasarlanmıştır. Uygulama DRM koruması
-            barındırmaz ve üçüncü taraf platformlardan içerik indirmez. Yalnızca hak sahibi olduğun
-            veya kullanım lisansına sahip olduğun dosyaları kullan.
-          </p>
+          <p>Kendi müziğini bir arada tutan sade bir oynatıcı. Reklam yok, abonelik yok.</p>
           <div className="legal-points">
             <span>
-              <Database size={14} /> Yerel SQLite kütüphanesi
+              <Database size={14} /> Kendi arşivin
             </span>
             <span>
-              <ShieldCheck size={14} /> Kendi sunucun, kendi verin
+              <ShieldCheck size={14} /> Reklamsız
             </span>
             <span>
-              <Clock3 size={14} /> Süresiz oturum seçeneği yok
+              <Clock3 size={14} /> Çevrimdışı dinle
             </span>
           </div>
         </section>
