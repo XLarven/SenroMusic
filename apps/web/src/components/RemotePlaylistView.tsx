@@ -3,6 +3,8 @@ import { Cover } from './Cover';
 import { TrackList } from './TrackList';
 import { formatDuration, formatLongDuration } from '../lib/format';
 import { usePlayer } from '../store/player';
+import { useTrackArtwork } from '../hooks/useTrackArtwork';
+import { t } from '../lib/i18n';
 import type { Track } from '../types';
 
 type Props = {
@@ -46,8 +48,11 @@ export function RemotePlaylistView({
   onImport,
 }: Props) {
   const playQueue = usePlayer((state) => state.playQueue);
+  // Imported playlists hand every row the playlist cover; fetch the real album
+  // art per song so the list does not repeat one square a hundred times.
+  const { tracks: tracksWithArtwork } = useTrackArtwork(tracks, coverUrl);
   const duration = totalDuration ?? tracks.reduce((total, track) => total + (track.duration || 0), 0);
-  const sourceLabel = source === 'spotify' ? 'Spotify listesi' : 'YouTube listesi';
+  const sourceLabel = source === 'spotify' ? t('Spotify listesi', 'Spotify playlist') : t('YouTube listesi', 'YouTube playlist');
 
   return (
     <section className="content-section remote-playlist" aria-label={`${sourceLabel}: ${title}`}>
@@ -55,7 +60,7 @@ export function RemotePlaylistView({
         <div className="detail-art">
           <div className="detail-art-disc" aria-hidden="true" />
           <Cover
-            src={coverUrl ?? tracks[0]?.coverUrl ?? null}
+            src={coverUrl ?? tracksWithArtwork[0]?.coverUrl ?? null}
             alt={title}
             seed={title}
             className="detail-cover"
@@ -70,7 +75,7 @@ export function RemotePlaylistView({
           {creator ? <p className="detail-byline">{creator}</p> : null}
           {description ? <p className="detail-description">{description}</p> : null}
           <div className="detail-meta">
-            <span>{tracks.length} parça</span>
+            <span>{tracksWithArtwork.length} {t('parça', 'tracks')}</span>
             {duration > 0 ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -86,48 +91,51 @@ export function RemotePlaylistView({
             <button
               type="button"
               className="button primary"
-              onClick={() => playQueue(tracks)}
-              disabled={tracks.length === 0}
+              onClick={() => playQueue(tracksWithArtwork)}
+              disabled={tracksWithArtwork.length === 0}
             >
               <Play size={16} fill="currentColor" />
-              Çal
+              {t('Çal', 'Play')}
             </button>
             <button
               type="button"
               className="button secondary"
-              onClick={() => playQueue(shuffled(tracks))}
-              disabled={tracks.length === 0}
+              onClick={() => playQueue(shuffled(tracksWithArtwork))}
+              disabled={tracksWithArtwork.length === 0}
             >
               <Shuffle size={16} />
-              Karıştır
+              {t('Karıştır', 'Shuffle')}
             </button>
             {onImport ? (
               <button type="button" className="button ghost" onClick={onImport} disabled={importing}>
                 {importing ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-                {importing ? 'Kaydediliyor…' : (importLabel ?? 'Norie listesine kaydet')}
+                {importing
+                  ? t('Kaydediliyor…', 'Saving…')
+                  : (importLabel ?? t('Çalma listesini oluştur', 'Create playlist'))}
               </button>
             ) : null}
             {sourceUrl ? (
               <a className="button ghost" href={sourceUrl} target="_blank" rel="noreferrer">
                 <ArrowUpRight size={16} />
-                Kaynağı aç
+                {t('Kaynağı aç', 'Open source')}
               </a>
             ) : null}
           </div>
         </div>
       </header>
 
-      <section className="detail-tracks" aria-label="Parçalar">
+      <section className="detail-tracks" aria-label={t('Parçalar', 'Tracks')}>
         <div className="section-heading">
           <div>
-            <h2>Parçalar</h2>
+            <h2>{t('Parçalar', 'Tracks')}</h2>
             <p>
-              {tracks.length} parça · {formatDuration(duration)} toplam
+              {tracksWithArtwork.length} {t('parça', 'tracks')} · {formatDuration(duration)}{' '}
+              {t('toplam', 'total')}
             </p>
           </div>
         </div>
         <div className="surface-panel">
-          <TrackList tracks={tracks} showAlbum={false} />
+          <TrackList tracks={tracksWithArtwork} showAlbum={false} />
         </div>
       </section>
     </section>

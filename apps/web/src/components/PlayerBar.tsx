@@ -24,6 +24,7 @@ import { NMLyricsPanel } from './norie/NMLyricsPanel';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
 import { formatDuration } from '../lib/format';
+import { t } from '../lib/i18n';
 
 export function PlayerBar() {
   const current = usePlayer((state) => state.current);
@@ -95,9 +96,12 @@ export function PlayerBar() {
     };
   }, [current?.coverUrl]);
 
-  const npSheetStyle = accent
-    ? ({ '--np-accent': `${accent[0]} ${accent[1]} ${accent[2]}` } as CSSProperties)
-    : undefined;
+  // Full-screen player: the cover becomes a blurred, saturated backdrop, and the
+  // sampled accent warms the top-left corner on top of it.
+  const npSheetStyle = {
+    ...(accent ? { '--np-accent': `${accent[0]} ${accent[1]} ${accent[2]}` } : {}),
+    ...(current?.coverUrl ? { '--np-cover': `url("${current.coverUrl}")` } : {}),
+  } as CSSProperties;
 
   useEffect(() => {
     if (!expanded) return;
@@ -146,8 +150,8 @@ export function PlayerBar() {
           </div>
         )}
         <div className="player-meta">
-          <span className="player-title">{current?.title ?? 'Bir şarkı seç'}</span>
-          <span className="player-artist">{current?.artist ?? 'Kitaplığın seni bekliyor'}</span>
+          <span className="player-title">{current?.title ?? t('Bir şarkı seç', 'Pick a song')}</span>
+          <span className="player-artist">{current?.artist ?? t('Kitaplığın seni bekliyor', 'Your library is waiting')}</span>
         </div>
         {current ? (
           <button
@@ -311,7 +315,7 @@ export function PlayerBar() {
           >
             <ChevronDown size={20} />
           </button>
-          <span className="np-label">Şimdi çalınıyor</span>
+          <span className="np-label">{t('Şimdi çalınıyor', 'Now playing')}</span>
           <span style={{ width: 36 }} />
         </div>
 
@@ -385,7 +389,7 @@ export function PlayerBar() {
         </div>
 
         <div className="np-lyrics">
-          <div className="np-lyrics-head">Sözler</div>
+          <div className="np-lyrics-head">{t('Sözler', 'Lyrics')}</div>
           <NMLyricsPanel artist={current.artist} title={current.title} duration={safeDuration} album={current.album} />
         </div>
       </div>

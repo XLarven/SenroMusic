@@ -22,6 +22,7 @@ import { useAuthStore } from '../store/auth';
 import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
+import { applyUiSettings } from '../lib/uiSettings';
 import { formatBytes, formatCount, formatLongDuration } from '../lib/format';
 
 type InstallPromptEvent = Event & {
@@ -124,9 +125,12 @@ export function SettingsPage() {
         window.setTimeout(() => window.location.reload(), 300);
       }
       if (key === 'wifiOnly') localStorage.setItem('Norie.wifiOnly', value ? 'true' : 'false');
-      if (key === 'dynamicColors') document.documentElement.classList.toggle('dynamic-colors-off', !value);
-      if (key === 'reducedMotion') document.documentElement.classList.toggle('reduced-motion', Boolean(value));
-      if (key === 'glassEffects') document.documentElement.classList.toggle('glass-off', !value);
+      if (key === 'dynamicColors') {
+        applyUiSettings({ ...settings, dynamicColors: value });
+      }
+      if (key === 'reducedMotion') {
+        applyUiSettings({ ...settings, reducedMotion: value });
+      }
       if (key === 'shuffle') usePlayer.setState({ shuffle: Boolean(value) });
       if (key === 'repeat') usePlayer.setState({ repeat: value as 'off' | 'all' | 'one' });
       if (key === 'volume') usePlayer.setState({ volume: Number(value) });
@@ -275,6 +279,10 @@ export function SettingsPage() {
             <div><dt>Hareketi azalt</dt><dd><input type="checkbox" checked={Boolean(settings.reducedMotion)} onChange={(event) => void saveSetting('reducedMotion', event.target.checked)} /></dd></div>
             <div><dt>Uygulama dili</dt><dd><select value={String(settings.appLanguage ?? getAppLanguage())} onChange={(event) => void saveSetting('appLanguage', event.target.value)}><option value="tr">Türkçe</option><option value="en">English</option></select></dd></div>
           </dl>
+          <p className="settings-hint">
+            Dinamik albüm renkleri, tam ekran oynatıcının arka planını çalan şarkının kapağından üretir.
+            Hareketi azalt, tüm animasyon ve geçişleri kapatır.
+          </p>
         </section>
 
         <section className="settings-card settings-card-wide">

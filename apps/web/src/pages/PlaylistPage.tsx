@@ -11,6 +11,8 @@ import { PlayButton } from '../components/PlayButton';
 import { Skeleton, TrackListSkeleton } from '../components/Skeleton';
 import { resizeImage } from '../lib/image';
 import { externalProviderLabel, externalToTrack } from '../lib/externalTrack';
+import { useTrackArtwork } from '../hooks/useTrackArtwork';
+import { useMemo } from 'react';
 import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
@@ -134,6 +136,27 @@ export function PlaylistPage() {
     onError: (error) => pushToast(error instanceof Error ? error.message : 'Sıra güncellenemedi.', 'error'),
   });
 
+  // Artwork must be requested before the early returns so the hook order stays
+  // stable while the playlist is loading.
+  const baseTracks = useMemo<Track[]>(() => {
+    const data = playlistQuery.data;
+    if (!data) return [];
+    return [
+      ...data.tracks.map((track) => ({ position: track.position, track })),
+      ...(data.externalTracks ?? []).map((external) => ({
+        position: external.position,
+        track: externalToTrack(external),
+      })),
+    ]
+      .sort((a, b) => a.position - b.position)
+      .map((entry) => entry.track);
+  }, [playlistQuery.data]);
+  const { tracks: artworkTracks } = useTrackArtwork(baseTracks, playlistQuery.data?.coverUrl ?? null);
+  const artworkById = useMemo(
+    () => new Map(artworkTracks.map((track) => [track.id, track.coverUrl])),
+    [artworkTracks],
+  );
+
   if (playlistQuery.isPending) return <PlaylistSkeleton />;
 
   if (playlistQuery.isError || !playlistQuery.data) {
@@ -181,9 +204,11 @@ export function PlaylistPage() {
 
   // Imported references are playable too: an upload id streams directly, the
   // rest resolve from metadata at play time, exactly like a search result.
-  const orderedTracks: Track[] = entries.map((entry) =>
-    entry.kind === 'track' && entry.track ? entry.track : externalToTrack(entry.external!),
-  );
+  const orderedTracks: Track[] = entries.map((entry) => {
+    const track = entry.kind === 'track' && entry.track ? entry.track : externalToTrack(entry.external!);
+    const art = artworkById.get(track.id);
+    return art ? { ...track, coverUrl: art } : track;
+  });
   const totalDuration =
     orderedTracks.reduce((sum, track) => sum + (track.duration || 0), 0) || playlist.duration;
   const eligibleDownloads = orderedTracks.filter((track) => downloadRecords[track.id]?.state !== 'downloaded');
@@ -416,7 +441,7 @@ export function PlaylistPage() {
               return (
                 <article className="import-track-row is-playable" key={`external-${external.entryId}`}>
                   <span className="import-order">{displayIndex + 1}</span>
-                  <Cover src={external.artworkUrl} alt="" seed={`${external.title}-${external.artist}`} className="import-cover" iconSize={16} />
+                  <Cover src={artworkById.get(externalToTrack(external).id) ?? external.artworkUrl} alt="" seed={`${external.title}-${external.artist}`} className="import-cover" iconSize={16} />
                   <div className="import-copy">
                     <strong>{external.title}</strong>
                     <span>{external.artist}{external.album ? ` · ${external.album}` : ''}</span>

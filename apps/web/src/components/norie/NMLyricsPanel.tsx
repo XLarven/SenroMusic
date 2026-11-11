@@ -2,6 +2,7 @@ import { Loader2, Music } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useLyrics } from '../../hooks/useLyrics';
 import { usePlayer } from '../../store/player';
+import { t } from '../../lib/i18n';
 
 type Props = {
   artist: string;
@@ -35,7 +36,7 @@ export function NMLyricsPanel({ artist, title, duration, album }: Props) {
   if (loading) {
     return (
       <div className="lyrics-viewport lyrics-loading">
-        <Loader2 size={18} className="spin" /> Sözler yükleniyor…
+        <Loader2 size={18} className="spin" /> {t('Sözler yükleniyor…', 'Loading lyrics…')}
       </div>
     );
   }
@@ -43,7 +44,7 @@ export function NMLyricsPanel({ artist, title, duration, album }: Props) {
     return (
       <div className="lyrics-empty">
         <Music size={22} />
-        {error || 'Söz bulunamadı'}
+        {error || t('Söz bulunamadı', 'No lyrics found')}
       </div>
     );
   }

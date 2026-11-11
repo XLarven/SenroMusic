@@ -289,4 +289,9 @@ export const api = {
       method: 'POST',
       body: { imageDataUrl },
     }),
+  trackArtwork: (items: Array<{ key: string; title: string; artist?: string }>) =>
+    request<{ artworks: Record<string, string | null> }>('/api/media/artwork', {
+      method: 'POST',
+      body: { items },
+    }),
 };

@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/auth';
 import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
+import { applyUiSettings } from '../lib/uiSettings';
 import { Logo } from './Logo';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
@@ -123,6 +124,11 @@ export function AppShell() {
   useEffect(() => {
     void useDownloads.getState().init();
     usePlayer.getState().restoreSession();
+    // Preferences come from the server, so apply them once the session is up.
+    void api
+      .settings()
+      .then((payload) => applyUiSettings(payload.settings))
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {

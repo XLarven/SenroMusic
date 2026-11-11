@@ -899,7 +899,7 @@ export function SearchPage() {
         totalDuration={spotify.totalDuration}
         importing={importing}
         onImport={() => void handleSpotifyImport()}
-        importLabel="Norie listesine kaydet"
+        importLabel="Çalma listesini oluştur"
       />
     );
   };
@@ -929,7 +929,7 @@ export function SearchPage() {
         tracks={ytPlaylistTracks}
         importing={ytPlaylistImporting}
         onImport={() => void importYtPlaylist()}
-        importLabel="Norie listesine kaydet"
+        importLabel="Çalma listesini oluştur"
       />
     );
   };

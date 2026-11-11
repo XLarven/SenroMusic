@@ -1254,3 +1254,17 @@ input[type='range']::-moz-range-thumb {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* The "reduce motion" preference from Settings, no OS round trip needed. */
+html.reduced-motion *,
+html.reduced-motion *::before,
+html.reduced-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html.reduced-motion .equalizer span {
+  animation: none !important;
+  transform: none !important;
+}

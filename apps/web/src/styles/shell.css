@@ -707,11 +707,40 @@
   column-gap: clamp(20px, 4vw, 56px);
   row-gap: 10px;
   padding: 18px clamp(18px, 4vw, 52px) 26px;
-  background:
-    radial-gradient(circle at 22% 18%, rgb(var(--np-accent, 255 178 36) / 0.2), transparent 58%),
-    var(--bg);
+  background: var(--bg);
+  isolation: isolate;
   overflow: hidden;
   animation: nm-sheet-in 0.22s ease;
+}
+
+/* the album art, blurred into a lit backdrop */
+.np-sheet::before {
+  content: '';
+  position: absolute;
+  inset: -10%;
+  z-index: -2;
+  background-image: var(--np-cover, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(72px) saturate(1.7);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* accent glow + a scrim that keeps the copy readable */
+.np-sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 22% 18%, rgb(var(--np-accent, 255 178 36) / 0.24), transparent 56%),
+    linear-gradient(180deg, rgb(21 25 34 / 0.52), rgb(21 25 34 / 0.88));
+  pointer-events: none;
+}
+
+html.dynamic-colors-off .np-sheet::before {
+  display: none;
 }
 
 @keyframes nm-sheet-in {

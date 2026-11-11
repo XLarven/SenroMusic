@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '../store/auth';
 import { greeting } from '../lib/format';
+import { t } from '../lib/i18n';
 
 export function TopBar() {
   const [q, setQ] = useState('');
@@ -21,15 +22,15 @@ export function TopBar() {
     <header className="topbar">
       <div className="topbar__mobile-copy">
         <small>{greeting()},</small>
-        <strong>{user?.displayName || user?.email?.split('@')[0] || 'müziksever'} 👋</strong>
+        <strong>{user?.displayName || user?.email?.split('@')[0] || t('müziksever', 'music lover')} 👋</strong>
       </div>
       <form onSubmit={submit} className="topbar__search" role="search">
         <Search size={17} aria-hidden="true" style={{ color: 'var(--nm-text-secondary)' }} />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Şarkı, sanatçı, albüm ara…"
-          aria-label="Ara"
+          placeholder={t('Şarkı, sanatçı, albüm ara…', 'Search songs, artists, albums…')}
+          aria-label={t('Ara', 'Search')}
           autoComplete="off"
           spellCheck={false}
           type="search"

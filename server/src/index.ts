@@ -17,6 +17,8 @@ import { youtubeRoutes } from './routes/youtube.js';
 import { spotifyRoutes } from './routes/spotify.js';
 import { searchRoutes } from './routes/search.js';
 import { mediaRoutes } from './routes/media.js';
+import { artworkRoutes } from './routes/artwork.js';
+import { localeRoutes } from './routes/locale.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -84,6 +86,8 @@ export async function buildServer() {
   await app.register(spotifyRoutes);
   await app.register(searchRoutes);
   await app.register(mediaRoutes);
+  await app.register(artworkRoutes);
+  await app.register(localeRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
