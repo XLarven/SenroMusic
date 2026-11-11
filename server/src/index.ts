@@ -16,6 +16,7 @@ import { playlistRoutes } from './routes/playlists.js';
 import { youtubeRoutes } from './routes/youtube.js';
 import { spotifyRoutes } from './routes/spotify.js';
 import { searchRoutes } from './routes/search.js';
+import { mediaRoutes } from './routes/media.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -44,15 +45,13 @@ export async function buildServer() {
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
-    // The player loads the YouTube IFrame API from youtube.com; a bare
-    // 'self' policy blocks the script and the frame in production, which is
-    // why playback silently failed there. The embed also needs a Referer, so
-    // the policy stays strict-origin-when-cross-origin rather than no-referrer.
-    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // Playback goes through /api/media/stream, so no third-party script or
+    // frame is needed anywhere in the app.
+    reply.header('Referrer-Policy', 'no-referrer');
     reply.header('X-Frame-Options', 'DENY');
     reply.header(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'",
+      "default-src 'self'; img-src 'self' data: https:; media-src 'self' blob: https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'",
     );
     reply.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     if (request.protocol === 'https' || config.secureCookies) {
@@ -84,6 +83,7 @@ export async function buildServer() {
   await app.register(youtubeRoutes);
   await app.register(spotifyRoutes);
   await app.register(searchRoutes);
+  await app.register(mediaRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {

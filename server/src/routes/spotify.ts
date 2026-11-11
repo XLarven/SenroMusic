@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { rateLimit } from '../ratelimit.js';
 import { getSpotifyAccessToken, getSpotifyPlaylist, isSpotifyConfigured, searchSpotify, type SpotifyItem } from '../spotifyApi.js';
-import { resolveSpotify, resolvePending } from '../spotifyEmbed.js';
+import { resolveSpotify } from '../spotifyEmbed.js';
 
 const execFileAsync = promisify(execFile);
 const PYTHON = process.env.PYTHON_PATH || 'python';
@@ -359,38 +359,6 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
             'Spotify bağlantısı çözülemedi. Bağlantının herkese açık olduğundan ve Spotify\'ın bölge kısıtlaması olmadığından emin olun.',
         },
       });
-    },
-  );
-
-  // Resolve a pending (Spotify) track to a playable YouTube Music track
-  app.post<{ Body: { track?: any; exclude?: string[] } }>(
-    '/api/spotify/resolve-pending',
-    {
-      preHandler: [
-        requireAuth,
-        rateLimit({ name: 'spotify-resolve-pending', max: 120, windowMs: 60_000, keyBy: 'user' }),
-      ],
-    },
-    async (request, reply) => {
-      const track = request.body?.track;
-      if (!track || !track.title) {
-        return reply.code(400).send({ error: { code: 'invalid_track', message: 'Geçerli bir track gereklidir.' } });
-      }
-      const exclude = Array.isArray(request.body?.exclude)
-        ? request.body!.exclude.filter((id): id is string => typeof id === 'string').slice(0, 20)
-        : [];
-      try {
-        const resolved = await resolvePending(track, exclude);
-        return resolved;
-      } catch (error) {
-        request.log.warn({ err: error }, 'resolve pending failed');
-        return reply.code(422).send({
-          error: {
-            code: 'unresolvable',
-            message: error instanceof Error ? error.message : 'Track çözülemedi.',
-          },
-        });
-      }
     },
   );
 }

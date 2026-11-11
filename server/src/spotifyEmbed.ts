@@ -178,20 +178,4 @@ export async function resolveSpotify(url: string, requestedBy: string | null = n
   };
 }
 
-export async function resolvePending(track: any, exclude: string[] = []): Promise<any> {
-  const found = await matchSong({ title: track.title, artist: track.uploader ?? track.artist, duration: track.duration, exclude });
-  if (!found) throw new Error("couldn't find it on YouTube Music");
-  Object.assign(track, {
-    url: found.url,
-    videoId: found.videoId,
-    title: found.title,
-    uploader: found.uploader ?? track.uploader,
-    album: found.album,
-    duration: found.duration ?? track.duration,
-    thumbnail: found.thumbnail ?? track.thumbnail,
-    pending: false,
-  });
-  return track;
-}
-
 export { searchYtm, matchSong };

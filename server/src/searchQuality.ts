@@ -126,6 +126,21 @@ export function cleanTrackTitle(value: string): string {
   return normalizeText(out);
 }
 
+/**
+ * The song name without soundtrack tags, lyric subtitles or edition notes.
+ *
+ * Catalogue titles arrive as `Kesariya (From "Brahmastra") - Tu Fuljhadiyo …`
+ * and that whole string makes a poor query for both JioSaavn and yt-dlp: the
+ * marketing tail narrows the search to nothing.
+ */
+export function songTitle(value: string): string {
+  const trimmed = value.trim();
+  const withoutBrackets = trimmed.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').trim();
+  const beforeDash = withoutBrackets.split(/\s+[-–—]\s+/)[0]?.trim() ?? '';
+  const candidate = beforeDash || withoutBrackets;
+  return candidate.length >= 2 ? candidate : trimmed;
+}
+
 /** Split "Artist - Title" style uploads into their parts when present. */
 export function splitArtistTitle(value: string): { artist: string | null; title: string } {
   const cleaned = value.replace(/\s*[\(\[][^\)\]]*[\)\]]\s*$/g, '').trim();

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getServerUrl } from '../lib/serverUrl';
+import { mediaUrl } from '../lib/media';
 import {
   deleteDownloadBlob,
   deleteDownloadRecord,
@@ -118,7 +119,9 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
       };
 
       await setRecord({ state: 'downloading', progress: 0, error: null });
-      const response = await fetch(`${getServerUrl()}${track.streamUrl}`, {
+      // `streamUrl` is a server path for local files and a provider reference
+      // for remote ones; `mediaUrl` normalises both into a fetchable URL.
+      const response = await fetch(`${getServerUrl()}${mediaUrl(track)}`, {
         credentials: 'include',
         signal: controller.signal,
       });
@@ -213,7 +216,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
 
   resolveSource: async (track) => {
     const state = get().records[track.id];
-    if (state?.state !== 'downloaded') return track.streamUrl;
+    if (state?.state !== 'downloaded') return mediaUrl(track);
     const cached = objectUrls.get(track.id);
     if (cached) return cached;
     const blob = await loadDownloadBlob(track.id).catch(() => null);
@@ -228,7 +231,7 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
           },
         },
       }));
-      return track.streamUrl;
+      return mediaUrl(track);
     }
     const url = URL.createObjectURL(blob);
     objectUrls.set(track.id, url);

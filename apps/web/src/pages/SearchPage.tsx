@@ -19,7 +19,7 @@ import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
 import { formatCount, formatDuration } from '../lib/format';
-import type { Track, YouTubeResult, SpotifyResolved } from '../types';
+import type { Track, YouTubeResult, SpotifyResolved, SpotifyCatalogSearch } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 type SearchTab = 'all' | 'tracks' | 'albums' | 'artists';
@@ -135,90 +135,31 @@ export function SearchPage() {
   const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
   const [spotifyCatalogError, setSpotifyCatalogError] = useState<string | null>(null);
-  const [resolvingSpotifyId, setResolvingSpotifyId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
-  // Cache of resolved Spotify->YouTube mappings so a click can start playback
-  // synchronously (an async gap between click and playVideo loses the user
-  // gesture and the browser blocks autoplay).
-  const resolvedSpotifyRef = useRef<Map<string, Track>>(new Map());
 
-  const spotifyKey = (title: string, artist: string) => `${title}::${artist}`.toLocaleLowerCase('tr');
-
-  const toYtTrack = (
-    resolved: any,
-    fallback: { title: string; artist: string; duration?: number | null; artworkUrl?: string | null },
-  ): Track => ({
-    id: `yt_${resolved.videoId ?? resolved.id ?? Date.now()}`,
-    title: resolved.title ?? fallback.title,
-    artist: resolved.uploader ?? fallback.artist,
-    album: resolved.album ?? 'YouTube',
-    albumArtist: resolved.uploader ?? fallback.artist,
+  const spotifyCatalogTrackToTrack = (track: SpotifyCatalogSearch['tracks'][number]): Track => ({
+    id: `sp_${track.id}`,
+    title: track.title,
+    artist: track.artist,
+    album: track.album ?? 'Spotify',
+    albumArtist: track.artist,
     genre: null,
     year: null,
     trackNo: null,
     discNo: null,
-    duration: resolved.duration ?? fallback.duration ?? 0,
+    duration: track.duration ?? 0,
     bitrate: null,
     sampleRate: null,
     channels: null,
-    format: 'youtube',
+    format: 'spotify',
     size: 0,
-    coverUrl: resolved.thumbnail ?? fallback.artworkUrl ?? null,
-    streamUrl: `youtube:${resolved.videoId}`,
+    coverUrl: track.artworkUrl,
+    // Spotify can only supply the identity of the song; the audio is resolved
+    // per play by the media proxy (JioSaavn first, YouTube search after).
+    streamUrl: `spotify:${track.id}`,
     addedAt: new Date().toISOString(),
   });
 
-  const playResolvedSpotify = async (track: { title: string; artist: string; duration?: number | null; thumbnail?: string | null; artworkUrl?: string | null }) => {
-    // Fast path: already resolved in the background — play synchronously so the
-    // click gesture is preserved and autoplay is not blocked.
-    const cached = resolvedSpotifyRef.current.get(spotifyKey(track.title, track.artist));
-    if (cached) {
-      playTrack(cached);
-      return;
-    }
-    setResolvingSpotifyId(track.title);
-    try {
-      const resolved = await api.spotifyResolvePending({ title: track.title, artist: track.artist, duration: track.duration ?? null, thumbnail: track.artworkUrl ?? track.thumbnail ?? null });
-      if (resolved?.videoId || resolved?.url) {
-        const ytTrack = toYtTrack(resolved, track);
-        resolvedSpotifyRef.current.set(spotifyKey(track.title, track.artist), ytTrack);
-        playTrack(ytTrack);
-      }
-    } catch (e) {
-      console.error('Failed to resolve Spotify track:', e);
-    } finally {
-      setResolvingSpotifyId(null);
-    }
-  };
-
-  // Pre-resolve the first few Spotify catalog tracks in the background so
-  // clicking them starts playback immediately instead of after a fetch.
-  useEffect(() => {
-    if (!spotifyCatalog) return;
-    let cancelled = false;
-    const pending = spotifyCatalog.tracks
-      .filter((t) => !matchTrack(t, library.tracks))
-      .slice(0, 6)
-      .filter((t) => !resolvedSpotifyRef.current.has(spotifyKey(t.title, t.artist)));
-    if (pending.length === 0) return;
-    void (async () => {
-      for (const t of pending) {
-        if (cancelled) return;
-        try {
-          const resolved = await api.spotifyResolvePending({ title: t.title, artist: t.artist, duration: t.duration, thumbnail: t.artworkUrl });
-          if (cancelled) return;
-          if (resolved?.videoId || resolved?.url) {
-            resolvedSpotifyRef.current.set(spotifyKey(t.title, t.artist), toYtTrack(resolved, { title: t.title, artist: t.artist, duration: t.duration, artworkUrl: t.artworkUrl }));
-          }
-        } catch {
-          // leave unresolved; the click handler will retry
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [spotifyCatalog, library.tracks]);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('Norie.searchHistory');
@@ -784,7 +725,7 @@ export function SearchPage() {
         <div className="section-heading">
           <div>
             <h2>Spotify kataloğu</h2>
-            <p>Resmi meta veri. Spotify sesi indirilemez; yalnızca kütüphanende bulunanlar çalınabilir.</p>
+            <p>Resmi meta veri. Ses, çalma anında kaynak havuzundan (JioSaavn / YouTube) çözülür; Spotify aboneliği gerekmez.</p>
           </div>
         </div>
         {spotifyCatalog.tracks.length ? (
@@ -798,7 +739,7 @@ export function SearchPage() {
                   <div className="import-copy">
                     <strong>{track.title}</strong>
                     <span>{track.artist}{track.album ? ` · ${track.album}` : ''}</span>
-                    <small>{local ? 'Kütüphanende var' : 'NorieMusic kütüphanesinde yok'}{track.duration ? ` · ${formatDuration(track.duration)}` : ''}</small>
+                    <small>{local ? 'Kütüphanende var' : 'Kaynak havuzundan çalınır'}{track.duration ? ` · ${formatDuration(track.duration)}` : ''}</small>
                   </div>
                   {local ? (
                     <>
@@ -807,9 +748,19 @@ export function SearchPage() {
                     </>
                   ) : (
                     <>
-                    <button type="button" className="button secondary" style={{ flexShrink: 0, padding: '4px 8px', fontSize: '0.8rem' }} disabled={resolvingSpotifyId === track.title} onClick={() => void playResolvedSpotify({ title: track.title, artist: track.artist, duration: track.duration, artworkUrl: track.artworkUrl })} title="YouTube'da çal">
-                      {resolvingSpotifyId === track.title ? <Loader2 size={14} className="spin" /> : <Play size={14} fill="currentColor" />}
-                      {' '}Çal
+                    <button
+                      type="button"
+                      className="button secondary"
+                      style={{ flexShrink: 0, padding: '4px 8px', fontSize: '0.8rem' }}
+                      onClick={() => {
+                        const queue = spotifyCatalog.tracks
+                          .filter((entry) => !matchTrack(entry, library.tracks))
+                          .map(spotifyCatalogTrackToTrack);
+                        playTrack(spotifyCatalogTrackToTrack(track), queue);
+                      }}
+                      title="Kaynak havuzundan çal"
+                    >
+                      <Play size={14} fill="currentColor" /> Çal
                     </button>
                     <a className="icon-button subtle import-source" href={track.sourceUrl ?? undefined} target="_blank" rel="noreferrer" title="Spotify'da aç" aria-label="Spotify'da aç">
                       <Link2 size={16} />
@@ -900,7 +851,7 @@ export function SearchPage() {
               <li key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--border, #333)' }}>
                 <button
                   type="button"
-                  onClick={() => playTrack(youtubeResultToTrack(item))}
+                  onClick={() => playTrack(youtubeResultToTrack(item), ytResults.map(youtubeResultToTrack))}
                   aria-label={`${item.title} oynat`}
                   style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', flexShrink: 0 }}
                 >
@@ -925,7 +876,7 @@ export function SearchPage() {
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() => playTrack(youtubeResultToTrack(item))}
+                  onClick={() => playTrack(youtubeResultToTrack(item), ytResults.map(youtubeResultToTrack))}
                   style={{ flexShrink: 0 }}
                 >
                   <Play size={16} />

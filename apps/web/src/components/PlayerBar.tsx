@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ChevronDown,
   Heart,
@@ -17,62 +17,16 @@ import {
   VolumeX,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { api } from '../api';
 import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
 import { DownloadButton } from './DownloadButton';
 import { NMLyricsPanel } from './norie/NMLyricsPanel';
-import { destroyYouTubePlayer, playYouTubeVideo, youtubeVideoId } from '../lib/youtubeEngine';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
-import type { Track } from '../types';
 import { formatDuration } from '../lib/format';
-
-// Tracks how many times each song has been rematched so a broken match cannot
-// loop forever. The key is the *requested* song, never the resolved upload —
-// rewriting the title/artist on each try used to reset the counter and make two
-// embed-blocked uploads ping-pong indefinitely.
-type RematchState = { attempts: number; excluded: string[] };
-const rematchState = new Map<string, RematchState>();
-
-function resetRematch(key: string): void {
-  rematchState.delete(key);
-}
-
-async function rematchYouTubeTrack(track: Track | null): Promise<void> {
-  if (!track) return;
-  const key = `${track.title}::${track.artist}`;
-  const entry = rematchState.get(key) ?? { attempts: 0, excluded: [] };
-  const failedId = track.streamUrl.startsWith('youtube:') ? track.streamUrl.slice('youtube:'.length) : '';
-  if (failedId && !entry.excluded.includes(failedId)) entry.excluded.push(failedId);
-  entry.attempts += 1;
-  rematchState.set(key, entry);
-  if (entry.attempts > 3) return;
-
-  try {
-    const resolved = await api.spotifyResolvePending({
-      title: track.title,
-      artist: track.artist,
-      duration: track.duration ?? null,
-      exclude: entry.excluded,
-    });
-    if (!resolved?.videoId || entry.excluded.includes(resolved.videoId)) return;
-    // Keep the requested metadata so the song identity stays stable for the
-    // attempt counter, the queue and lyric lookup; only the stream changes.
-    usePlayer.getState().playTrack({
-      ...track,
-      id: `yt_${resolved.videoId}`,
-      streamUrl: `youtube:${resolved.videoId}`,
-      coverUrl: resolved.thumbnail ?? track.coverUrl,
-    });
-  } catch {
-    // give up quietly — the error banner already explains what happened
-  }
-}
 
 export function PlayerBar() {
   const current = usePlayer((state) => state.current);
-  const provider = usePlayer((state) => state.provider);
   const queue = usePlayer((state) => state.queue);
   const playing = usePlayer((state) => state.playing);
   const loading = usePlayer((state) => state.loading);
@@ -100,51 +54,6 @@ export function PlayerBar() {
   const toggleFav = useFavorites((state) => state.toggle);
   const liked = current ? favIds.includes(current.id) : false;
   const [accent, setAccent] = useState<[number, number, number] | null>(null);
-  const youtubeHostRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (provider !== 'youtube' || !current || !youtubeHostRef.current) {
-      if (provider !== 'youtube') destroyYouTubePlayer();
-      return;
-    }
-    const videoId = youtubeVideoId(current);
-    const songKey = `${current.title}::${current.artist}`;
-    let cancelled = false;
-    const state = usePlayer.getState();
-    void playYouTubeVideo(videoId, youtubeHostRef.current, {
-      onStateChange: (nextPlaying, buffering) => {
-        if (!cancelled) usePlayer.setState({ playing: nextPlaying, loading: buffering });
-      },
-      onTimeUpdate: (time, dur) => {
-        if (!cancelled) usePlayer.setState({ currentTime: time, duration: dur, loading: false });
-        // The stream is genuinely playing, so any earlier rematch budget for
-        // this song is spent and can be released.
-        if (time > 5) resetRematch(songKey);
-      },
-      onEnded: () => {
-        if (!cancelled) usePlayer.getState().handleEnded();
-      },
-      onError: (message, code) => {
-        if (cancelled) return;
-        usePlayer.setState({ playing: false, loading: false, error: message });
-        // YouTube 101/150 means the owner disabled embedding — the track can
-        // never play here. Ask the server for a different recording of the
-        // same song (excluding the ones already tried), then continue.
-        if (code === 101 || code === 150) {
-          void rematchYouTubeTrack(current);
-        }
-      },
-      onReady: () => {
-        if (!cancelled) usePlayer.setState({ loading: false, error: null });
-      },
-    }, {
-      autoplay: state.playing,
-      startTime: state.currentTime,
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [current, provider]);
 
   useEffect(() => {
     if (!current?.coverUrl || document.documentElement.classList.contains('dynamic-colors-off')) {
@@ -207,18 +116,6 @@ export function PlayerBar() {
     <>
     <section className={clsx('player-bar', !current && 'is-empty')} aria-label="Müzik oynatıcı">
       <div className="player-track">
-        {/*
-          The YouTube host is kept mounted for the whole session so the IFrame
-          API never replaces a React-managed node (which caused removeChild
-          crashes). It is hidden visually when another provider is active.
-        */}
-        <div
-          ref={youtubeHostRef}
-          id="norie-youtube-player"
-          className="player-youtube-host"
-          aria-label={current ? `YouTube oynatıcı: ${current.title}` : 'YouTube oynatıcı'}
-          style={{ display: provider === 'youtube' && current ? undefined : 'none' }}
-        />
         {current ? (
           <button
             type="button"
@@ -419,9 +316,6 @@ export function PlayerBar() {
             iconSize={64}
             eager
           />
-          {provider === 'youtube' ? (
-            <p className="settings-hint">YouTube oynatıcı mini oynatıcıda; kontroller ve sözler burada senkron.</p>
-          ) : null}
         </div>
 
         <div className="np-meta">

@@ -1,18 +1,12 @@
 import { create } from 'zustand';
 import { api } from '../api';
-import { destroyYouTubePlayer, youtubePause, youtubePlay, youtubeSeek, youtubeSetMuted, youtubeSetVolume } from '../lib/youtubeEngine';
+import { mediaUrl } from '../lib/media';
 import type { Track } from '../types';
 import { useDownloads } from './downloads';
 
 export type RepeatMode = 'off' | 'all' | 'one';
-export type PlaybackProvider = 'local' | 'youtube';
-
-export function isYouTubeTrack(track: Track | null | undefined): boolean {
-  return Boolean(track && (track.id.startsWith('yt_') || track.streamUrl.startsWith('youtube:')));
-}
 
 type PlayerState = {
-  provider: PlaybackProvider;
   current: Track | null;
   queue: Track[];
   index: number;
@@ -54,12 +48,14 @@ let listenersAttached = false;
 let sleepTimerHandle: ReturnType<typeof setTimeout> | null = null;
 let lastRecordedTrackId: string | null = null;
 let lastSessionSave = 0;
+/** Tracks that already burned their one automatic stream retry. */
+const failedRetries = new Set<string>();
 
 const SESSION_KEY = 'Norie.player.session';
 const GRACEFUL_NETWORK_MESSAGE = 'Bağlantı kesildi. Yerel dosya yoksa parça burada duraklatıldı.';
+const SOURCE_UNAVAILABLE_MESSAGE = 'Bu parça için ses kaynağı bulunamadı. Sonraki parçaya geçebilirsin.';
 
 type SavedSession = {
-  provider: PlaybackProvider;
   current: Track | null;
   queue: Track[];
   index: number;
@@ -76,7 +72,6 @@ function saveSession(state: PlayerState): void {
     return;
   }
   const payload: SavedSession = {
-    provider: state.provider,
     current: state.current,
     queue: state.queue,
     index: state.index,
@@ -104,14 +99,29 @@ function loadSession(): SavedSession | null {
 async function startTrack(track: Track, startTime = 0): Promise<void> {
   attachAudioListeners();
   const element = getAudio();
-  const source = await useDownloads
-    .getState()
-    .resolveSource(track)
-    .catch(() => track.streamUrl);
+  // Downloaded tracks play from their stored blob; everything else is streamed
+  // through the backend resolver, which proxies whatever provider answers.
+  const isDownloaded = useDownloads.getState().records[track.id]?.state === 'downloaded';
+  const source = isDownloaded
+    ? await useDownloads
+        .getState()
+        .resolveSource(track)
+        .catch(() => mediaUrl(track))
+    : mediaUrl(track);
   if (usePlayer.getState().current?.id !== track.id) return;
   element.src = source;
   if (Number.isFinite(startTime) && startTime > 0) {
-    element.currentTime = startTime;
+    // `currentTime` is only writable once the element knows its duration.
+    const applySeek = () => {
+      element.removeEventListener('loadedmetadata', applySeek);
+      try {
+        element.currentTime = startTime;
+      } catch {
+        // Seeking before metadata is a no-op, not a playback failure.
+      }
+    };
+    if (element.readyState >= 1) applySeek();
+    else element.addEventListener('loadedmetadata', applySeek);
   }
   playElement();
 }
@@ -166,10 +176,25 @@ function attachAudioListeners(): void {
   element.addEventListener('waiting', () => update({ loading: true }));
   element.addEventListener('canplay', () => update({ loading: false }));
   element.addEventListener('error', () => {
+    const state = usePlayer.getState();
+    const code = element.error?.code;
+    // MEDIA_ERR_SRC_NOT_SUPPORTED on a remote track usually means the proxied
+    // stream never started. One retry with a fresh resolution is worth it; a
+    // second failure is a genuinely dead track and gets reported.
+    if (code === 4 && state.current && !failedRetries.has(state.current.id)) {
+      failedRetries.add(state.current.id);
+      const track = state.current;
+      const time = state.currentTime;
+      setTimeout(() => {
+        if (usePlayer.getState().current?.id !== track.id) return;
+        void startTrack(track, time);
+      }, 600);
+      return;
+    }
     update({
       playing: false,
       loading: false,
-      error: GRACEFUL_NETWORK_MESSAGE,
+      error: code === 4 ? SOURCE_UNAVAILABLE_MESSAGE : GRACEFUL_NETWORK_MESSAGE,
     });
   });
   element.addEventListener('ended', () => usePlayer.getState().handleEnded());
@@ -244,7 +269,6 @@ async function extendWithSimilar(get: () => PlayerState): Promise<void> {
 }
 
 export const usePlayer = create<PlayerState>((set, get) => ({
-  provider: 'local',
   current: null,
   queue: [],
   index: 0,
@@ -263,9 +287,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playTrack: (track, sourceTracks) => {
     const queue = sourceTracks && sourceTracks.length > 0 ? sourceTracks : [track];
     const index = Math.max(0, queue.findIndex((item) => item.id === track.id));
-    const provider: PlaybackProvider = isYouTubeTrack(track) ? 'youtube' : 'local';
     const nextState = {
-      provider,
       current: track,
       queue,
       index,
@@ -277,7 +299,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     };
     set(nextState);
     saveSession({ ...get(), ...nextState });
-    if (provider === 'local') void startTrack(track);
+    void startTrack(track);
   },
 
   playQueue: (tracks, startIndex = 0) => {
@@ -290,9 +312,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const { queue } = get();
     const track = queue[index];
     if (!track) return;
-    const provider: PlaybackProvider = isYouTubeTrack(track) ? 'youtube' : 'local';
     const nextState = {
-      provider,
       current: track,
       index,
       playing: true,
@@ -303,23 +323,19 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     };
     set(nextState);
     saveSession({ ...get(), ...nextState });
-    if (provider === 'local') void startTrack(track);
+    void startTrack(track);
   },
 
   toggle: () => {
     const element = getAudio();
-    const { current, queue, index, currentTime, playing, provider } = get();
+    const { current, queue, index, currentTime } = get();
     if (!current && queue.length > 0) {
       get().playAt(index);
       return;
     }
     if (!current) return;
-    if (provider === 'youtube') {
-      if (playing) youtubePause();
-      else youtubePlay();
-      saveSession(get());
-      return;
-    }
+    // The element keeps its source across pause/play, so a stopped track only
+    // needs a fresh resolve when it never got one in the first place.
     if (!element.currentSrc) {
       void startTrack(current, currentTime);
       return;
@@ -334,10 +350,10 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   play: () => {
-    const { current, provider } = get();
+    const { current, currentTime } = get();
     if (!current) return;
-    if (provider === 'youtube') {
-      youtubePlay();
+    if (!getAudio().currentSrc) {
+      void startTrack(current, currentTime);
       return;
     }
     attachAudioListeners();
@@ -345,8 +361,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   pause: () => {
-    if (get().provider === 'youtube') youtubePause();
-    else getAudio().pause();
+    getAudio().pause();
   },
 
   next: () => {
@@ -377,18 +392,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   seek: (time) => {
-    const { provider, currentTime: stateTime, duration: stateDuration } = get();
-    if (provider === 'youtube') {
-      const target = Math.max(0, Math.min(time, stateDuration || 0));
-      youtubeSeek(target);
-      set({ currentTime: target });
-      return;
-    }
     const element = getAudio();
     const duration = Number.isFinite(element.duration) ? element.duration : get().duration;
     const target = Math.max(0, Math.min(time, duration || 0));
-    if (Number.isFinite(target)) element.currentTime = target;
-    set({ currentTime: target ?? stateTime });
+    if (Number.isFinite(target) && element.readyState >= 1) element.currentTime = target;
+    set({ currentTime: target });
   },
 
   setVolume: (value) => {
@@ -396,7 +404,6 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const volume = Math.max(0, Math.min(1, value));
     element.volume = volume;
     element.muted = volume === 0;
-    youtubeSetVolume(volume);
     localStorage.setItem('Norie.volume', String(volume));
     set({ volume, muted: volume === 0 });
     saveSession(get());
@@ -406,7 +413,6 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const element = getAudio();
     const muted = !element.muted;
     element.muted = muted;
-    youtubeSetMuted(muted);
     set({ muted });
     saveSession(get());
   },
@@ -470,9 +476,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     element.pause();
     element.removeAttribute('src');
     element.load();
-    destroyYouTubePlayer();
     set({
-      provider: 'local',
       current: null,
       queue: [],
       index: 0,
@@ -523,9 +527,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     if (!saved?.current) return;
     const queue = Array.isArray(saved.queue) && saved.queue.length > 0 ? saved.queue : [saved.current];
     const index = Math.max(0, Math.min(saved.index ?? 0, queue.length - 1));
-    const provider = saved.provider ?? (isYouTubeTrack(saved.current) ? 'youtube' : 'local');
     set({
-      provider,
       current: saved.current,
       queue,
       index,
@@ -542,17 +544,32 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const element = getAudio();
     element.volume = saved.volume ?? element.volume;
     element.muted = Boolean(saved.muted);
-    if (provider !== 'local') return;
-    void useDownloads
-      .getState()
-      .resolveSource(saved.current)
-      .then((url) => {
-        if (get().current?.id !== saved.current?.id) return;
-        element.src = url;
-        if (Number.isFinite(saved.currentTime) && saved.currentTime > 0) {
-          element.currentTime = saved.currentTime;
-        }
-      })
-      .catch(() => undefined);
+    // Restore the source only, never autoplay: the page has no user gesture yet.
+    const track = saved.current;
+    const isDownloaded = useDownloads.getState().records[track.id]?.state === 'downloaded';
+    const attachSource = (src: string) => {
+      if (get().current?.id !== track.id) return;
+      element.src = src;
+      if (Number.isFinite(saved.currentTime) && saved.currentTime > 0) {
+        const applySeek = () => {
+          element.removeEventListener('loadedmetadata', applySeek);
+          try {
+            element.currentTime = saved.currentTime;
+          } catch {
+            // A stale position is not a failure.
+          }
+        };
+        element.addEventListener('loadedmetadata', applySeek);
+      }
+    };
+    if (isDownloaded) {
+      void useDownloads
+        .getState()
+        .resolveSource(track)
+        .then(attachSource)
+        .catch(() => attachSource(mediaUrl(track)));
+    } else {
+      attachSource(mediaUrl(track));
+    }
   },
 }));
