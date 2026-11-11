@@ -16,6 +16,7 @@ import { CommunitySection } from './CommunitySection';
 import { PeopleSearch } from './PeopleSearch';
 import { FriendsPanel } from './FriendsPanel';
 import { ListeningNow } from './ListeningNow';
+import { MessagesPanel } from './MessagesPanel';
 import { t } from '../../lib/i18n';
 
 /**
@@ -62,6 +63,23 @@ export function CommunityPage() {
 
       <ListeningNow />
 
+      <section className="content-section dm-section" aria-label={t('Mesajlar', 'Messages')}>
+        <div className="section-heading">
+          <div>
+            <h2>
+              <MessagesSquare size={18} /> {t('Mesajlar', 'Messages')}
+            </h2>
+            <p>
+              {t(
+                'Arkadaşlarınla birebir yazış, şarkı ve çalma listesi paylaş.',
+                'Chat one-to-one with your friends, share songs and playlists.',
+              )}
+            </p>
+          </div>
+        </div>
+        <MessagesPanel />
+      </section>
+
       <div className="community-grid">
         <CommunitySection
           icon={UserPlus}
@@ -74,21 +92,6 @@ export function CommunityPage() {
         >
           <FriendsPanel />
         </CommunitySection>
-
-        <CommunitySection
-          icon={MessagesSquare}
-          title={t('Mesajlar', 'Messages')}
-          description={t(
-            'Birebir sohbetler ve müzik paylaşımı.',
-            'Private conversations and sharing music.',
-          )}
-          bullets={[
-            t('Birebir konuşmalar', 'Private chats'),
-            t('Şarkı ve çalma listesi paylaşımı', 'Share songs and playlists'),
-            t('Okunmamış sayacı', 'Unread counter'),
-          ]}
-          comingSoon
-        />
 
         <CommunitySection
           icon={Radio}

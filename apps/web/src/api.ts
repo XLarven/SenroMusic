@@ -24,6 +24,10 @@ import type {
   FriendNotification,
   Relationship,
   FriendPresence,
+  ConversationPage,
+  ConversationDetail,
+  Message,
+  MessageAttachment,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -330,6 +334,55 @@ export const api = {
     request<{ ok: boolean }>('/api/presence/activity', { method: 'POST', body: { sessionId, activity } }),
   presenceOffline: (sessionId: string) =>
     request<{ ok: boolean }>('/api/presence/offline', { method: 'POST', body: { sessionId } }),
+  conversations: (params: { limit?: number; offset?: number; q?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.offset) query.set('offset', String(params.offset));
+    if (params.q) query.set('q', params.q);
+    const suffix = query.toString();
+    return request<ConversationPage>(`/api/messages/conversations${suffix ? `?${suffix}` : ''}`);
+  },
+  openConversation: (userId: string) =>
+    request<{ conversationId: string; created: boolean }>('/api/messages/conversations', {
+      method: 'POST',
+      body: { userId },
+    }),
+  conversation: (conversationId: string, before?: string | null, limit = 40) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (before) query.set('before', before);
+    return request<ConversationDetail>(
+      `/api/messages/conversations/${encodeURIComponent(conversationId)}?${query.toString()}`,
+    );
+  },
+  sendMessage: (
+    conversationId: string,
+    payload: { body?: string; clientId?: string; attachment?: MessageAttachment | null },
+  ) =>
+    request<{ message: Message; duplicate: boolean }>(
+      `/api/messages/conversations/${encodeURIComponent(conversationId)}`,
+      { method: 'POST', body: payload },
+    ),
+  editMessage: (conversationId: string, messageId: string, body: string) =>
+    request<{ message: Message }>(
+      `/api/messages/conversations/${encodeURIComponent(conversationId)}/${encodeURIComponent(messageId)}`,
+      { method: 'PATCH', body: { body } },
+    ),
+  deleteMessage: (conversationId: string, messageId: string) =>
+    request<{ message: Message }>(
+      `/api/messages/conversations/${encodeURIComponent(conversationId)}/${encodeURIComponent(messageId)}`,
+      { method: 'DELETE' },
+    ),
+  markConversationRead: (conversationId: string, messageId?: string | null) =>
+    request<{ ok: boolean; unreadTotal: number }>(
+      `/api/messages/conversations/${encodeURIComponent(conversationId)}/read`,
+      { method: 'POST', body: messageId ? { messageId } : {} },
+    ),
+  sendTyping: (conversationId: string, typing: boolean) =>
+    request<{ ok: boolean }>(
+      `/api/messages/conversations/${encodeURIComponent(conversationId)}/typing`,
+      { method: 'POST', body: { typing } },
+    ),
+  messagesUnread: () => request<{ unreadTotal: number }>('/api/messages/unread'),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

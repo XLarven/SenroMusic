@@ -27,6 +27,7 @@ import {
   type PresenceEvent,
   type PresenceStatus,
   type PresenceStore,
+  type RealtimeEvent,
 } from '../presence.js';
 
 const SESSION_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -206,7 +207,7 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
     write(`event: ready\ndata: {"userId":${JSON.stringify(userId)}}\n\n`);
 
     const unsubscribe = store.subscribe(userId, {
-      send: (event: PresenceEvent) => write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`),
+      send: (event: RealtimeEvent) => write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`),
     });
     const keepAlive = setInterval(() => write(': ping\n\n'), 25_000);
     const close = () => {

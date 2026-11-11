@@ -5,6 +5,7 @@ import { Cover } from '../../components/Cover';
 import { formatDate } from '../../lib/format';
 import { t } from '../../lib/i18n';
 import { activityToTrack } from '../../lib/presenceTrack';
+import { subscribeRealtime } from '../../lib/presence';
 import { usePlayer } from '../../store/player';
 import type { FriendPresence } from '../../types';
 
@@ -20,6 +21,8 @@ export function ProfilePresence({ userId }: { userId: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    setPresence(null);
+    setDenied(false);
     void api
       .presenceUser(userId)
       .then((payload) => {
@@ -28,8 +31,34 @@ export function ProfilePresence({ userId }: { userId: string }) {
       .catch(() => {
         if (!cancelled) setDenied(true);
       });
+
+    // Same stream as the friends panel: no extra connection, live updates.
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type !== 'presence' && event.type !== 'activity') return;
+      if (event.userId !== userId) return;
+      setPresence((previous) => {
+        const base = previous ?? {
+          userId,
+          status: 'offline' as const,
+          lastSeenAt: null,
+          activity: null,
+        };
+        if (event.type === 'presence') {
+          return {
+            ...base,
+            status: event.status,
+            lastSeenAt: event.lastSeenAt ?? base.lastSeenAt,
+            activity: event.status === 'offline' ? null : base.activity,
+          };
+        }
+        return { ...base, activity: event.activity };
+      });
+      setDenied(false);
+    });
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [userId]);
 

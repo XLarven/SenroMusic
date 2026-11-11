@@ -269,6 +269,72 @@ export type PresenceEvent =
   | { type: 'presence'; userId: string; status: PresenceStatus; lastSeenAt: string | null; at: string }
   | { type: 'activity'; userId: string; activity: ListeningActivity | null; at: string };
 
+export type MessageAttachment = {
+  kind: 'track' | 'playlist' | 'profile';
+  title: string;
+  subtitle: string | null;
+  coverUrl: string | null;
+  trackId?: string | null;
+  playlistId?: string | null;
+  userId?: string | null;
+  source?: string | null;
+};
+
+export type Message = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  attachment: MessageAttachment | null;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  clientId: string | null;
+};
+
+export type ConversationPeer = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type ConversationSummary = {
+  id: string;
+  peer: ConversationPeer;
+  lastMessage: { id: string; body: string; senderId: string; createdAt: string; deleted: boolean } | null;
+  lastMessageAt: string;
+  unread: number;
+};
+
+export type ConversationPage = {
+  items: ConversationSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+  unreadTotal: number;
+};
+
+export type ConversationDetail = {
+  conversation: {
+    id: string;
+    peer: ConversationPeer | null;
+    canSend: boolean;
+    reason: string | null;
+    lastMessageAt: string;
+  };
+  messages: Message[];
+  hasMore: boolean;
+  peerReadAt: string | null;
+};
+
+export type RealtimeEvent =
+  | PresenceEvent
+  | { type: 'message'; conversationId: string; message: Message; at: string }
+  | { type: 'message_update'; conversationId: string; message: Message; at: string }
+  | { type: 'typing'; conversationId: string; userId: string; typing: boolean; at: string }
+  | { type: 'read'; conversationId: string; userId: string; messageId: string | null; at: string };
+
 export type PublicProfile = {
   id: string;
   displayName: string;

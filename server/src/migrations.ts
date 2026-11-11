@@ -231,6 +231,50 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 7,
+    name: 'direct messages',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS conversations (
+          id TEXT PRIMARY KEY,
+          user_a TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_b TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          pair_key TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL,
+          last_message_at TEXT NOT NULL,
+          CHECK (user_a <> user_b)
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversations_a
+          ON conversations(user_a, last_message_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_conversations_b
+          ON conversations(user_b, last_message_at DESC);
+
+        CREATE TABLE IF NOT EXISTS messages (
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          body TEXT NOT NULL,
+          client_id TEXT,
+          attachment_json TEXT,
+          created_at TEXT NOT NULL,
+          edited_at TEXT,
+          deleted_at TEXT,
+          UNIQUE (conversation_id, client_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation
+          ON messages(conversation_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS conversation_reads (
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          last_read_message_id TEXT,
+          last_read_at TEXT NOT NULL,
+          PRIMARY KEY (conversation_id, user_id)
+        );
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

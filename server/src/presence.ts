@@ -67,7 +67,37 @@ export type PresenceEvent =
   | { type: 'presence'; userId: string; status: PresenceStatus; lastSeenAt: string | null; at: string }
   | { type: 'activity'; userId: string; activity: ActivitySnapshot | null; at: string };
 
-type Sink = { send: (event: PresenceEvent) => void };
+export type MessageAttachment = {
+  kind: 'track' | 'playlist' | 'profile';
+  title: string;
+  subtitle: string | null;
+  coverUrl: string | null;
+  trackId?: string | null;
+  playlistId?: string | null;
+  userId?: string | null;
+  source?: string | null;
+};
+
+export type MessageView = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  attachment: MessageAttachment | null;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  clientId: string | null;
+};
+
+export type RealtimeEvent =
+  | PresenceEvent
+  | { type: 'message'; conversationId: string; message: MessageView; at: string }
+  | { type: 'message_update'; conversationId: string; message: MessageView; at: string }
+  | { type: 'typing'; conversationId: string; userId: string; typing: boolean; at: string }
+  | { type: 'read'; conversationId: string; userId: string; messageId: string | null; at: string };
+
+type Sink = { send: (event: RealtimeEvent) => void };
 
 export class PresenceStore {
   private sessions = new Map<string, Map<string, Session>>();
@@ -157,7 +187,7 @@ export class PresenceStore {
     };
   }
 
-  publish(userIds: Iterable<string>, event: PresenceEvent): void {
+  publish(userIds: Iterable<string>, event: RealtimeEvent): void {
     for (const userId of userIds) {
       const set = this.sinks.get(userId);
       if (!set) continue;

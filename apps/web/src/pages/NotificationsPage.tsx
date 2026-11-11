@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Check, UserPlus, Users } from 'lucide-react';
+import { Bell, Check, MessageSquare, UserPlus, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { Cover } from '../components/Cover';
@@ -87,15 +87,18 @@ export function NotificationsPage() {
           <div className="surface-panel notification-list">
             {items.map((entry) => {
               const isRequest = entry.kind === 'friend_request';
-              const href = entry.actor?.username
-                ? `/u/${entry.actor.username}`
-                : entry.actor
-                  ? `/profile/${entry.actor.id}`
-                  : '/community';
+              const isMessage = entry.kind === 'message';
+              const href = isMessage
+                ? '/community'
+                : entry.actor?.username
+                  ? `/u/${entry.actor.username}`
+                  : entry.actor
+                    ? `/profile/${entry.actor.id}`
+                    : '/community';
               return (
                 <article className={`notification-row ${entry.readAt ? 'is-read' : ''}`} key={entry.id}>
                   <span className="notification-icon">
-                    {isRequest ? <UserPlus size={17} /> : <Users size={17} />}
+                    {isRequest ? <UserPlus size={17} /> : isMessage ? <MessageSquare size={17} /> : <Users size={17} />}
                   </span>
                   {entry.actor ? (
                     <Cover
@@ -112,12 +115,18 @@ export function NotificationsPage() {
                       {' · '}
                       {isRequest
                         ? t('sana arkadaşlık isteği gönderdi', 'sent you a friend request')
-                        : t('arkadaşlık isteğini kabul etti', 'accepted your friend request')}
+                        : isMessage
+                          ? t('sana bir mesaj gönderdi', 'sent you a message')
+                          : t('arkadaşlık isteğini kabul etti', 'accepted your friend request')}
                     </strong>
                     <small>{formatDate(entry.createdAt)}</small>
                   </Link>
-                  <Link to="/community" className="button ghost compact">
-                    {isRequest ? t('İsteklere git', 'Open requests') : t('Profile git', 'Open profile')}
+                  <Link to={isMessage ? '/community' : '/community'} className="button ghost compact">
+                    {isRequest
+                      ? t('İsteklere git', 'Open requests')
+                      : isMessage
+                        ? t('Mesajlara git', 'Open messages')
+                        : t('Profile git', 'Open profile')}
                   </Link>
                 </article>
               );

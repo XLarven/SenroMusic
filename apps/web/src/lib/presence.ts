@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { getServerUrl } from './serverUrl';
-import type { PresenceEvent, Track } from '../types';
+import type { PresenceEvent, RealtimeEvent, Track } from '../types';
 
 /**
  * Client side of presence.
@@ -117,23 +117,61 @@ export function reportPlayback(track: Track | null, playing: boolean, position: 
 }
 
 export type PresenceListener = (event: PresenceEvent) => void;
+export type RealtimeListener = (event: RealtimeEvent) => void;
 
-/** Subscribes to the live presence stream. Returns the cleanup. */
-export function subscribePresence(listener: PresenceListener): () => void {
-  if (typeof EventSource === 'undefined') return () => undefined;
+/**
+ * One EventSource per tab, shared by every consumer.
+ *
+ * Presence, profile cards and the message panel all read from the same stream —
+ * opening a second subscription would double every event and burn the server's
+ * six-connection budget. The socket opens with the first subscriber and closes
+ * with the last one; EventSource handles reconnects itself.
+ */
+const listeners = new Set<RealtimeListener>();
+let stream: EventSource | null = null;
+
+const REALTIME_TYPES = ['presence', 'activity', 'message', 'message_update', 'typing', 'read'] as const;
+
+function ensureStream(): void {
+  if (stream || typeof EventSource === 'undefined') return;
   const source = new EventSource(`${getServerUrl()}/api/presence/stream`, { withCredentials: true });
+  stream = source;
+  for (const type of REALTIME_TYPES) {
+    source.addEventListener(type, (event) => {
+      const message = event as MessageEvent<string>;
+      let payload: RealtimeEvent;
+      try {
+        payload = JSON.parse(message.data) as RealtimeEvent;
+      } catch {
+        return;
+      }
+      if (!payload || typeof payload.type !== 'string') return;
+      for (const listener of [...listeners]) {
+        try {
+          listener(payload);
+        } catch {
+          // A broken consumer must not kill the stream for the others.
+        }
+      }
+    });
+  }
+}
 
-  const handle = (event: MessageEvent<string>) => {
-    try {
-      const payload = JSON.parse(event.data) as PresenceEvent;
-      if (payload?.type === 'presence' || payload?.type === 'activity') listener(payload);
-    } catch {
-      // ignore malformed frames
+export function subscribeRealtime(listener: RealtimeListener): () => void {
+  listeners.add(listener);
+  ensureStream();
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0 && stream) {
+      stream.close();
+      stream = null;
     }
   };
-  source.addEventListener('presence', handle as EventListener);
-  source.addEventListener('activity', handle as EventListener);
-  // EventSource retries on its own; nothing else to do on error.
+}
 
-  return () => source.close();
+/** Presence-only view of the shared stream. */
+export function subscribePresence(listener: PresenceListener): () => void {
+  return subscribeRealtime((event) => {
+    if (event.type === 'presence' || event.type === 'activity') listener(event);
+  });
 }

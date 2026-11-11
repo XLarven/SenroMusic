@@ -20,6 +20,7 @@ import { mediaRoutes } from './routes/media.js';
 import { artworkRoutes } from './routes/artwork.js';
 import { localeRoutes } from './routes/locale.js';
 import { friendsRoutes } from './routes/friends.js';
+import { messagesRoutes } from './routes/messages.js';
 import { presenceRoutes, sweepPresence } from './routes/presence.js';
 import { getDb } from './db.js';
 import { presenceStore } from './presence.js';
@@ -94,6 +95,7 @@ export async function buildServer() {
   await app.register(localeRoutes);
   await app.register(friendsRoutes);
   await app.register(presenceRoutes);
+  await app.register(messagesRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
