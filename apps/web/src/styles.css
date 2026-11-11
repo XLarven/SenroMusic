@@ -1,11 +1,4 @@
-@import './styles/base.css';
-@import './styles/components.css';
-@import './styles/layout.css';
-@import './styles/pages-core.css';
-@import './styles/pages-detail.css';
-@import './styles/login.css';
+@import './styles/theme.css';
+@import './styles/shell.css';
+@import './styles/pages.css';
 @import './styles/responsive.css';
-@import './styles/figma.css';
-@import './styles/design-system.css';
-@import './styles/home-single.css';
-@import './styles/reference.css';
