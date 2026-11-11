@@ -345,6 +345,36 @@
   scrollbar-width: thin;
 }
 
+.lyrics-loading {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 150px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.lyrics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.lyrics-empty svg {
+  opacity: 0.6;
+}
+
+.lyrics-note {
+  color: var(--muted);
+  font-size: 11.5px;
+  margin-bottom: 8px;
+}
+
 .lyrics-line {
   font-size: 15px;
   font-weight: 700;
@@ -355,7 +385,7 @@
 
 .lyrics-line.is-active {
   color: var(--amber);
-  transform: scale(1.02);
+  transform: scale(1.01);
 }
 
 .lyrics-line.is-past {
@@ -1507,10 +1537,26 @@
 }
 
 .search-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 45;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: min(430px, 62vh);
+  overflow-y: auto;
   padding: 6px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 0 var(--panel-shadow);
+}
+
+.search-suggestion-row.is-active {
+  background: var(--surface-2);
+  color: var(--ink);
 }
 
 .search-suggestion-row {
@@ -1589,6 +1635,7 @@
 }
 
 .search-box {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;

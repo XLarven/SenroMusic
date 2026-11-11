@@ -34,15 +34,15 @@ export function NMLyricsPanel({ artist, title, duration, album }: Props) {
 
   if (loading) {
     return (
-      <div className="lyrics-viewport" style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', minHeight: 160 }}>
+      <div className="lyrics-viewport lyrics-loading">
         <Loader2 size={18} className="spin" /> Sözler yükleniyor…
       </div>
     );
   }
   if (error || !data) {
     return (
-      <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--nm-text-secondary)' }}>
-        <Music size={22} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.6 }} />
+      <div className="lyrics-empty">
+        <Music size={22} />
         {error || 'Söz bulunamadı'}
       </div>
     );
@@ -56,9 +56,9 @@ export function NMLyricsPanel({ artist, title, duration, album }: Props) {
   }
 
   return (
-    <div className="lyrics-viewport" ref={listRef} style={{ maxHeight: 340, textAlign: 'center' }} aria-live="polite">
+    <div className="lyrics-viewport" ref={listRef} aria-live="polite">
       {!data.synced ? (
-        <p style={{ color: 'var(--nm-text-secondary)', fontSize: '0.78rem', marginBottom: 8 }}>Zamanlama uydurulmadı — statik sözler</p>
+        <p className="lyrics-note">Zamanlama uydurulmadı — statik sözler</p>
       ) : null}
       {data.lines.map((line, i) => (
         <div

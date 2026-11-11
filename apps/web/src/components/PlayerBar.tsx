@@ -95,10 +95,18 @@ export function PlayerBar() {
     };
   }, [current?.coverUrl]);
 
-  const accentCss = accent ? `rgb(${accent[0]}, ${accent[1]}, ${accent[2]})` : null;
-  const npSheetStyle = accentCss
-    ? { background: `radial-gradient(circle at 50% 0%, ${accentCss}33, transparent 56%), var(--nm-bg)` } as CSSProperties
+  const npSheetStyle = accent
+    ? ({ '--np-accent': `${accent[0]} ${accent[1]} ${accent[2]}` } as CSSProperties)
     : undefined;
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpanded(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [expanded]);
 
   const safeDuration = Math.max(duration || current?.duration || 0, 0);
   const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
@@ -376,10 +384,8 @@ export function PlayerBar() {
           </div>
         </div>
 
-        <div style={{ width: 'min(92vw, 560px)', margin: '18px auto 0', border: '1px solid var(--nm-border)', borderRadius: 18, background: 'rgba(0,0,0,0.25)' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--nm-border)', fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--nm-text-secondary)' }}>
-            Sözler
-          </div>
+        <div className="np-lyrics">
+          <div className="np-lyrics-head">Sözler</div>
           <NMLyricsPanel artist={current.artist} title={current.title} duration={safeDuration} album={current.album} />
         </div>
       </div>

@@ -205,7 +205,33 @@
   }
 
   .np-sheet {
-    max-height: 82dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'art'
+      'meta'
+      'controls'
+      'lyrics';
+    gap: 10px;
+    padding: 14px 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+    overflow-y: auto;
+  }
+
+  .np-art-cover {
+    width: min(58vw, 260px);
+  }
+
+  .np-meta {
+    align-self: start;
+  }
+
+  .np-title {
+    font-size: clamp(22px, 6vw, 30px);
+  }
+
+  .np-lyrics {
+    min-height: 200px;
   }
 
   .toaster {
@@ -372,8 +398,7 @@
   }
 
   .np-art-cover {
-    width: min(220px, 58vw);
-    height: min(220px, 58vw);
+    width: min(52vw, 220px);
   }
 
   .modal {

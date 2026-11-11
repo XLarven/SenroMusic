@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useDeferredValue, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Disc3, Download, Link2, Loader2, Music, Play, Search, SearchX, Sparkles, Video, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -113,7 +113,15 @@ export function SearchPage() {
   const query = params.get('q') ?? '';
   const rawTab = params.get('tab');
   const tab: SearchTab = TABS.some((item) => item.id === rawTab) ? (rawTab as SearchTab) : 'all';
-  const deferredQuery = useDeferredValue(query.trim());
+  // Search runs while typing, but only after the input settles: every provider
+  // call is a network round trip (YouTube shells out to yt-dlp), so firing one
+  // per keystroke floods the server and starves the answer.
+  const [debouncedQuery, setDebouncedQuery] = useState(query.trim());
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 420);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+  const deferredQuery = debouncedQuery;
 
   const navigate = useNavigate();
   const [ytResults, setYtResults] = useState<YouTubeResult[]>([]);
@@ -763,6 +771,7 @@ export function SearchPage() {
                     </>
                   ) : (
                     <>
+                    <DownloadButton track={spotifyCatalogTrackToTrack(track)} />
                     <button
                       type="button"
                       className="button secondary"
