@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowRight, Camera, Image as ImageIcon, LogOut, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { api } from '../api';
+import { FriendButton } from '../features/community/FriendButton';
+import { BlockButton } from '../features/community/BlockButton';
 import { EmptyState } from '../components/EmptyState';
 import { ImageCropEditor } from '../components/ImageCropEditor';
 import { PlaylistCard } from '../components/PlaylistCard';
@@ -328,7 +330,18 @@ export function ProfilePage() {
             <LogOut size={16} /> Çıkış yap
           </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="profile-actions">
+          <FriendButton
+            userId={publicProfileQuery.data?.profile.id ?? ''}
+            initial={publicProfileQuery.data?.relationship ?? null}
+          />
+          <BlockButton
+            userId={publicProfileQuery.data?.profile.id ?? ''}
+            initial={publicProfileQuery.data?.relationship ?? null}
+          />
+        </div>
+      )}
 
       <section className="content-section">
         <div className="section-heading">

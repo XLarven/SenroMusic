@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { CommunitySection } from './CommunitySection';
 import { PeopleSearch } from './PeopleSearch';
+import { FriendsPanel } from './FriendsPanel';
 import { t } from '../../lib/i18n';
 
 /**
@@ -63,16 +64,13 @@ export function CommunityPage() {
           icon={UserPlus}
           title={t('Arkadaşlar', 'Friends')}
           description={t(
-            'Arkadaş listesi, istekler ve ekleme akışı.',
-            'Friend list, requests and adding people.',
+            'Arkadaş listen, gelen ve giden istekler.',
+            'Your friend list, incoming and sent requests.',
           )}
-          bullets={[
-            t('Arkadaş listesi ve istekler', 'Friend list and requests'),
-            t('Kullanıcı adıyla arkadaş ekleme', 'Add friends by username'),
-            t('Dinleme durumu (yalnızca sen açarsan)', 'Listening status (only if you enable it)'),
-          ]}
-          comingSoon
-        />
+          className="community-card-wide"
+        >
+          <FriendsPanel />
+        </CommunitySection>
 
         <CommunitySection
           icon={MessagesSquare}

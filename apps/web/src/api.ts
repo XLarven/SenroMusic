@@ -17,6 +17,12 @@ import type {
   SpotifyCatalogSearch,
   SpotifyResolved,
   UserSearchResult,
+  FriendUser,
+  FriendListPage,
+  FriendRequestPage,
+  FriendCounts,
+  FriendNotification,
+  Relationship,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -159,11 +165,11 @@ export const api = {
       { method: 'DELETE' },
     ),
   publicProfile: (id: string) =>
-    request<{ profile: PublicProfile; playlists: PlaylistSummary[] }>(
+    request<{ profile: PublicProfile; playlists: PlaylistSummary[]; relationship: Relationship }>(
       `/api/profiles/${encodeURIComponent(id)}`,
     ),
   publicProfileByUsername: (username: string) =>
-    request<{ profile: PublicProfile; playlists: PlaylistSummary[] }>(
+    request<{ profile: PublicProfile; playlists: PlaylistSummary[]; relationship: Relationship }>(
       `/api/profiles/by-username/${encodeURIComponent(username)}`,
     ),
   adminStats: () => request<AdminStats>('/api/admin/stats'),
@@ -297,4 +303,38 @@ export const api = {
     }),
   searchUsers: (q: string) =>
     request<{ users: UserSearchResult[] }>(`/api/users/search?q=${encodeURIComponent(q)}`),
+  friends: (limit = 20, offset = 0) =>
+    request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
+  friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>
+    request<{ direction: 'in' | 'out'; requests: FriendRequestPage; counts: FriendCounts }>(
+      `/api/friends/requests?direction=${direction}&limit=${limit}&offset=${offset}`,
+    ),
+  friendshipStatus: (userId: string) =>
+    request<{ relationship: Relationship }>(`/api/friends/status/${encodeURIComponent(userId)}`),
+  sendFriendRequest: (userId: string) =>
+    request<{ relationship: Relationship; counts: FriendCounts }>('/api/friends/requests', {
+      method: 'POST',
+      body: { userId },
+    }),
+  acceptFriendRequest: (requestId: number) =>
+    request<{ ok: boolean; counts: FriendCounts }>(`/api/friends/requests/${requestId}/accept`, { method: 'POST' }),
+  declineFriendRequest: (requestId: number) =>
+    request<{ ok: boolean; counts: FriendCounts }>(`/api/friends/requests/${requestId}/decline`, { method: 'POST' }),
+  cancelFriendRequest: (requestId: number) =>
+    request<{ ok: boolean; counts: FriendCounts }>(`/api/friends/requests/${requestId}`, { method: 'DELETE' }),
+  removeFriend: (userId: string) =>
+    request<{ ok: boolean; counts: FriendCounts }>(`/api/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+  blockUser: (userId: string) =>
+    request<{ ok: boolean; relationship: Relationship }>('/api/blocks', { method: 'POST', body: { userId } }),
+  unblockUser: (userId: string) =>
+    request<{ ok: boolean; relationship: Relationship }>(`/api/blocks/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    }),
+  blockedUsers: () => request<{ blocked: FriendUser[] }>('/api/blocks'),
+  notifications: (limit = 30, offset = 0) =>
+    request<{ items: FriendNotification[]; total: number; unread: number }>(
+      `/api/notifications?limit=${limit}&offset=${offset}`,
+    ),
+  markNotificationsRead: (ids?: number[]) =>
+    request<{ ok: boolean }>('/api/notifications/read', { method: 'POST', body: { ids } }),
 };

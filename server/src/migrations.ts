@@ -151,6 +151,55 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 5,
+    name: 'friend requests, friendships, blocks and notifications',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS friendships (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          requester_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          addressee_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          pair_key TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          CHECK (requester_id <> addressee_id),
+          CHECK (status IN ('pending', 'accepted')),
+          UNIQUE (pair_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_friendships_requester
+          ON friendships(requester_id, status);
+        CREATE INDEX IF NOT EXISTS idx_friendships_addressee
+          ON friendships(addressee_id, status);
+
+        CREATE TABLE IF NOT EXISTS user_blocks (
+          blocker_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          blocked_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (blocker_id, blocked_id),
+          CHECK (blocker_id <> blocked_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked
+          ON user_blocks(blocked_id);
+
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          entity_id TEXT,
+          dedupe_key TEXT,
+          read_at TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_time
+          ON notifications(user_id, created_at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe
+          ON notifications(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL;
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

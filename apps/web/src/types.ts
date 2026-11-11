@@ -200,6 +200,49 @@ export type UserSearchResult = {
   bio: string | null;
 };
 
+export type FriendshipState = 'none' | 'self' | 'pending_out' | 'pending_in' | 'friends' | 'blocked';
+
+export type Relationship = {
+  state: FriendshipState;
+  requestId: number | null;
+  blockedByMe: boolean;
+  blockedMe: boolean;
+};
+
+export type FriendUser = UserSearchResult;
+
+export type FriendRequestEntry = {
+  friendshipId: number;
+  user: FriendUser;
+  createdAt: string;
+};
+
+export type FriendListPage = {
+  items: FriendUser[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type FriendRequestPage = {
+  items: FriendRequestEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type FriendCounts = { friends: number; incoming: number; outgoing: number };
+
+export type FriendNotification = {
+  id: number;
+  kind: string;
+  actorId: string | null;
+  entityId: string | null;
+  readAt: string | null;
+  createdAt: string;
+  actor: FriendUser | null;
+};
+
 export type PublicProfile = {
   id: string;
   displayName: string;

@@ -2074,6 +2074,157 @@
   color: var(--mint);
 }
 
+/* ---------- friends ---------- */
+.friends-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.friends-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.friends-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.friends-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  padding: 0 12px;
+  min-height: 40px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--bg-deep);
+  color: var(--muted);
+}
+
+.friends-filter input {
+  border: 0;
+  background: transparent;
+  min-height: 36px;
+  padding: 0;
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.friends-filter input:focus {
+  box-shadow: none;
+  border: 0;
+}
+
+.friend-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.friend-button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.friend-remove:hover {
+  color: var(--rose);
+}
+
+.friends-more {
+  align-self: flex-start;
+}
+
+.friends-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+}
+
+.notification-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+
+.notification-row:hover {
+  background: var(--surface-2);
+}
+
+.notification-row.is-read {
+  opacity: 0.7;
+}
+
+.notification-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: var(--pastel-amber);
+  color: var(--amber);
+}
+
+.notification-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-pill);
+  flex: 0 0 auto;
+}
+
+.notification-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  color: var(--text);
+}
+
+.notification-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.notification-copy small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .friend-row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .notification-row .button.compact {
+    display: none;
+  }
+}
+
 .people-search {
   display: flex;
   flex-direction: column;

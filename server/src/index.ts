@@ -19,6 +19,7 @@ import { searchRoutes } from './routes/search.js';
 import { mediaRoutes } from './routes/media.js';
 import { artworkRoutes } from './routes/artwork.js';
 import { localeRoutes } from './routes/locale.js';
+import { friendsRoutes } from './routes/friends.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -88,6 +89,7 @@ export async function buildServer() {
   await app.register(mediaRoutes);
   await app.register(artworkRoutes);
   await app.register(localeRoutes);
+  await app.register(friendsRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {

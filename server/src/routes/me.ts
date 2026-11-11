@@ -4,6 +4,7 @@ import { cacheCoverBuffer } from '../covers.js';
 import { config } from '../config.js';
 import { getDb, getTrackRow, trackToDto } from '../db.js';
 import { getPublicPlaylists } from '../library.js';
+import { getRelationship } from '../friends.js';
 import { rateLimit } from '../ratelimit.js';
 import {
   findUserById,
@@ -447,7 +448,11 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       profile.followedArtistCount = (
         getDb().prepare('SELECT COUNT(*) AS c FROM artist_follows WHERE user_id = ?').get(target.id) as { c: number }
       ).c;
-      return { profile, playlists: getPublicPlaylists(target.id) };
+      return {
+        profile,
+        playlists: getPublicPlaylists(target.id),
+        relationship: getRelationship(getDb(), request.user!.id, target.id),
+      };
     },
   );
 
@@ -465,7 +470,11 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       profile.followedArtistCount = (
         getDb().prepare('SELECT COUNT(*) AS c FROM artist_follows WHERE user_id = ?').get(target.id) as { c: number }
       ).c;
-      return { profile, playlists: getPublicPlaylists(target.id) };
+      return {
+        profile,
+        playlists: getPublicPlaylists(target.id),
+        relationship: getRelationship(getDb(), request.user!.id, target.id),
+      };
     },
   );
 
