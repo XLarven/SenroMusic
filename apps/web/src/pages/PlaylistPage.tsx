@@ -10,6 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { PlayButton } from '../components/PlayButton';
 import { Skeleton, TrackListSkeleton } from '../components/Skeleton';
 import { resizeImage } from '../lib/image';
+import { externalProviderLabel, externalToTrack } from '../lib/externalTrack';
 import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
@@ -62,6 +63,17 @@ export function PlaylistPage() {
 
   const removeMutation = useMutation({
     mutationFn: ({ entryId }: { entryId: number; title: string }) => api.removeTrack(id ?? '', entryId),
+    onSuccess: async (_result, variables) => {
+      await invalidate();
+      pushToast(`“${variables.title}” listeden çıkarıldı.`, 'info');
+    },
+    onError: (error) => {
+      pushToast(error instanceof Error ? error.message : 'Parça listeden çıkarılamadı.', 'error');
+    },
+  });
+
+  const removeExternalMutation = useMutation({
+    mutationFn: ({ entryId }: { entryId: number; title: string }) => api.removeExternalTrack(id ?? '', entryId),
     onSuccess: async (_result, variables) => {
       await invalidate();
       pushToast(`“${variables.title}” listeden çıkarıldı.`, 'info');
@@ -166,10 +178,18 @@ export function PlaylistPage() {
       external,
     })),
   ].sort((a, b) => a.position - b.position);
-  const eligibleDownloads = tracks.filter((track) => downloadRecords[track.id]?.state !== 'downloaded');
+
+  // Imported references are playable too: an upload id streams directly, the
+  // rest resolve from metadata at play time, exactly like a search result.
+  const orderedTracks: Track[] = entries.map((entry) =>
+    entry.kind === 'track' && entry.track ? entry.track : externalToTrack(entry.external!),
+  );
+  const totalDuration =
+    orderedTracks.reduce((sum, track) => sum + (track.duration || 0), 0) || playlist.duration;
+  const eligibleDownloads = orderedTracks.filter((track) => downloadRecords[track.id]?.state !== 'downloaded');
   const eligibleBytes = eligibleDownloads.reduce((sum, track) => sum + track.size, 0);
-  const downloadingCount = tracks.filter((track) => ['downloading', 'queued'].includes(downloadRecords[track.id]?.state ?? '')).length;
-  const downloadedCount = tracks.length - eligibleDownloads.length;
+  const downloadingCount = orderedTracks.filter((track) => ['downloading', 'queued'].includes(downloadRecords[track.id]?.state ?? '')).length;
+  const downloadedCount = orderedTracks.length - eligibleDownloads.length;
   const sourceLabel = playlist.sourceProvider
     ? playlist.sourceProvider === 'spotify'
       ? 'Spotify'
@@ -221,9 +241,9 @@ export function PlaylistPage() {
             {playlist.description || 'Kendi seçtiğin parçalardan oluşan kişisel bir liste.'}
           </p>
           <div className="detail-meta">
-            <span>{entries.length} referans</span>
+            <span>{orderedTracks.length} parça</span>
             <span aria-hidden="true">·</span>
-            <span>{formatLongDuration(playlist.duration)}</span>
+            <span>{formatLongDuration(totalDuration)}</span>
             <span aria-hidden="true">·</span>
             <span>Güncellendi {formatDate(playlist.updatedAt)}</span>
             {sourceLabel ? (
@@ -235,10 +255,7 @@ export function PlaylistPage() {
           </div>
           <div className="import-status-row" aria-label="Liste durumu">
             <span className="status-pill"><Cloud size={13} /> Hesaba kaydedildi</span>
-            <span className="status-pill"><ShieldCheck size={13} /> {tracks.length} çalınabilir</span>
-            {externalTracks.length ? (
-              <span className="status-pill is-warning"><TriangleAlert size={13} /> {externalTracks.length} kullanılamıyor</span>
-            ) : null}
+            <span className="status-pill"><ShieldCheck size={13} /> {orderedTracks.length} çalınabilir</span>
             {downloadedCount ? (
               <span className="status-pill is-success">✓ {downloadedCount} bu cihazda indirildi</span>
             ) : null}
@@ -259,8 +276,8 @@ export function PlaylistPage() {
             <button
               type="button"
               className="button primary"
-              onClick={() => playQueue(tracks)}
-              disabled={tracks.length === 0}
+              onClick={() => playQueue(orderedTracks)}
+              disabled={orderedTracks.length === 0}
             >
               <Play size={17} fill="currentColor" />
               Listeyi çal
@@ -268,8 +285,8 @@ export function PlaylistPage() {
             <button
               type="button"
               className="button secondary"
-              onClick={() => playQueue(shuffle(tracks))}
-              disabled={tracks.length === 0}
+              onClick={() => playQueue(shuffle(orderedTracks))}
+              disabled={orderedTracks.length === 0}
             >
               <Shuffle size={16} />
               Karıştır
@@ -326,7 +343,7 @@ export function PlaylistPage() {
                 );
                 pushToast(`${eligibleDownloads.length} parça indiriliyor…`, 'info');
               }}
-              disabled={tracks.length === 0}
+              disabled={orderedTracks.length === 0}
             >
               <CloudDownload size={16} />
               Tümünü indir
@@ -353,7 +370,11 @@ export function PlaylistPage() {
         <div className="section-heading">
           <div>
             <h2>Parçalar</h2>
-            <p>{entries.length > 0 ? `${entries.length} referans sırada · ${tracks.length} çalınabilir · ${externalTracks.length} korunuyor` : 'Liste henüz boş'}</p>
+            <p>
+              {orderedTracks.length > 0
+                ? `${orderedTracks.length} parça · ${formatLongDuration(totalDuration)}`
+                : 'Liste henüz boş'}
+            </p>
           </div>
           <Link to="/search" className="section-link">
             <Search size={15} />
@@ -366,7 +387,7 @@ export function PlaylistPage() {
             {entries.map((entry, displayIndex) => {
               if (entry.kind === 'track' && entry.track) {
                 const track = entry.track;
-                const trackIndex = tracks.findIndex((candidate) => candidate.id === track.id);
+                const trackIndex = orderedTracks.findIndex((candidate) => candidate.id === track.id);
                 return (
                   <article className="import-track-row is-playable" key={`track-${track.entryId}`}>
                     <span className="import-order">{displayIndex + 1}</span>
@@ -374,9 +395,9 @@ export function PlaylistPage() {
                     <div className="import-copy">
                       <strong>{track.title}</strong>
                       <span>{track.artist}{track.album ? ` · ${track.album}` : ''}</span>
-                      <small>Çalınabilir · {formatDuration(track.duration)}</small>
+                      <small>Kütüphanende · {formatDuration(track.duration)}</small>
                     </div>
-                    <PlayButton tracks={tracks} index={trackIndex} size="sm" label={`${track.title} çal`} />
+                    <PlayButton tracks={orderedTracks} index={trackIndex} size="sm" label={`${track.title} çal`} />
                     <DownloadButton track={track} />
                     <div className="import-row-actions">
                       {playlist.isOwner ? (
@@ -391,18 +412,33 @@ export function PlaylistPage() {
                 );
               }
               const external = entry.external!;
+              const externalTrack = externalToTrack(external);
               return (
-                <article className="import-track-row is-unavailable" key={`external-${external.entryId}`}>
+                <article className="import-track-row is-playable" key={`external-${external.entryId}`}>
                   <span className="import-order">{displayIndex + 1}</span>
                   <Cover src={external.artworkUrl} alt="" seed={`${external.title}-${external.artist}`} className="import-cover" iconSize={16} />
                   <div className="import-copy">
                     <strong>{external.title}</strong>
                     <span>{external.artist}{external.album ? ` · ${external.album}` : ''}</span>
-                    <small>Kullanılamıyor · kaynak referansı korundu{external.duration ? ` · ${formatDuration(external.duration)}` : ''}</small>
+                    <small>
+                      {externalProviderLabel(external.provider)}
+                      {external.duration ? ` · ${formatDuration(external.duration)}` : ''}
+                    </small>
                   </div>
-                  <span className="import-unavailable" title="Kaynak referans korunuyor; henüz çözülemedi">
-                    <TriangleAlert size={16} />
-                  </span>
+                  <PlayButton tracks={orderedTracks} index={displayIndex} size="sm" label={`${external.title} çal`} />
+                  <DownloadButton track={externalTrack} />
+                  <div className="import-row-actions">
+                    {playlist.isOwner ? (
+                      <button
+                        type="button"
+                        className="icon-button subtle"
+                        onClick={() => removeExternalMutation.mutate({ entryId: external.entryId, title: external.title })}
+                        aria-label="Parçayı listeden çıkar"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               );
             })}

@@ -88,6 +88,7 @@ export function getLibrary(): Library {
 type PlaylistAggregateRow = PlaylistRow & {
   track_count: number;
   duration: number | null;
+  external_count: number | null;
   aggregate_cover_id: string | null;
 };
 
@@ -97,7 +98,7 @@ function playlistSummary(row: PlaylistAggregateRow, user?: UserRow | null): Play
     id: row.id,
     name: row.name,
     description: row.description,
-    trackCount: row.track_count,
+    trackCount: row.track_count + (row.external_count ?? 0),
     duration: row.duration ?? 0,
     coverUrl: row.cover_url ?? coverUrl(row.cover_id) ?? coverUrl(row.aggregate_cover_id),
     visibility: row.visibility,
@@ -114,7 +115,17 @@ function playlistSummary(row: PlaylistAggregateRow, user?: UserRow | null): Play
 const PLAYLIST_AGGREGATE = `
   SELECT p.*,
     COUNT(pt.entry_id) AS track_count,
-    COALESCE(SUM(t.duration), 0) AS duration,
+    COALESCE(SUM(t.duration), 0)
+      + COALESCE((
+          SELECT SUM(pet.duration)
+          FROM playlist_external_tracks pet
+          WHERE pet.playlist_id = p.id
+        ), 0) AS duration,
+    (
+      SELECT COUNT(*)
+      FROM playlist_external_tracks pet
+      WHERE pet.playlist_id = p.id
+    ) AS external_count,
     (
       SELECT t2.cover_id
       FROM playlist_tracks pt2

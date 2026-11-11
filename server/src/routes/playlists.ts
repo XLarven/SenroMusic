@@ -300,6 +300,27 @@ export async function playlistRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  app.delete<{ Params: { id: string; entryId: string } }>(
+    '/api/playlists/:id/external/:entryId',
+    { preHandler: [requireAuth, writeLimiter] },
+    async (request, reply) => {
+      const user = request.user!;
+      const profile = getPlaylist(request.params.id, user);
+      if (!profile) return notFound(reply);
+      if (!isAllowedMutate(user, profile)) return forbidden(reply);
+      const entryId = Number.parseInt(request.params.entryId, 10);
+      if (!Number.isInteger(entryId) || entryId <= 0) return badRequest(reply, 'Geçersiz kayıt kimliği.');
+      const result = getDb()
+        .prepare('DELETE FROM playlist_external_tracks WHERE entry_id = ? AND playlist_id = ?')
+        .run(entryId, request.params.id);
+      if (result.changes === 0) {
+        return reply.code(404).send({ error: { code: 'entry_not_found', message: 'Liste kaydı bulunamadı.' } });
+      }
+      getDb().prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(now(), request.params.id);
+      return { ok: true };
+    },
+  );
+
   app.put<{ Params: { id: string }; Body: ReorderBody }>(
     '/api/playlists/:id/order',
     { preHandler: [requireAuth, writeLimiter] },

@@ -645,33 +645,32 @@ export function SearchPage() {
     if (!spotify || importing) return;
     setImporting(true);
     try {
-      const playlist = await api.createPlaylist({ name: spotify.title.slice(0, 80) || 'Spotify İçe Aktarma' });
-      let ok = 0;
-      let fail = 0;
-      for (const item of spotify.items) {
-        const needle = normalize(item.title);
-        const artist = normalize(item.artist);
-        const match = library.tracks.find(
-          (track) =>
-            normalize(track.title).includes(needle) &&
-            (artist === '' || normalize(track.artist).includes(artist) || normalize(track.albumArtist).includes(artist)),
-        );
-        if (!match) {
-          fail += 1;
-          continue;
-        }
-        try {
-          await api.addTrack(playlist.id, match.id);
-          ok += 1;
-        } catch {
-          fail += 1;
-        }
-      }
+      // Server-side import keeps every reference, so the new playlist lists the
+      // whole album/playlist instead of only the tracks already in the library.
+      const result = await api.importPlaylist({
+        provider: 'spotify',
+        sourceUrl: deferredQuery,
+        sourcePlaylistId: deferredQuery.match(/(?:playlist|album)\/([^?/]+)/)?.[1] ?? null,
+        title: spotify.title.slice(0, 80) || 'Spotify listesi',
+        description: spotify.description ?? undefined,
+        artworkUrl: spotify.artworkUrl ?? null,
+        skipDuplicates: true,
+        items: spotify.items.map((item) => ({
+          providerTrackId: item.providerTrackId ?? null,
+          title: item.title,
+          artist: item.artist,
+          album: item.album ?? null,
+          duration: item.duration ?? null,
+          artworkUrl: item.artworkUrl ?? null,
+          sourceUrl: item.sourceUrl ?? deferredQuery,
+        })),
+      });
+      await refreshPlaylists();
       pushToast(
-        `İçe aktarma bitti: ${ok} parça listeye eklendi${fail ? `, ${fail} bulunamadı` : ''}.`,
-        fail > 0 ? 'info' : 'success',
+        `“${result.playlist.name}” kaydedildi: ${result.importedCount} parça eklendi.`,
+        'success',
       );
-      navigate(`/playlist/${playlist.id}`);
+      navigate(`/playlist/${result.playlist.id}`);
     } catch (error) {
       pushToast(error instanceof Error ? error.message : 'İçe aktarma başarısız.', 'error');
     } finally {
@@ -698,33 +697,35 @@ export function SearchPage() {
     if (!ytPlaylist || ytPlaylistImporting) return;
     setYtPlaylistImporting(true);
     try {
-      const playlist = await api.createPlaylist({ name: ytPlaylist.title.slice(0, 80) || 'YouTube İçe Aktarma' });
-      let ok = 0;
-      let fail = 0;
-      for (const item of ytPlaylist.items) {
-        const needle = normalize(item.title);
-        const artist = normalize(item.uploader);
-        const match = library.tracks.find(
-          (track) =>
-            normalize(track.title).includes(needle) &&
-            (artist === '' || normalize(track.artist).includes(artist)),
-        );
-        if (!match) {
-          fail += 1;
-          continue;
-        }
-        try {
-          await api.addTrack(playlist.id, match.id);
-          ok += 1;
-        } catch {
-          fail += 1;
-        }
-      }
+      const result = await api.importPlaylist({
+        provider: 'youtube',
+        sourceUrl: deferredQuery,
+        sourcePlaylistId: (() => {
+          try {
+            return new URL(deferredQuery).searchParams.get('list');
+          } catch {
+            return null;
+          }
+        })(),
+        title: ytPlaylist.title.slice(0, 80) || 'YouTube listesi',
+        artworkUrl: ytPlaylist.items[0]?.thumbnail ?? null,
+        skipDuplicates: true,
+        items: ytPlaylist.items.map((item) => ({
+          providerTrackId: item.id,
+          title: item.title,
+          artist: item.uploader,
+          album: 'YouTube',
+          duration: item.duration ?? null,
+          artworkUrl: item.thumbnail ?? null,
+          sourceUrl: item.url ?? `https://www.youtube.com/watch?v=${item.id}`,
+        })),
+      });
+      await refreshPlaylists();
       pushToast(
-        `İçe aktarma bitti: ${ok} parça listeye eklendi${fail ? `, ${fail} bulunamadı` : ''}.`,
-        fail > 0 ? 'info' : 'success',
+        `“${result.playlist.name}” kaydedildi: ${result.importedCount} parça eklendi.`,
+        'success',
       );
-      navigate(`/playlist/${playlist.id}`);
+      navigate(`/playlist/${result.playlist.id}`);
     } catch (error) {
       pushToast(error instanceof Error ? error.message : 'İçe aktarma başarısız.', 'error');
     } finally {

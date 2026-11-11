@@ -230,6 +230,11 @@ export const api = {
       `/api/playlists/${encodeURIComponent(playlistId)}/tracks/${entryId}`,
       { method: 'DELETE' },
     ),
+  removeExternalTrack: (playlistId: string, entryId: number) =>
+    request<{ ok: boolean }>(
+      `/api/playlists/${encodeURIComponent(playlistId)}/external/${entryId}`,
+      { method: 'DELETE' },
+    ),
   reorderPlaylist: (playlistId: string, entryIds: number[]) =>
     request<{ ok: boolean }>(`/api/playlists/${encodeURIComponent(playlistId)}/order`, {
       method: 'PUT',
