@@ -480,6 +480,93 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 11,
+    name: 'official community server',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS community_members (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          role TEXT NOT NULL DEFAULT 'member',
+          joined_at TEXT NOT NULL,
+          muted_until TEXT,
+          suspended_until TEXT,
+          suspension_reason TEXT,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_members_role ON community_members(role);
+
+        CREATE TABLE IF NOT EXISTS community_messages (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          body TEXT NOT NULL,
+          client_id TEXT,
+          attachment_json TEXT,
+          created_at TEXT NOT NULL,
+          edited_at TEXT,
+          deleted_at TEXT,
+          deleted_by TEXT,
+          UNIQUE (user_id, client_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_messages_time
+          ON community_messages(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS community_moderation (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          actor_id TEXT NOT NULL,
+          target_user_id TEXT,
+          action TEXT NOT NULL,
+          reason TEXT,
+          message_id TEXT,
+          created_at TEXT NOT NULL,
+          expires_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_moderation_time
+          ON community_moderation(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS community_reports (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          reporter_id TEXT NOT NULL,
+          message_id TEXT,
+          target_user_id TEXT,
+          reason TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open',
+          created_at TEXT NOT NULL,
+          resolved_at TEXT,
+          resolved_by TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_community_reports_status
+          ON community_reports(status, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS community_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+      // Every existing account joins the official community; the configured
+      // administrator owns it. The first registered user is never assumed.
+      const at = new Date().toISOString();
+      db.prepare(
+        `INSERT INTO community_members (user_id, role, joined_at, updated_at)
+         SELECT id, 'member', ?, ? FROM users
+         WHERE id NOT IN (SELECT user_id FROM community_members)`,
+      ).run(at, at);
+      db.prepare(
+        `UPDATE community_members SET role = 'owner', updated_at = ?
+         WHERE user_id IN (SELECT id FROM users WHERE role = 'admin')
+           AND user_id NOT IN (SELECT user_id FROM community_members WHERE role = 'owner')`,
+      ).run(at);
+      db.prepare(
+        `INSERT INTO community_settings (key, value, updated_at) VALUES ('slowModeSeconds', '0', ?)
+         ON CONFLICT (key) DO NOTHING`,
+      ).run(at);
+      db.prepare(
+        `INSERT INTO community_settings (key, value, updated_at) VALUES ('maxMessageLength', '2000', ?)
+         ON CONFLICT (key) DO NOTHING`,
+      ).run(at);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

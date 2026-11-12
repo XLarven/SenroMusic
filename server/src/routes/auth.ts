@@ -8,6 +8,8 @@ import {
 } from '../auth.js';
 import { config } from '../config.js';
 import { getDatabaseStatus, mirrorUsers } from '../mysqldb.js';
+import { getDb } from '../db.js';
+import { ensureMembership } from '../community.js';
 import { rateLimit } from '../ratelimit.js';
 import { isSpotifyConfigured } from '../spotifyApi.js';
 import { adminStats, createUser, findUserByEmail, findUserById, findUserByUsername, toPublicUser, touchLogin, verifyPassword } from '../users.js';
@@ -109,6 +111,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     const ip = clientIp(request as never);
     touchLogin(user.id, ip, String(request.headers['user-agent'] || ''));
+    // Every account joins the official community immediately.
+    try {
+      ensureMembership(getDb(), user.id);
+    } catch {
+      // Membership is also created lazily on first community access.
+    }
     void mirrorUsers();
     setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
       return reply.code(201).send({ ok: true, user: toPublicUser(user) });

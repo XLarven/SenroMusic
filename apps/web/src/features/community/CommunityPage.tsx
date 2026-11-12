@@ -20,6 +20,7 @@ import { MessagesPanel } from './MessagesPanel';
 import { TasteMatchPanel } from './TasteMatchPanel';
 import { ListeningRoomsPanel } from './ListeningRoomsPanel';
 import { QuizTeaserPanel } from './QuizTeaserPanel';
+import { CommunityServer } from './CommunityServer';
 import { t } from '../../lib/i18n';
 
 /**
@@ -35,19 +36,21 @@ export function CommunityPage() {
         <h1>{t('Müziği birlikte dinle', 'Listen together')}</h1>
         <p>
           {t(
-            'Arkadaşlarını bul, aynı şarkıda buluş, zevkini karşılaştır. Bu sayfa yeni topluluk özelliklerinin ilk adımı.',
-            'Find your people, meet on the same song, compare taste. This page is the first step of the community features.',
+            'NorieMusic Community herkese açık tek resmî topluluk: genel sohbet, üye listesi, arkadaşlar, mesajlar, dinleme odaları, zevk uyumu ve müzik yarışması.',
+            'NorieMusic Community is the one official space for everyone: general chat, the member list, friends, messages, listening rooms, taste match and the music quiz.',
           )}
         </p>
         <div className="community-hero-meta">
           <span className="status-pill">
-            <Users size={14} /> {t('Aşama 1', 'Phase 1')}
+            <Users size={14} /> {t('Tek resmî sunucu', 'One official server')}
           </span>
           <span className="status-pill is-warning">
-            <Sparkles size={14} /> {t('Yeni özellikler yakında', 'More coming soon')}
+            <Sparkles size={14} /> {t('Tüm hesaplar üye', 'Every account is a member')}
           </span>
         </div>
       </header>
+
+      <CommunityServer />
 
       <section className="content-section" aria-label={t('Kişiler', 'People')}>
         <div className="section-heading">
@@ -66,7 +69,7 @@ export function CommunityPage() {
 
       <ListeningNow />
 
-      <section className="content-section dm-section" aria-label={t('Mesajlar', 'Messages')}>
+      <section id="messages" className="content-section dm-section" aria-label={t('Mesajlar', 'Messages')}>
         <div className="section-heading">
           <div>
             <h2>
@@ -83,7 +86,7 @@ export function CommunityPage() {
         <MessagesPanel />
       </section>
 
-      <div className="community-grid">
+      <div className="community-grid" id="friends">
         <CommunitySection
           icon={UserPlus}
           title={t('Arkadaşlar', 'Friends')}

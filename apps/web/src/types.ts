@@ -349,7 +349,11 @@ export type RealtimeEvent =
       userId?: string;
       result?: { title: string; artist: string; coverUrl: string | null } | null;
       podium?: unknown;
-    };
+    }
+  | { type: 'community_message'; message: CommunityMessage; at: string }
+  | { type: 'community_message_update'; message: CommunityMessage; at: string }
+  | { type: 'community_member_update'; userId: string; role: CommunityRole; at: string }
+  | { type: 'community_moderation'; action: string; targetUserId: string | null; at: string };
 
 export type RoomTrack = {
   id: string;
@@ -508,6 +512,81 @@ export type QuizPartyState = {
   yourScore: number;
   code: string;
   finished: boolean;
+};
+
+export type CommunityRole = 'owner' | 'moderator' | 'member';
+
+export type CommunityAuthor = {
+  id: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  role: CommunityRole;
+};
+
+export type CommunityMessage = {
+  id: string;
+  userId: string;
+  body: string;
+  attachment: MessageAttachment | null;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  clientId: string | null;
+  author: CommunityAuthor | null;
+};
+
+export type CommunityMember = {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  role: CommunityRole;
+  joinedAt: string;
+  status: PresenceStatus;
+  lastSeenAt: string | null;
+  activity: ListeningActivity | null;
+  mutedUntil: string | null;
+  suspendedUntil: string | null;
+};
+
+export type CommunityMe = {
+  name: string;
+  role: CommunityRole;
+  canModerate: boolean;
+  canManage: boolean;
+  restrictions: {
+    mutedUntil: string | null;
+    suspendedUntil: string | null;
+    suspensionReason: string | null;
+    canPost: boolean;
+    reason: 'muted' | 'suspended' | null;
+  };
+  settings: { slowModeSeconds: number; maxMessageLength: number };
+  memberCount: number;
+};
+
+export type CommunityModerationEntry = {
+  id: number;
+  actorId: string;
+  targetUserId: string | null;
+  action: string;
+  reason: string | null;
+  messageId: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+};
+
+export type CommunityReport = {
+  id: number;
+  reporterId: string;
+  reporterName: string;
+  messageId: string | null;
+  targetUserId: string | null;
+  targetName: string;
+  reason: string;
+  status: string;
+  createdAt: string;
 };
 
 export type TasteTag = { name: string; plays: number };

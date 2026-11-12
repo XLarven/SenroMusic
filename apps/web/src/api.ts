@@ -46,6 +46,12 @@ import type {
   QuizLeaderboardRow,
   QuizPartyState,
   QuizStats,
+  CommunityMe,
+  CommunityRole,
+  CommunityMember,
+  CommunityMessage,
+  CommunityModerationEntry,
+  CommunityReport,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -568,6 +574,64 @@ export const api = {
       | { ok: true; kind: 'correct'; points: number; answered: number }
       | { ok: true; kind: 'wrong' | 'ambiguous' | 'invalid'; message?: string; answered: number }
     >(`/api/quiz/parties/${encodeURIComponent(partyId)}/answer`, { method: 'POST', body: { guess } }),
+  communityMe: () => request<CommunityMe>('/api/community/me'),
+  communityMessages: (before?: string | null, limit = 40) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (before) query.set('before', before);
+    return request<{ items: CommunityMessage[]; hasMore: boolean; role: CommunityRole }>(
+      `/api/community/messages?${query.toString()}`,
+    );
+  },
+  communitySend: (payload: { body?: string; clientId?: string; attachment?: MessageAttachment | null }) =>
+    request<{ message: CommunityMessage; duplicate: boolean }>('/api/community/messages', {
+      method: 'POST',
+      body: payload,
+    }),
+  communityEdit: (messageId: string, body: string) =>
+    request<{ message: CommunityMessage }>(`/api/community/messages/${encodeURIComponent(messageId)}`, {
+      method: 'PATCH',
+      body: { body },
+    }),
+  communityDelete: (messageId: string) =>
+    request<{ message: CommunityMessage }>(`/api/community/messages/${encodeURIComponent(messageId)}`, {
+      method: 'DELETE',
+    }),
+  communityMembers: (params: { q?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.q) query.set('q', params.q);
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.offset) query.set('offset', String(params.offset));
+    const suffix = query.toString();
+    return request<{ items: CommunityMember[]; total: number; limit: number; offset: number }>(
+      `/api/community/members${suffix ? `?${suffix}` : ''}`,
+    );
+  },
+  communityModeration: () =>
+    request<{ actions: CommunityModerationEntry[]; reports: CommunityReport[] }>('/api/community/moderation'),
+  communityMute: (userId: string, minutes: number, reason?: string) =>
+    request<{ ok: boolean; until: string | null }>('/api/community/moderation/mute', {
+      method: 'POST',
+      body: { userId, minutes, reason },
+    }),
+  communitySuspend: (userId: string, minutes: number, reason?: string) =>
+    request<{ ok: boolean; until: string | null }>('/api/community/moderation/suspend', {
+      method: 'POST',
+      body: { userId, minutes, reason },
+    }),
+  communityClearRestriction: (userId: string, kind: 'mute' | 'suspend') =>
+    request<{ ok: boolean }>('/api/community/moderation/clear', { method: 'POST', body: { userId, kind } }),
+  communitySetRole: (userId: string, role: 'moderator' | 'member') =>
+    request<{ ok: boolean; role: string }>('/api/community/roles', { method: 'POST', body: { userId, role } }),
+  communityReport: (messageId: string, reason: string) =>
+    request<{ ok: boolean }>('/api/community/reports', { method: 'POST', body: { messageId, reason } }),
+  communityResolveReport: (reportId: number, action: 'resolved' | 'dismissed') =>
+    request<{ ok: boolean }>(`/api/community/reports/${reportId}/resolve`, { method: 'POST', body: { action } }),
+  communitySettings: () => request<{ settings: { slowModeSeconds: number; maxMessageLength: number } }>('/api/community/settings'),
+  communityUpdateSettings: (payload: { slowModeSeconds?: number; maxMessageLength?: number }) =>
+    request<{ settings: { slowModeSeconds: number; maxMessageLength: number } }>('/api/community/settings', {
+      method: 'PUT',
+      body: payload,
+    }),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

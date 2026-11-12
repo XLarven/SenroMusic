@@ -25,7 +25,9 @@ import { presenceRoutes, sweepPresence } from './routes/presence.js';
 import { tasteRoutes } from './routes/taste.js';
 import { roomsRoutes } from './routes/rooms.js';
 import { quizRoutes } from './routes/quiz.js';
+import { communityRoutes } from './routes/community.js';
 import { closeDueRounds } from './quiz.js';
+import { ensureMembershipForAll } from './community.js';
 import { getDb } from './db.js';
 import { presenceStore } from './presence.js';
 import { sweepRooms } from './rooms.js';
@@ -104,6 +106,7 @@ export async function buildServer() {
   await app.register(tasteRoutes);
   await app.register(roomsRoutes);
   await app.register(quizRoutes);
+  await app.register(communityRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
@@ -143,6 +146,14 @@ async function main(): Promise<void> {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Music directory: ${resolve(config.musicDir)}`);
   app.log.info(`Data directory: ${resolve(config.dataDir)}`);
+
+  // Reconcile community membership for accounts created while the server was off.
+  try {
+    const added = ensureMembershipForAll(getDb());
+    if (added > 0) app.log.info(`Community membership reconciled for ${added} account(s)`);
+  } catch (error) {
+    app.log.error({ err: error }, 'community membership reconcile failed');
+  }
 
   // Presence expiry: silent sessions drop to away/offline and friends are told.
   const presenceSweeper = setInterval(() => {

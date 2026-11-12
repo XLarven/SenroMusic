@@ -111,7 +111,24 @@ export type RealtimeEvent =
       userId?: string;
       result?: { title: string; artist: string; coverUrl: string | null } | null;
       podium?: unknown;
-    };
+    }
+  | { type: 'community_message'; message: CommunityMessage; at: string }
+  | { type: 'community_message_update'; message: CommunityMessage; at: string }
+  | { type: 'community_member_update'; userId: string; role: CommunityRole; at: string }
+  | { type: 'community_moderation'; action: string; targetUserId: string | null; at: string };
+
+export type CommunityRole = 'owner' | 'moderator' | 'member';
+
+export type CommunityMessage = {
+  id: string;
+  userId: string;
+  body: string;
+  attachment: MessageAttachment | null;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  clientId: string | null;
+};
 
 export type RoomTrack = {
   id: string;
@@ -274,6 +291,22 @@ export class PresenceStore {
         }
       }
     }
+  }
+
+  /** Sends to every open stream. Used by the single official community feed. */
+  publishAll(event: RealtimeEvent): number {
+    let delivered = 0;
+    for (const set of this.sinks.values()) {
+      for (const sink of [...set]) {
+        try {
+          sink.send(event);
+          delivered += 1;
+        } catch {
+          set.delete(sink);
+        }
+      }
+    }
+    return delivered;
   }
 
   connectionCount(userId: string): number {

@@ -375,12 +375,16 @@ function trackInfo(db: Database, trackId: string): { title: string; artist: stri
   const row = db.prepare('SELECT title, artist, cover_id FROM tracks WHERE id = ?').get(trackId) as
     | { title: string; artist: string; cover_id: string | null }
     | undefined;
-  if (row) return { title: row.title, artist: row.artist, coverUrl: row.cover_id ? `/api/covers/${row.cover_id}` : null };
-  // The pool row outlives a removed file; the answer is still the pool's metadata.
+  // The pool holds the cleaned metadata used for answers; prefer it for display
+  // so reveals match what was accepted as correct.
   const pool = db.prepare('SELECT title, artist FROM quiz_tracks WHERE track_id = ?').get(trackId) as
     | { title: string; artist: string }
     | undefined;
-  return pool ? { title: pool.title, artist: pool.artist, coverUrl: null } : null;
+  if (pool) {
+    return { title: pool.title, artist: pool.artist, coverUrl: row?.cover_id ? `/api/covers/${row.cover_id}` : null };
+  }
+  if (row) return { title: row.title, artist: row.artist, coverUrl: row.cover_id ? `/api/covers/${row.cover_id}` : null };
+  return null;
 }
 
 function view(db: Database, attempt: AttemptRow): QuizAttemptView {
