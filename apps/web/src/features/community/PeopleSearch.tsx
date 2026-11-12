@@ -4,11 +4,13 @@ import { ArrowUpRight, Loader2, Search, UsersRound } from 'lucide-react';
 import { api } from '../../api';
 import { Cover } from '../../components/Cover';
 import { t } from '../../lib/i18n';
+import { FriendButton } from './FriendButton';
 import type { UserSearchResult } from '../../types';
 
 /**
- * Real people search: reuses /api/users/search (public profiles only) and links
- * straight to the profile page. No placeholder accounts, no invented numbers.
+ * Real people search: reuses /api/users/search (public profiles only), links to
+ * the profile and offers the relationship action inline, so requests can be sent
+ * straight from Community.
  */
 export function PeopleSearch() {
   const [query, setQuery] = useState('');
@@ -87,26 +89,38 @@ export function PeopleSearch() {
       {results.length > 0 ? (
         <div className="surface-panel people-list">
           {results.map((person) => (
-            <Link
-              key={person.id}
-              className="person-row"
-              to={person.username ? `/u/${person.username}` : `/profile/${person.id}`}
-            >
-              <Cover
-                src={person.avatarUrl}
-                alt=""
-                seed={person.id}
-                className="person-avatar"
-                iconSize={16}
-                eager
-              />
-              <span className="person-copy">
+            <div className="person-row person-search-row" key={person.id}>
+              <Link
+                className="person-avatar-link"
+                to={person.username ? `/u/${person.username}` : `/profile/${person.id}`}
+                aria-label={person.displayName}
+              >
+                <Cover
+                  src={person.avatarUrl}
+                  alt=""
+                  seed={person.id}
+                  className="person-avatar"
+                  iconSize={16}
+                  eager
+                />
+              </Link>
+              <Link
+                className="person-copy"
+                to={person.username ? `/u/${person.username}` : `/profile/${person.id}`}
+              >
                 <strong>{person.displayName}</strong>
                 <small>{person.username ? `@${person.username}` : t('Profil', 'Profile')}</small>
-              </span>
+              </Link>
               {person.bio ? <span className="person-bio">{person.bio}</span> : null}
-              <ArrowUpRight size={16} className="person-arrow" />
-            </Link>
+              <FriendButton userId={person.id} size="sm" />
+              <Link
+                className="person-arrow-link"
+                to={person.username ? `/u/${person.username}` : `/profile/${person.id}`}
+                aria-label={t('Profili aç', 'Open profile')}
+              >
+                <ArrowUpRight size={16} className="person-arrow" />
+              </Link>
+            </div>
           ))}
         </div>
       ) : null}

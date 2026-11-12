@@ -6761,3 +6761,45 @@ body.room-mode .room-page {
     height: clamp(190px, 31vh, 300px);
   }
 }
+
+/* Community people search: relationship action lives inside the row. */
+.person-search-row {
+  gap: 10px;
+}
+
+.person-avatar-link,
+.person-arrow-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+
+.person-search-row .friend-button-group {
+  gap: 6px;
+}
+
+.person-search-row .button.compact {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .person-search-row {
+    flex-wrap: wrap;
+  }
+
+  .person-search-row .person-copy {
+    flex: 1 1 calc(100% - 120px);
+  }
+
+  .person-search-row .button.compact {
+    font-size: 11px;
+    padding: 6px 9px;
+  }
+
+  .person-search-row .person-arrow-link {
+    display: none;
+  }
+}

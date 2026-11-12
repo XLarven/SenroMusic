@@ -222,3 +222,55 @@ test('pending request lists split by direction', () => {
   const bobOut = listRequests(db, 'u_bob', 'out');
   assert.equal(bobOut.items.length, 0);
 });
+
+test('two simultaneous accepts cannot both win', () => {
+  const db = makeDb();
+  const sent = sendRequest(db, 'u_alice', 'u_bob');
+  assert.equal(sent.ok, true);
+  if (!sent.ok) return;
+  const requestId = sent.value.requestId;
+
+  // The first accept flips the row; the second must lose the compare-and-set
+  // instead of re-notifying or resurrecting the request.
+  const first = acceptRequest(db, 'u_bob', requestId);
+  const second = acceptRequest(db, 'u_bob', requestId);
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, false);
+  if (!second.ok) assert.ok(['conflict', 'already_friends'].includes(second.code));
+
+  const rows = db.prepare('SELECT * FROM friendships WHERE pair_key = ?').all(pairKey('u_alice', 'u_bob'));
+  assert.equal(rows.length, 1);
+  assert.equal((rows[0] as { status: string }).status, 'accepted');
+  assert.equal(getRelationship(db, 'u_bob', 'u_alice').state, 'friends');
+});
+
+test('a declined request cannot then be accepted', () => {
+  const db = makeDb();
+  const sent = sendRequest(db, 'u_alice', 'u_bob');
+  assert.equal(sent.ok, true);
+  if (!sent.ok) return;
+  assert.equal(declineRequest(db, 'u_bob', sent.value.requestId).ok, true);
+  const late = acceptRequest(db, 'u_bob', sent.value.requestId);
+  assert.equal(late.ok, false);
+  if (!late.ok) assert.ok(['not_found', 'conflict'].includes(late.code));
+  assert.equal(getRelationship(db, 'u_alice', 'u_bob').state, 'none');
+});
+
+test('a removed friend can be re-added once', () => {
+  const db = makeDb();
+  const first = sendRequest(db, 'u_alice', 'u_bob');
+  if (!first.ok) return;
+  acceptRequest(db, 'u_bob', first.value.requestId);
+  assert.equal(removeFriend(db, 'u_alice', 'u_bob').ok, true);
+  assert.equal(getRelationship(db, 'u_alice', 'u_bob').state, 'none');
+
+  const again = sendRequest(db, 'u_alice', 'u_bob');
+  assert.equal(again.ok, true);
+  if (!again.ok) return;
+  const duplicate = sendRequest(db, 'u_alice', 'u_bob');
+  assert.equal(duplicate.ok, false);
+  const reverse = sendRequest(db, 'u_bob', 'u_alice');
+  assert.equal(reverse.ok, true, 'the mirrored request auto-accepts the pair');
+  if (reverse.ok) assert.equal(reverse.value.autoAccepted, true);
+  assert.equal(getRelationship(db, 'u_alice', 'u_bob').state, 'friends');
+});
