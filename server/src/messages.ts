@@ -366,24 +366,31 @@ export function getMessages(
 
   const safeLimit = Math.min(Math.max(limit, 1), 80);
   // The cursor is a message id so equal timestamps cannot drop or repeat rows.
-  let cursor: { createdAt: string; rowid: number } | null = null;
+  // A raw timestamp is still accepted for older clients and is strictly exclusive.
+  let cursor: { createdAt: string; rowid: number | null } | null = null;
   if (before) {
     const anchor = db
       .prepare('SELECT rowid AS rid, created_at FROM messages WHERE id = ? AND conversation_id = ?')
       .get(before, conversationId) as { rid: number; created_at: string } | undefined;
-    cursor = anchor
-      ? { createdAt: anchor.created_at, rowid: anchor.rid }
-      : { createdAt: before, rowid: Number.MAX_SAFE_INTEGER };
+    cursor = anchor ? { createdAt: anchor.created_at, rowid: anchor.rid } : { createdAt: before, rowid: null };
   }
   const rows = cursor
-    ? (db
-        .prepare(
-          `SELECT * FROM messages
-           WHERE conversation_id = ?
-             AND (created_at < ? OR (created_at = ? AND rowid < ?))
-           ORDER BY created_at DESC, rowid DESC LIMIT ?`,
-        )
-        .all(conversationId, cursor.createdAt, cursor.createdAt, cursor.rowid, safeLimit + 1) as MessageRow[])
+    ? cursor.rowid === null
+      ? (db
+          .prepare(
+            `SELECT * FROM messages
+             WHERE conversation_id = ? AND created_at < ?
+             ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+          )
+          .all(conversationId, cursor.createdAt, safeLimit + 1) as MessageRow[])
+      : (db
+          .prepare(
+            `SELECT * FROM messages
+             WHERE conversation_id = ?
+               AND (created_at < ? OR (created_at = ? AND rowid < ?))
+             ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+          )
+          .all(conversationId, cursor.createdAt, cursor.createdAt, cursor.rowid, safeLimit + 1) as MessageRow[])
     : (db
         .prepare(
           `SELECT * FROM messages WHERE conversation_id = ?

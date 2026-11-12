@@ -333,7 +333,82 @@ export type RealtimeEvent =
   | { type: 'message'; conversationId: string; message: Message; at: string }
   | { type: 'message_update'; conversationId: string; message: Message; at: string }
   | { type: 'typing'; conversationId: string; userId: string; typing: boolean; at: string }
-  | { type: 'read'; conversationId: string; userId: string; messageId: string | null; at: string };
+  | { type: 'read'; conversationId: string; userId: string; messageId: string | null; at: string }
+  | { type: 'room_state'; roomId: string; state: RoomState; at: string }
+  | { type: 'room_members'; roomId: string; members: RoomMember[]; at: string }
+  | { type: 'room_chat'; roomId: string; message: RoomChatMessage; at: string }
+  | { type: 'room_invite'; room: RoomSummary; at: string }
+  | { type: 'room_closed'; roomId: string; reason: string; at: string };
+
+export type RoomTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  coverUrl: string | null;
+  source: string | null;
+  duration: number | null;
+};
+
+export type RoomQueueItem = {
+  track: RoomTrack;
+  addedBy: string | null;
+  addedByName: string | null;
+};
+
+export type RoomState = {
+  current: RoomQueueItem | null;
+  queue: RoomQueueItem[];
+  position: number;
+  playing: boolean;
+  revision: number;
+  updatedAt: string;
+};
+
+export type RoomRole = 'owner' | 'moderator' | 'listener';
+
+export type RoomMember = {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  role: RoomRole;
+  joinedAt: string;
+};
+
+export type RoomSummary = {
+  id: string;
+  name: string;
+  visibility: 'public' | 'private';
+  queueMode: 'owner' | 'collab';
+  ownerId: string;
+  ownerName: string;
+  memberCount: number;
+  nowPlaying: { title: string; artist: string; coverUrl: string | null } | null;
+  createdAt: string;
+  updatedAt: string;
+  invited?: boolean;
+};
+
+export type RoomChatMessage = {
+  id: string;
+  roomId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  deletedAt: string | null;
+};
+
+export type RoomDetail = {
+  room: RoomSummary;
+  state: RoomState;
+  serverNow: string;
+  members: RoomMember[];
+  role: RoomRole;
+  canControl: boolean;
+  canEditQueue: boolean;
+  joinCode?: string | null;
+};
 
 export type TasteTag = { name: string; plays: number };
 

@@ -296,6 +296,59 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 9,
+    name: 'listening rooms',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS listening_rooms (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          join_code TEXT,
+          queue_mode TEXT NOT NULL DEFAULT 'owner',
+          state_json TEXT NOT NULL,
+          revision INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          owner_seen_at TEXT NOT NULL,
+          closed_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_rooms_public
+          ON listening_rooms(visibility, closed_at, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS room_members (
+          room_id TEXT NOT NULL REFERENCES listening_rooms(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          role TEXT NOT NULL DEFAULT 'listener',
+          joined_at TEXT NOT NULL,
+          PRIMARY KEY (room_id, user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id);
+
+        CREATE TABLE IF NOT EXISTS room_invites (
+          room_id TEXT NOT NULL REFERENCES listening_rooms(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          invited_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (room_id, user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS room_messages (
+          id TEXT PRIMARY KEY,
+          room_id TEXT NOT NULL REFERENCES listening_rooms(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          body TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          deleted_at TEXT,
+          deleted_by TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_room_messages_room
+          ON room_messages(room_id, created_at DESC);
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

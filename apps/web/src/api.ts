@@ -33,6 +33,12 @@ import type {
   TasteFriendEntry,
   TasteDiscoveryEntry,
   TasteIdentity,
+  RoomDetail,
+  RoomState,
+  RoomSummary,
+  RoomMember,
+  RoomChatMessage,
+  RoomTrack,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -415,6 +421,87 @@ export const api = {
     }),
   tasteLeaveDiscovery: () =>
     request<{ ok: boolean }>('/api/taste/discover', { method: 'DELETE' }),
+  rooms: () =>
+    request<{ publicRooms: RoomSummary[]; mine: RoomSummary[]; invites: RoomSummary[] }>('/api/rooms'),
+  createRoom: (payload: { name: string; visibility: 'public' | 'private'; queueMode: 'owner' | 'collab' }) =>
+    request<{ roomId: string; room: RoomSummary | null }>('/api/rooms', { method: 'POST', body: payload }),
+  room: (roomId: string) => request<RoomDetail>(`/api/rooms/${encodeURIComponent(roomId)}`),
+  updateRoom: (
+    roomId: string,
+    payload: { name?: string; visibility?: 'public' | 'private'; queueMode?: 'owner' | 'collab' },
+  ) =>
+    request<{ room: RoomSummary }>(`/api/rooms/${encodeURIComponent(roomId)}`, {
+      method: 'PATCH',
+      body: payload,
+    }),
+  closeRoom: (roomId: string) =>
+    request<{ ok: boolean }>(`/api/rooms/${encodeURIComponent(roomId)}`, { method: 'DELETE' }),
+  joinRoom: (roomId: string, code?: string | null) =>
+    request<{ ok: boolean; alreadyMember: boolean; state: RoomState | null; serverNow: string }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/join`,
+      { method: 'POST', body: code ? { code } : {} },
+    ),
+  leaveRoom: (roomId: string) =>
+    request<{ ok: boolean; closed: boolean; newOwnerId: string | null }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/leave`,
+      { method: 'POST', body: {} },
+    ),
+  inviteToRoom: (roomId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/rooms/${encodeURIComponent(roomId)}/invite`, {
+      method: 'POST',
+      body: { userId },
+    }),
+  roomInvitable: (roomId: string) =>
+    request<{ friends: Array<{ id: string; displayName: string; username: string | null; avatarUrl: string | null }> }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/invitable`,
+    ),
+  roomPlayback: (
+    roomId: string,
+    payload: { action: 'play' | 'pause' | 'seek' | 'next' | 'play-track'; position?: number; track?: RoomTrack },
+  ) =>
+    request<{ state: RoomState; serverNow: string }>(`/api/rooms/${encodeURIComponent(roomId)}/playback`, {
+      method: 'POST',
+      body: payload,
+    }),
+  roomQueueAdd: (roomId: string, track: RoomTrack) =>
+    request<{ state: RoomState; atFront: boolean }>(`/api/rooms/${encodeURIComponent(roomId)}/queue`, {
+      method: 'POST',
+      body: { track },
+    }),
+  roomQueueRemove: (roomId: string, index: number) =>
+    request<{ state: RoomState }>(`/api/rooms/${encodeURIComponent(roomId)}/queue/${index}`, { method: 'DELETE' }),
+  roomQueueReorder: (roomId: string, from: number, to: number) =>
+    request<{ state: RoomState }>(`/api/rooms/${encodeURIComponent(roomId)}/queue/reorder`, {
+      method: 'POST',
+      body: { from, to },
+    }),
+  roomSetRole: (roomId: string, userId: string, role: 'moderator' | 'listener') =>
+    request<{ ok: boolean; members: RoomMember[] }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/role`,
+      { method: 'POST', body: { role } },
+    ),
+  roomKick: (roomId: string, userId: string) =>
+    request<{ ok: boolean; members: RoomMember[] }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/kick`,
+      { method: 'POST', body: {} },
+    ),
+  roomMessages: (roomId: string, before?: string | null, limit = 40) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (before) query.set('before', before);
+    return request<{ messages: RoomChatMessage[] }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/messages?${query.toString()}`,
+    );
+  },
+  roomSendMessage: (roomId: string, body: string) =>
+    request<{ message: RoomChatMessage }>(`/api/rooms/${encodeURIComponent(roomId)}/messages`, {
+      method: 'POST',
+      body: { body },
+    }),
+  roomDeleteMessage: (roomId: string, messageId: string) =>
+    request<{ message: RoomChatMessage }>(
+      `/api/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}`,
+      { method: 'DELETE' },
+    ),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

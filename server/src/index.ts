@@ -23,8 +23,10 @@ import { friendsRoutes } from './routes/friends.js';
 import { messagesRoutes } from './routes/messages.js';
 import { presenceRoutes, sweepPresence } from './routes/presence.js';
 import { tasteRoutes } from './routes/taste.js';
+import { roomsRoutes } from './routes/rooms.js';
 import { getDb } from './db.js';
 import { presenceStore } from './presence.js';
+import { sweepRooms } from './rooms.js';
 import { scanLibrary } from './scanner.js';
 
 export async function buildServer() {
@@ -98,6 +100,7 @@ export async function buildServer() {
   await app.register(presenceRoutes);
   await app.register(messagesRoutes);
   await app.register(tasteRoutes);
+  await app.register(roomsRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
@@ -147,6 +150,16 @@ async function main(): Promise<void> {
     }
   }, 15_000);
   presenceSweeper.unref?.();
+
+  // Room housekeeping: empty rooms close, stale owners hand the room over.
+  const roomSweeper = setInterval(() => {
+    try {
+      sweepRooms(getDb(), Date.now());
+    } catch (error) {
+      app.log.error({ err: error }, 'room sweep failed');
+    }
+  }, 30_000);
+  roomSweeper.unref?.();
 
   if (config.scanOnStart) {
     void scanLibrary()

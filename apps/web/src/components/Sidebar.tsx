@@ -9,6 +9,7 @@ import {
   Loader2,
   LogOut,
   Plus,
+  Radio,
   Search,
   Settings2,
   ShieldCheck,
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { to: '/search', labelTr: 'Ara', labelEn: 'Search', icon: Search, end: false },
   { to: '/library', labelTr: 'Kütüphane', labelEn: 'Library', icon: LibraryBig, end: false },
   { to: '/community', labelTr: 'Topluluk', labelEn: 'Community', icon: Users, end: false },
+  { to: '/rooms', labelTr: 'Birlikte Dinle', labelEn: 'Listening Rooms', icon: Radio, end: false },
   { to: '/favorites', labelTr: 'Favoriler', labelEn: 'Favorites', icon: Heart, end: false },
   { to: '/notifications', labelTr: 'Bildirimler', labelEn: 'Notifications', icon: Bell, end: false },
 ];

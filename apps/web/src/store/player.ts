@@ -23,6 +23,7 @@ type PlayerState = {
   sleepTimer: number | null;
 
   playTrack: (track: Track, sourceTracks?: Track[]) => void;
+  playFrom: (track: Track, startTime: number, sourceTracks?: Track[]) => void;
   playQueue: (tracks: Track[], startIndex?: number) => void;
   playAt: (index: number) => void;
   toggle: () => void;
@@ -306,6 +307,26 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     if (tracks.length === 0) return;
     const index = Math.max(0, Math.min(startIndex, tracks.length - 1));
     get().playTrack(tracks[index], tracks);
+  },
+
+  playFrom: (track, startTime, sourceTracks) => {
+    // Room playback: same pipeline as playTrack, but the element starts at the
+    // room's timeline position instead of 0.
+    const queue = sourceTracks && sourceTracks.length > 0 ? sourceTracks : [track];
+    const index = Math.max(0, queue.findIndex((item) => item.id === track.id));
+    const nextState = {
+      current: track,
+      queue,
+      index,
+      playing: true,
+      loading: true,
+      currentTime: Math.max(0, startTime),
+      duration: track.duration || 0,
+      error: null,
+    };
+    set(nextState);
+    saveSession({ ...get(), ...nextState });
+    void startTrack(track, Math.max(0, startTime));
   },
 
   playAt: (index) => {

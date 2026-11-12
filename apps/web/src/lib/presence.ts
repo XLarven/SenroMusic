@@ -130,7 +130,19 @@ export type RealtimeListener = (event: RealtimeEvent) => void;
 const listeners = new Set<RealtimeListener>();
 let stream: EventSource | null = null;
 
-const REALTIME_TYPES = ['presence', 'activity', 'message', 'message_update', 'typing', 'read'] as const;
+const REALTIME_TYPES = [
+  'presence',
+  'activity',
+  'message',
+  'message_update',
+  'typing',
+  'read',
+  'room_state',
+  'room_members',
+  'room_chat',
+  'room_invite',
+  'room_closed',
+] as const;
 
 function ensureStream(): void {
   if (stream || typeof EventSource === 'undefined') return;

@@ -11,6 +11,8 @@ import { DownloadsPage } from './pages/DownloadsPage';
 import { CommunityPage } from './features/community/CommunityPage';
 import { TasteMatchPage } from './pages/TasteMatchPage';
 import { TasteComparePage } from './pages/TasteComparePage';
+import { RoomsPage } from './pages/RoomsPage';
+import { RoomPage } from './pages/RoomPage';
 import { HomePage } from './pages/HomePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { LoginPage } from './pages/LoginPage';
@@ -76,6 +78,8 @@ export function App() {
         <Route path="community" element={<CommunityPage />} />
         <Route path="community/taste" element={<TasteMatchPage />} />
         <Route path="community/taste/:userId" element={<TasteComparePage />} />
+        <Route path="rooms" element={<RoomsPage />} />
+        <Route path="rooms/:roomId" element={<RoomPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="profile/:id" element={<ProfilePage />} />

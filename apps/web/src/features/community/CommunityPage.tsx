@@ -18,6 +18,7 @@ import { FriendsPanel } from './FriendsPanel';
 import { ListeningNow } from './ListeningNow';
 import { MessagesPanel } from './MessagesPanel';
 import { TasteMatchPanel } from './TasteMatchPanel';
+import { ListeningRoomsPanel } from './ListeningRoomsPanel';
 import { t } from '../../lib/i18n';
 
 /**
@@ -101,13 +102,9 @@ export function CommunityPage() {
             'Aynı anda, aynı şarkıda senkron dinleme odaları.',
             'Shared rooms with synchronized playback.',
           )}
-          bullets={[
-            t('Dinleme odaları', 'Listening rooms'),
-            t('Senkron oynatma', 'Synchronized playback'),
-            t('Oda bağlantısıyla davet', 'Invite by room link'),
-          ]}
-          comingSoon
-        />
+        >
+          <ListeningRoomsPanel />
+        </CommunitySection>
 
         <CommunitySection
           icon={Activity}
