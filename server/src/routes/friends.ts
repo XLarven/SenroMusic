@@ -26,6 +26,7 @@ import {
   unblockUser,
 } from '../friends.js';
 import { findUserById } from '../users.js';
+import { publishFriendship, publishNotificationCount } from '../friendsRealtime.js';
 
 const writeLimit = rateLimit({ name: 'friends-write', max: 40, windowMs: 60_000, keyBy: 'user' });
 
@@ -110,6 +111,10 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
           dedupeKey: `friend_accept:${result.value.requestId}`,
         });
       }
+      // Both sides of the pair update live: lists, buttons and the badge.
+      publishFriendship(me, 'request', targetId);
+      publishFriendship(targetId, result.value.autoAccepted ? 'accepted' : 'request', me);
+      publishNotificationCount(getDb(), targetId, result.value.autoAccepted ? 'friend_accept' : 'friend_request');
       return {
         relationship: getRelationship(getDb(), me, targetId),
         counts: friendCounts(getDb(), me),
@@ -136,6 +141,17 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
         entityId: String(requestId),
         dedupeKey: `friend_accept:${requestId}`,
       });
+      // Accepting answers the request, so that notification is no longer pending.
+      getDb()
+        .prepare(
+          `UPDATE notifications SET read_at = ?
+           WHERE user_id = ? AND kind = 'friend_request' AND entity_id = ? AND read_at IS NULL`,
+        )
+        .run(new Date().toISOString(), me, String(requestId));
+      publishFriendship(result.value.requesterId, 'accepted', me);
+      publishFriendship(me, 'accepted', result.value.requesterId);
+      publishNotificationCount(getDb(), result.value.requesterId, 'friend_accept');
+      publishNotificationCount(getDb(), me, null);
       return { ok: true, counts: friendCounts(getDb(), me) };
     },
   );
@@ -151,6 +167,8 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
         const status = result.code === 'not_found' ? 404 : result.code === 'forbidden' ? 403 : 409;
         return reply.code(status).send({ error: { code: result.code, message: result.message } });
       }
+      publishFriendship(result.value.requesterId, 'declined', request.user!.id);
+      publishFriendship(request.user!.id, 'declined', result.value.requesterId);
       return { ok: true, counts: friendCounts(getDb(), request.user!.id) };
     },
   );
@@ -166,6 +184,8 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
         const status = result.code === 'not_found' ? 404 : result.code === 'forbidden' ? 403 : 409;
         return reply.code(status).send({ error: { code: result.code, message: result.message } });
       }
+      publishFriendship(result.value.addresseeId, 'cancelled', request.user!.id);
+      publishFriendship(request.user!.id, 'cancelled', result.value.addresseeId);
       return { ok: true, counts: friendCounts(getDb(), request.user!.id) };
     },
   );
@@ -182,6 +202,8 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
           error: { code: result.code, message: result.message },
         });
       }
+      publishFriendship(otherId, 'removed', request.user!.id);
+      publishFriendship(request.user!.id, 'removed', otherId);
       return { ok: true, counts: friendCounts(getDb(), request.user!.id) };
     },
   );
@@ -203,6 +225,8 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
         const status = result.code === 'not_found' ? 404 : 400;
         return reply.code(status).send({ error: { code: result.code, message: result.message } });
       }
+      publishFriendship(targetId, 'blocked', request.user!.id);
+      publishFriendship(request.user!.id, 'blocked', targetId);
       return { ok: true, relationship: getRelationship(getDb(), request.user!.id, targetId) };
     },
   );
@@ -214,6 +238,8 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
       const targetId = String(request.params.userId ?? '').trim();
       if (!targetId) return reply.code(400).send({ error: { code: 'invalid_user', message: 'Kullanıcı gerekli.' } });
       unblockUser(getDb(), request.user!.id, targetId);
+      publishFriendship(targetId, 'unblocked', request.user!.id);
+      publishFriendship(request.user!.id, 'unblocked', targetId);
       return { ok: true, relationship: getRelationship(getDb(), request.user!.id, targetId) };
     },
   );
@@ -238,6 +264,7 @@ export async function friendsRoutes(app: FastifyInstance): Promise<void> {
         ? raw.map((value) => parseId(value)).filter((value): value is number => value !== null).slice(0, 100)
         : undefined;
       markNotificationsRead(getDb(), request.user!.id, ids);
+      publishNotificationCount(getDb(), request.user!.id);
       return { ok: true };
     },
   );

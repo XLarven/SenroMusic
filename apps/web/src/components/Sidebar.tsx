@@ -22,6 +22,7 @@ import { Logo } from './Logo';
 import { useMusicData } from '../MusicDataContext';
 import { useUiStore } from '../store/ui';
 import { useAuthStore } from '../store/auth';
+import { useNotificationStore } from '../store/notifications';
 import { useToastStore } from '../store/toast';
 import { formatCount } from '../lib/format';
 import { t } from '../lib/i18n';
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const { library, playlists } = useMusicData();
   const user = useAuthStore((state) => state.user);
+  const unread = useNotificationStore((state) => state.unread);
   const openCreatePlaylist = useUiStore((state) => state.openCreatePlaylist);
   const logout = useAuthStore((state) => state.logout);
   const pushToast = useToastStore((state) => state.push);
@@ -75,6 +77,11 @@ export function Sidebar() {
           >
             <Icon size={19} strokeWidth={1.9} />
             <span>{t(labelTr, labelEn)}</span>
+            {to === '/notifications' && unread > 0 ? (
+              <span className="side-nav-badge" aria-label={`${unread}`}>
+                {unread > 99 ? '99+' : unread}
+              </span>
+            ) : null}
           </NavLink>
         ))}
       </nav>

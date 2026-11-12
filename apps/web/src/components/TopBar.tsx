@@ -2,6 +2,7 @@ import { Bell, Search, X } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '../store/auth';
+import { useNotificationStore } from '../store/notifications';
 import { usePlayer } from '../store/player';
 import { greeting } from '../lib/format';
 import { t } from '../lib/i18n';
@@ -13,6 +14,7 @@ export function TopBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
+  const unread = useNotificationStore((s) => s.unread);
   const playTrack = usePlayer((state) => state.playTrack);
   // The search page owns its own (larger) input, so the global one steps aside
   // there: one query box per screen, never two.
@@ -81,6 +83,11 @@ export function TopBar() {
       <div className="topbar__actions">
         <NavLink to="/notifications" className="topbar__icon" aria-label={t('Bildirimler', 'Notifications')} title={t('Bildirimler', 'Notifications')}>
           <Bell size={17} />
+          {unread > 0 ? (
+            <span className="topbar__badge" aria-label={`${unread}`}>
+              {unread > 99 ? '99+' : unread}
+            </span>
+          ) : null}
         </NavLink>
         <NavLink to="/profile" className="topbar__avatar" aria-label={t('Profil', 'Profile')}>
           {initials}

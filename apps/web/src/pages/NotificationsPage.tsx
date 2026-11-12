@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { Bell, Check, MessageSquare, UserPlus, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
@@ -7,6 +8,8 @@ import { EmptyState } from '../components/EmptyState';
 import { useMusicData } from '../MusicDataContext';
 import { formatDate } from '../lib/format';
 import { t } from '../lib/i18n';
+import { subscribeRealtime } from '../lib/presence';
+import { useNotificationStore } from '../store/notifications';
 import { useToastStore } from '../store/toast';
 
 export function NotificationsPage() {
@@ -21,10 +24,25 @@ export function NotificationsPage() {
     retry: false,
   });
 
+  // New notifications and relationship changes refresh this page live.
+  useEffect(() => {
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type === 'notification') {
+        useNotificationStore.getState().setUnread(event.unread);
+        void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
+      if (event.type === 'friendship') {
+        void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
+    });
+    return unsubscribe;
+  }, [queryClient]);
+
   const markRead = useMutation({
     mutationFn: () => api.markNotificationsRead(),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      useNotificationStore.getState().setUnread(0);
       pushToast(t('Bildirimler okundu olarak işaretlendi.', 'Notifications marked as read.'), 'success');
     },
   });

@@ -435,8 +435,16 @@ export function pushNotification(
   );
 }
 
-export function listNotifications(
-  db: Database,
+/** Unread badge count, cheap enough to recompute on every push. */
+export function unreadNotificationCount(db: Database, userId: string): number {
+  return (
+    db.prepare('SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND read_at IS NULL').get(userId) as {
+      c: number;
+    }
+  ).c;
+}
+
+export function listNotifications(  db: Database,
   userId: string,
   limit = 30,
   offset = 0,

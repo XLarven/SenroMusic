@@ -7,6 +7,7 @@ import { Cover } from '../../components/Cover';
 import { EmptyState } from '../../components/EmptyState';
 import { t } from '../../lib/i18n';
 import { activityToTrack } from '../../lib/presenceTrack';
+import { subscribeRealtime } from '../../lib/presence';
 import { usePlayer } from '../../store/player';
 import { useToastStore } from '../../store/toast';
 import { useFriendsPresence } from './useFriendsPresence';
@@ -67,6 +68,20 @@ export function FriendsPanel() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Any relationship change on either side refreshes the lists immediately.
+  useEffect(() => {
+    let timer: number | null = null;
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type !== 'friendship') return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => void load(), 250);
+    });
+    return () => {
+      unsubscribe();
+      if (timer) window.clearTimeout(timer);
+    };
   }, [load]);
 
   const run = async (key: string, action: () => Promise<void>, message: string) => {

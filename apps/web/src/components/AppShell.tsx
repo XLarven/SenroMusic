@@ -9,7 +9,8 @@ import { useDownloads } from '../store/downloads';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { applyUiSettings } from '../lib/uiSettings';
-import { reportPlayback, startPresence } from '../lib/presence';
+import { reportPlayback, startPresence, subscribeRealtime } from '../lib/presence';
+import { useNotificationStore } from '../store/notifications';
 import { Logo } from './Logo';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
@@ -136,8 +137,16 @@ export function AppShell() {
     const unsubscribe = usePlayer.subscribe((state) => {
       reportPlayback(state.current, state.playing, state.currentTime);
     });
+
+    // Notification badge: initial count, then the server pushes every change.
+    void useNotificationStore.getState().refresh();
+    const unsubscribeNotifications = subscribeRealtime((event) => {
+      if (event.type === 'notification') useNotificationStore.getState().setUnread(event.unread);
+    });
+
     return () => {
       unsubscribe();
+      unsubscribeNotifications();
       stopPresence();
     };
   }, []);

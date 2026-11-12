@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Loader2, UserMinus, UserPlus, X } from 'lucide-react';
 import { api } from '../../api';
 import { t } from '../../lib/i18n';
+import { subscribeRealtime } from '../../lib/presence';
 import { useToastStore } from '../../store/toast';
 import type { Relationship } from '../../types';
 
@@ -40,6 +41,19 @@ export function FriendButton({ userId, initial, onChange, size = 'md', className
       cancelled = true;
     };
   }, [userId, initial]);
+
+  // Live relationship state: the other side's action reaches this button without
+  // a refresh, and the server's answer always wins.
+  useEffect(() => {
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type !== 'friendship' || event.peerId !== userId) return;
+      void api
+        .friendshipStatus(userId)
+        .then((payload) => setRelationship(payload.relationship))
+        .catch(() => undefined);
+    });
+    return unsubscribe;
+  }, [userId]);
 
   const apply = (next: Relationship) => {
     setRelationship(next);

@@ -17,6 +17,8 @@ import {
   sendRequest,
   unblockUser,
 } from '../src/friends.js';
+import { presenceStore } from '../src/presence.js';
+import { publishFriendship, publishNotificationCount } from '../src/friendsRealtime.js';
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -273,4 +275,31 @@ test('a removed friend can be re-added once', () => {
   assert.equal(reverse.ok, true, 'the mirrored request auto-accepts the pair');
   if (reverse.ok) assert.equal(reverse.value.autoAccepted, true);
   assert.equal(getRelationship(db, 'u_alice', 'u_bob').state, 'friends');
+});
+
+test('friendship changes are pushed over the existing stream', () => {
+  const db = makeDb();
+  const received: Array<{ type: string; event?: string; peerId?: string; unread?: number }> = [];
+  const off = presenceStore.subscribe('u_bob', {
+    send: (event) => received.push(event as never),
+  });
+
+  publishFriendship('u_bob', 'request', 'u_alice');
+  pushNotification(db, { userId: 'u_bob', kind: 'friend_request', actorId: 'u_alice', dedupeKey: 'r1' });
+  publishNotificationCount(db, 'u_bob', 'friend_request');
+  off();
+
+  assert.equal(received[0]?.type, 'friendship');
+  assert.equal(received[0]?.event, 'request');
+  assert.equal(received[0]?.peerId, 'u_alice');
+  assert.equal(received[1]?.type, 'notification');
+  assert.equal(received[1]?.unread, 1);
+
+  // A duplicate notification key must not inflate the badge.
+  pushNotification(db, { userId: 'u_bob', kind: 'friend_request', actorId: 'u_alice', dedupeKey: 'r1' });
+  const again: Array<{ unread?: number }> = [];
+  const offAgain = presenceStore.subscribe('u_bob', { send: (event) => again.push(event as never) });
+  publishNotificationCount(db, 'u_bob');
+  offAgain();
+  assert.equal(again[0]?.unread, 1);
 });

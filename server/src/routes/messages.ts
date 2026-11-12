@@ -13,6 +13,7 @@ import { requireAuth } from '../auth.js';
 import { getDb } from '../db.js';
 import { rateLimit } from '../ratelimit.js';
 import { pushNotification } from '../friends.js';
+import { publishNotificationCount } from '../friendsRealtime.js';
 import { presenceStore } from '../presence.js';
 import { findUserById, toPublicUser } from '../users.js';
 import {
@@ -195,6 +196,7 @@ export async function messagesRoutes(app: FastifyInstance): Promise<void> {
             entityId: conversationId,
             dedupeKey: `message:${conversationId}:${readMarker}`,
           });
+          publishNotificationCount(db, peerId, 'message');
         }
       }
       return { message: result.message, duplicate: result.duplicate };

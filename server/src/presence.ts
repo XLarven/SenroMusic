@@ -115,7 +115,15 @@ export type RealtimeEvent =
   | { type: 'community_message'; message: CommunityMessage; at: string }
   | { type: 'community_message_update'; message: CommunityMessage; at: string }
   | { type: 'community_member_update'; userId: string; role: CommunityRole; at: string }
-  | { type: 'community_moderation'; action: string; targetUserId: string | null; at: string };
+  | { type: 'community_moderation'; action: string; targetUserId: string | null; at: string }
+  | {
+      type: 'friendship';
+      event: 'request' | 'accepted' | 'declined' | 'cancelled' | 'removed' | 'blocked' | 'unblocked';
+      userId: string;
+      peerId: string;
+      at: string;
+    }
+  | { type: 'notification'; unread: number; kind: string | null; at: string };
 
 export type CommunityRole = 'owner' | 'moderator' | 'member';
 

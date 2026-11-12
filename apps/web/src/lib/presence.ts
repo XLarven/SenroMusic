@@ -147,6 +147,8 @@ const REALTIME_TYPES = [
   'community_message_update',
   'community_member_update',
   'community_moderation',
+  'friendship',
+  'notification',
 ] as const;
 
 function ensureStream(): void {
