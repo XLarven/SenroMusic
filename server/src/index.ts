@@ -22,6 +22,7 @@ import { localeRoutes } from './routes/locale.js';
 import { friendsRoutes } from './routes/friends.js';
 import { messagesRoutes } from './routes/messages.js';
 import { presenceRoutes, sweepPresence } from './routes/presence.js';
+import { tasteRoutes } from './routes/taste.js';
 import { getDb } from './db.js';
 import { presenceStore } from './presence.js';
 import { scanLibrary } from './scanner.js';
@@ -96,6 +97,7 @@ export async function buildServer() {
   await app.register(friendsRoutes);
   await app.register(presenceRoutes);
   await app.register(messagesRoutes);
+  await app.register(tasteRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {

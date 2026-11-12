@@ -269,7 +269,7 @@ export function MessagesPanel() {
     if (!activeId || messages.length === 0 || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const older = await api.conversation(activeId, messages[0]?.createdAt ?? null, 40);
+      const older = await api.conversation(activeId, messages[0]?.id ?? null, 40);
       setMessages((previous) => [...older.messages, ...previous]);
       setHasMore(older.hasMore);
     } catch {

@@ -216,7 +216,7 @@ test('history paginates newest-first then reverses for display', () => {
   assert.equal(first?.items.length, 2);
   assert.equal(first?.hasMore, true);
   assert.equal(first?.items[1]?.body, 'm4');
-  const older = getMessages(db, 'a1b2c3d4e5f60718293a4b5c', id, 2, first?.items[0]?.createdAt ?? null);
+  const older = getMessages(db, 'a1b2c3d4e5f60718293a4b5c', id, 2, first?.items[0]?.id ?? null);
   assert.equal(older?.items.length, 2);
   assert.equal(older?.hasMore, true);
 });

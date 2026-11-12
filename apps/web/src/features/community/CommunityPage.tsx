@@ -17,6 +17,7 @@ import { PeopleSearch } from './PeopleSearch';
 import { FriendsPanel } from './FriendsPanel';
 import { ListeningNow } from './ListeningNow';
 import { MessagesPanel } from './MessagesPanel';
+import { TasteMatchPanel } from './TasteMatchPanel';
 import { t } from '../../lib/i18n';
 
 /**
@@ -143,12 +144,10 @@ export function CommunityPage() {
             'İki kullanıcı arasındaki müzik uyumu.',
             'Music compatibility between two people.',
           )}
-          bullets={[
-            t('Ortak sanatçı ve parçalar', 'Shared artists and tracks'),
-            t('Tür bazlı uyum yüzdesi', 'Genre-based match score'),
-          ]}
-          comingSoon
-        />
+          className="community-card-wide"
+        >
+          <TasteMatchPanel />
+        </CommunitySection>
 
         <CommunitySection
           icon={Trophy}

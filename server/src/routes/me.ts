@@ -6,6 +6,7 @@ import { getDb, getTrackRow, trackToDto } from '../db.js';
 import { getPublicPlaylists } from '../library.js';
 import { getRelationship } from '../friends.js';
 import { presenceStore, publishActivity, publishPresence } from '../presence.js';
+import { noteTasteChange } from '../taste.js';
 import { rateLimit } from '../ratelimit.js';
 import {
   findUserById,
@@ -55,6 +56,12 @@ const SETTINGS_KEYS = new Set([
   'lastSeenVisible',
   'activityVisible',
   'invisible',
+  // Taste match privacy (Phase 5)
+  'tasteCompareFriends',
+  'tasteComparePublic',
+  'tasteDiscoverable',
+  'tasteAnonymous',
+  'tasteShowShared',
 ]);
 
 const PRESENCE_SETTING_KEYS = new Set(['presenceVisible', 'lastSeenVisible', 'activityVisible', 'invisible']);
@@ -302,6 +309,8 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       getDb()
         .prepare('INSERT INTO listening_history (user_id, track_id, played_at, ms_played, source) VALUES (?, ?, ?, ?, ?)')
         .run(user.id, trackId, new Date().toISOString(), Math.round(msPlayed), source);
+      // New playback changes taste results for this user and everyone compared with them.
+      noteTasteChange(user.id);
       return { ok: true, recorded: true };
     },
   );

@@ -335,6 +335,94 @@ export type RealtimeEvent =
   | { type: 'typing'; conversationId: string; userId: string; typing: boolean; at: string }
   | { type: 'read'; conversationId: string; userId: string; messageId: string | null; at: string };
 
+export type TasteTag = { name: string; plays: number };
+
+export type TasteTrackSummary = {
+  key: string;
+  id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  coverUrl: string | null;
+  plays: number;
+};
+
+export type TasteSettings = {
+  compareFriends: boolean;
+  comparePublic: boolean;
+  discoverable: boolean;
+  anonymous: boolean;
+  showShared: boolean;
+};
+
+export type TasteOverview = {
+  profile: {
+    userId: string;
+    plays: number;
+    totalMs: number;
+    lastPlayedAt: string | null;
+    eligible: boolean;
+    reason: 'insufficient_history' | null;
+    artists: TasteTag[];
+    tracks: TasteTrackSummary[];
+    genres: TasteTag[];
+    languages: TasteTag[];
+  };
+  settings: TasteSettings;
+};
+
+export type TasteDimension = {
+  key: 'artists' | 'tracks' | 'genres' | 'frequency';
+  weight: number;
+  score: number;
+};
+
+export type TasteIdentity = {
+  id: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  profileVisibility: 'public' | 'private';
+};
+
+export type TasteComparison = {
+  viewerId: string;
+  targetId: string;
+  score: number | null;
+  eligible: boolean;
+  reason: 'insufficient_history' | 'no_dimensions' | null;
+  insufficient: { viewer: boolean; target: boolean };
+  dimensions: TasteDimension[];
+  sharedArtists: Array<TasteTag & { otherPlays: number }>;
+  sharedTracks: Array<TasteTrackSummary & { otherPlays: number }>;
+  sharedGenres: Array<TasteTag & { otherPlays: number }>;
+  sharedLanguages: Array<TasteTag & { otherPlays: number }>;
+  onlyViewer: { artists: TasteTag[]; genres: TasteTag[] };
+  onlyTarget: { artists: TasteTag[]; genres: TasteTag[] };
+  sharedHidden: boolean;
+};
+
+export type TasteFriendEntry = {
+  user: TasteIdentity | null;
+  score: number | null;
+  eligible: boolean;
+  reason: string | null;
+  sharedArtists: number;
+  sharedTracks: number;
+  sharedGenres: number;
+};
+
+export type TasteDiscoveryEntry = {
+  matchId: string;
+  score: number;
+  sharedArtists: number;
+  sharedGenres: number;
+  anonymous: boolean;
+  liked: boolean;
+  mutual: boolean;
+  user: { id: string; displayName: string; username: string | null; avatarUrl: string | null } | null;
+};
+
 export type PublicProfile = {
   id: string;
   displayName: string;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowRight, Camera, Image as ImageIcon, LogOut, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
+import { ArrowRight, Camera, HeartHandshake, Image as ImageIcon, LogOut, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { api } from '../api';
 import { FriendButton } from '../features/community/FriendButton';
 import { BlockButton } from '../features/community/BlockButton';
@@ -11,7 +11,7 @@ import { ImageCropEditor } from '../components/ImageCropEditor';
 import { PlaylistCard } from '../components/PlaylistCard';
 import { Modal } from '../components/Modal';
 import { useMusicData } from '../MusicDataContext';
-import { getAppLanguage } from '../lib/i18n';
+import { getAppLanguage, t } from '../lib/i18n';
 import { useAuthStore } from '../store/auth';
 import { useFavorites } from '../store/favorites';
 import { useToastStore } from '../store/toast';
@@ -327,6 +327,9 @@ export function ProfilePage() {
             <Pencil size={16} /> Profili düzenle
           </button>
           <Link to="/settings" className="button secondary"><Settings2 size={16} /> Ayarlar</Link>
+          <Link to="/community/taste" className="button ghost">
+            <HeartHandshake size={16} /> {t('Zevk Uyumum', 'My taste match')}
+          </Link>
           <button type="button" className="button ghost" onClick={() => void logout().catch(() => pushToast('Çıkış yapılamadı.', 'error'))}>
             <LogOut size={16} /> Çıkış yap
           </button>
@@ -341,6 +344,9 @@ export function ProfilePage() {
             userId={publicProfileQuery.data?.profile.id ?? ''}
             initial={publicProfileQuery.data?.relationship ?? null}
           />
+          <Link className="button ghost" to={`/community/taste/${publicProfileQuery.data?.profile.id ?? ''}`}>
+            <HeartHandshake size={16} /> {t('Zevkini karşılaştır', 'Compare taste')}
+          </Link>
         </div>
       )}
 

@@ -275,6 +275,27 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 8,
+    name: 'taste matching',
+    up(db) {
+      // Only filled when a scanner finds a reliable tag; absent means "unknown",
+      // never "mismatch".
+      addColumn(db, 'tracks', 'language TEXT');
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_history_user_track
+          ON listening_history(user_id, track_id);
+
+        CREATE TABLE IF NOT EXISTS taste_interests (
+          viewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL,
+          revealed_at TEXT,
+          PRIMARY KEY (viewer_id, target_id)
+        );
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

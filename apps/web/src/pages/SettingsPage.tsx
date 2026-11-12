@@ -6,6 +6,7 @@ import {
   Database,
   Download,
   EyeOff,
+  HeartHandshake,
   HardDrive,
   Info,
   KeyRound,
@@ -312,6 +313,39 @@ export function SettingsPage() {
           <p className="settings-hint">
             Görünmez modda arkadaşlarına çevrimdışı görünürsün ve dinlediğin şarkı paylaşılmaz.
             Bu kurallar sunucuda uygulanır.
+          </p>
+        </section>
+
+        <section className="settings-card">
+          <header className="settings-card-head">
+            <span className="settings-icon"><HeartHandshake size={19} /></span>
+            <div><h2>Zevk Uyumu</h2><p>Müzik uyumunu kim görebilsin?</p></div>
+          </header>
+          <dl className="settings-list">
+            <div>
+              <dt>Arkadaşlarım zevkimi karşılaştırabilsin</dt>
+              <dd><input type="checkbox" checked={settings.tasteCompareFriends !== false} onChange={(event) => void saveSetting('tasteCompareFriends', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Herkese açık profilimden karşılaştırma yapılabilsin</dt>
+              <dd><input type="checkbox" checked={settings.tasteComparePublic === true} onChange={(event) => void saveSetting('tasteComparePublic', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Ortak sanatçı ve parçaları göster</dt>
+              <dd><input type="checkbox" checked={settings.tasteShowShared !== false} onChange={(event) => void saveSetting('tasteShowShared', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Genel keşfe katıl</dt>
+              <dd><input type="checkbox" checked={settings.tasteDiscoverable === true} onChange={(event) => void saveSetting('tasteDiscoverable', event.target.checked)} /></dd>
+            </div>
+            <div>
+              <dt>Keşifte anonim kal</dt>
+              <dd><input type="checkbox" checked={settings.tasteAnonymous !== false} onChange={(event) => void saveSetting('tasteAnonymous', event.target.checked)} /></dd>
+            </div>
+          </dl>
+          <p className="settings-hint">
+            Keşif varsayılan olarak kapalıdır ve yalnızca sen açtığında listelenirsin. Anonim modda ismin
+            karşılıklı ilgi olmadan görünmez. Tüm kurallar sunucuda uygulanır.
           </p>
         </section>
 

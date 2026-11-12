@@ -28,6 +28,11 @@ import type {
   ConversationDetail,
   Message,
   MessageAttachment,
+  TasteOverview,
+  TasteComparison,
+  TasteFriendEntry,
+  TasteDiscoveryEntry,
+  TasteIdentity,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -383,6 +388,33 @@ export const api = {
       { method: 'POST', body: { typing } },
     ),
   messagesUnread: () => request<{ unreadTotal: number }>('/api/messages/unread'),
+  tasteMe: () => request<TasteOverview>('/api/taste/me'),
+  tasteFriends: (limit = 20, offset = 0) =>
+    request<{ items: TasteFriendEntry[]; total: number; limit: number; offset: number }>(
+      `/api/taste/friends?limit=${limit}&offset=${offset}`,
+    ),
+  tasteCompare: (userId: string) =>
+    request<{
+      viewer: TasteIdentity | null;
+      target: TasteIdentity | null;
+      relationship: 'self' | 'friend';
+      comparison: TasteComparison;
+    }>(`/api/taste/compare/${encodeURIComponent(userId)}`),
+  tasteDiscover: (limit = 12, offset = 0) =>
+    request<{
+      optedIn: boolean;
+      items: TasteDiscoveryEntry[];
+      total: number;
+      limit: number;
+      offset: number;
+    }>(`/api/taste/discover?limit=${limit}&offset=${offset}`),
+  tasteLike: (userId: string) =>
+    request<{ ok: boolean; mutual: boolean }>(`/api/taste/discover/${encodeURIComponent(userId)}/like`, {
+      method: 'POST',
+      body: {},
+    }),
+  tasteLeaveDiscovery: () =>
+    request<{ ok: boolean }>('/api/taste/discover', { method: 'DELETE' }),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

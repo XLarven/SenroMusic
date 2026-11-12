@@ -9,6 +9,8 @@ import { AlbumPage } from './pages/AlbumPage';
 import { ArtistPage } from './pages/ArtistPage';
 import { DownloadsPage } from './pages/DownloadsPage';
 import { CommunityPage } from './features/community/CommunityPage';
+import { TasteMatchPage } from './pages/TasteMatchPage';
+import { TasteComparePage } from './pages/TasteComparePage';
 import { HomePage } from './pages/HomePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { LoginPage } from './pages/LoginPage';
@@ -72,6 +74,8 @@ export function App() {
         <Route path="favorites" element={<FavoritesPage />} />
         <Route path="downloads" element={<DownloadsPage />} />
         <Route path="community" element={<CommunityPage />} />
+        <Route path="community/taste" element={<TasteMatchPage />} />
+        <Route path="community/taste/:userId" element={<TasteComparePage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="profile/:id" element={<ProfilePage />} />
