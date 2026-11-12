@@ -16,6 +16,7 @@ import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { PlayerBar } from './PlayerBar';
+import { RoomIndicator } from '../features/rooms/RoomIndicator';
 import { QueuePanel } from './QueuePanel';
 import { CreatePlaylistDialog } from './CreatePlaylistDialog';
 import { Toaster } from './Toaster';
@@ -232,7 +233,8 @@ export function AppShell() {
           <Outlet />
         </main>
         <div className="shell-player">
-          <PlayerBar />
+          <RoomIndicator />
+        <PlayerBar />
         </div>
         <MobileNav />
         <QueuePanel />

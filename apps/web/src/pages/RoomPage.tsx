@@ -317,19 +317,134 @@ export function RoomPage() {
     navigate('/rooms');
   }
 
-  const searchLibrary = useCallback(async (value: string) => {
-    setSearchText(value);
-    if (value.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    try {
-      const result = await api.search(value.trim(), 8);
-      setSearchResults(result.tracks);
-    } catch {
-      setSearchResults([]);
-    }
-  }, []);
+  const [addMode, setAddMode] = useState<'library' | 'youtube' | 'spotify'>('library');
+  const [providerResults, setProviderResults] = useState<
+    Array<{ id: string; title: string; artist: string; coverUrl: string | null; duration: number | null; source: string }>
+  >([]);
+
+  const searchLibrary = useCallback(
+    async (value: string) => {
+      setSearchText(value);
+      const needle = value.trim();
+      if (needle.length < 2) {
+        setSearchResults([]);
+        setProviderResults([]);
+        return;
+      }
+      try {
+        if (addMode === 'library') {
+          const result = await api.search(needle, 8);
+          setSearchResults(result.tracks);
+          return;
+        }
+        if (addMode === 'youtube') {
+          const result = await api.youtubeSearch(needle, 8);
+          setProviderResults(
+            result.results.map((item) => ({
+              id: `yt_${item.id}`,
+              title: item.title,
+              artist: item.uploader,
+              coverUrl: item.thumbnail,
+              duration: item.duration,
+              source: 'youtube',
+            })),
+          );
+          return;
+        }
+        const result = await api.spotifySearch(needle, 8);
+        setProviderResults(
+          result.tracks.map((item) => ({
+            id: `sp_${item.id}`,
+            title: item.title,
+            artist: item.artist,
+            coverUrl: item.artworkUrl,
+            duration: item.duration,
+            source: 'spotify',
+          })),
+        );
+      } catch {
+        if (addMode === 'library') setSearchResults([]);
+        else setProviderResults([]);
+      }
+    },
+    [addMode],
+  );
+
+  /** Paste a Spotify/YouTube link: resolve it and queue the tracks. */
+  const resolveLink = useCallback(
+    async (raw: string) => {
+      const value = raw.trim();
+      if (!value) return;
+      try {
+        const youtubeVideo = /(?:youtube\.com\/watch\?v=|youtu\.be\/|music\.youtube\.com\/watch\?v=)([\w-]{11})/.exec(value);
+        const youtubeList = /[?&]list=([\w-]+)/.exec(value);
+        const spotify = /open\.spotify\.com\/(track|playlist|album)\/([A-Za-z0-9]+)/.exec(value);
+
+        if (youtubeList) {
+          const playlist = await api.youtubePlaylist(value);
+          for (const item of playlist.items) {
+            await api.roomQueueAdd(roomId, {
+              id: `yt_${item.id}`,
+              title: item.title,
+              artist: item.uploader,
+              album: null,
+              coverUrl: item.thumbnail,
+              source: 'youtube',
+              duration: item.duration,
+            });
+          }
+          setAddOpen(false);
+          setSearchText('');
+          await load();
+          pushToast(t(`${playlist.items.length} parça sıraya eklendi.`, `${playlist.items.length} tracks queued.`), 'success');
+          return;
+        }
+        if (youtubeVideo) {
+          const found = await api.youtubeSearch(youtubeVideo[1], 1);
+          const item = found.results[0];
+          if (!item) throw new Error(t('Video bulunamadı.', 'Video not found.'));
+          await api.roomQueueAdd(roomId, {
+            id: `yt_${item.id}`,
+            title: item.title,
+            artist: item.uploader,
+            album: null,
+            coverUrl: item.thumbnail,
+            source: 'youtube',
+            duration: item.duration,
+          });
+          setAddOpen(false);
+          setSearchText('');
+          await load();
+          pushToast(t('Video sıraya eklendi.', 'Video queued.'), 'success');
+          return;
+        }
+        if (spotify) {
+          const resolved = await api.spotifyResolve(value);
+          for (const item of resolved.items) {
+            const providerId = (item.providerTrackId ?? '').replace(/[^\w-]/g, '').slice(0, 60);
+            await api.roomQueueAdd(roomId, {
+              id: providerId ? `sp_${providerId}` : `presence_${`${item.artist}-${item.title}`.replace(/[^\w-]+/g, '-')}`.slice(0, 60),
+              title: item.title,
+              artist: item.artist,
+              album: item.album ?? null,
+              coverUrl: item.artworkUrl ?? null,
+              source: 'spotify',
+              duration: item.duration ?? null,
+            });
+          }
+          setAddOpen(false);
+          setSearchText('');
+          await load();
+          pushToast(t(`${resolved.items.length} parça sıraya eklendi.`, `${resolved.items.length} tracks queued.`), 'success');
+          return;
+        }
+        pushToast(t('Bu bağlantı desteklenmiyor. Spotify veya YouTube bağlantısı yapıştır.', 'Unsupported link. Paste a Spotify or YouTube link.'), 'error');
+      } catch (error) {
+        pushToast(error instanceof Error ? error.message : t('Bağlantı çözülemedi.', 'Could not resolve the link.'), 'error');
+      }
+    },
+    [load, pushToast, roomId],
+  );
 
   const shareLink = useMemo(() => {
     if (!detail || typeof window === 'undefined') return '';
@@ -387,6 +502,12 @@ export function RoomPage() {
   }
 
   const current = state.current;
+  const videoId =
+    current && state.videoMode && current.track.id.startsWith('yt_') ? current.track.id.slice(3) : null;
+  const videoStart = Math.max(0, Math.floor(position));
+  const videoSrc = videoId
+    ? `https://www.youtube.com/embed/${videoId}?autoplay=${state.playing ? 1 : 0}&start=${videoStart}&rel=0&modestbranding=1&playsinline=1`
+    : null;
 
   return (
     <div className="page room-page">
@@ -429,10 +550,26 @@ export function RoomPage() {
 
       <div className="room-layout">
         <section className="room-stage" aria-label={t('Çalan', 'Now playing')}>
-          <div className="room-art">
-            <Cover src={current?.track.coverUrl ?? null} alt="" seed={current?.track.title ?? 'room'} iconSize={48} />
-          </div>
-          <div className="room-track">
+          <div className={`room-art ${state.videoMode ? 'is-video' : ''}`}>
+            {state.videoMode ? (
+              videoSrc ? (
+                <iframe
+                  key={`${state.revision}-${videoId}`}
+                  src={videoSrc}
+                  title={current?.track.title ?? t('YouTube', 'YouTube')}
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  allowFullScreen
+                  className="room-video-frame"
+                />
+              ) : (
+                <p className="room-note">
+                  {t('Bu parça video olarak açılamıyor; ses moduna dön.', 'This track cannot open as video; switch back to audio.')}
+                </p>
+              )
+            ) : (
+              <Cover src={current?.track.coverUrl ?? null} alt="" seed={current?.track.title ?? 'room'} iconSize={48} />
+            )}
+          </div>          <div className="room-track">
             <strong>{current?.track.title ?? t('Henüz şarkı yok', 'No track yet')}</strong>
             <span>{current?.track.artist ?? t('Sıradan bir şarkı ekle', 'Add something to the queue')}</span>
           </div>
@@ -502,6 +639,23 @@ export function RoomPage() {
                   `${controller?.displayName ?? 'A room moderator'} controls playback. Small drift is corrected automatically.`,
                 )}
           </p>
+
+          {current && current.track.id.startsWith('yt_') ? (
+            <button
+              type="button"
+              className="button ghost compact"
+              disabled={!canControl || busy}
+              onClick={() =>
+                void run(async () => {
+                  const result = await api.roomPlayback(roomId, { action: 'video', enabled: !state.videoMode });
+                  setState(result.state);
+                  updateRoomSync(result.state, result.serverNow);
+                })
+              }
+            >
+              {state.videoMode ? t('Ses moduna geç', 'Switch to audio') : t('Videoyu birlikte izle', 'Watch video together')}
+            </button>
+          ) : null}
 
           <div className="room-volume">
             <button
@@ -768,16 +922,50 @@ export function RoomPage() {
               </button>
             </header>
             <div className="room-add">
+              <div className="room-add-tabs">
+                {(['library', 'youtube', 'spotify'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`taste-chip ${addMode === mode ? 'is-selected' : ''}`}
+                    onClick={() => {
+                      setAddMode(mode);
+                      setSearchResults([]);
+                      setProviderResults([]);
+                      setSearchText('');
+                    }}
+                  >
+                    {mode === 'library' ? t('Kütüphane', 'Library') : mode === 'youtube' ? 'YouTube' : 'Spotify'}
+                  </button>
+                ))}
+              </div>
               <label className="taste-input">
                 <Search size={14} />
                 <input
                   type="search"
                   value={searchText}
                   onChange={(event) => void searchLibrary(event.target.value)}
-                  placeholder={t('Kütüphanede ara', 'Search the library')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && /^https?:\/\//.test(searchText.trim())) {
+                      event.preventDefault();
+                      void resolveLink(searchText);
+                    }
+                  }}
+                  placeholder={
+                    addMode === 'library'
+                      ? t('Kütüphanede ara veya bağlantı yapıştır', 'Search the library or paste a link')
+                      : addMode === 'youtube'
+                        ? t('YouTube’da ara', 'Search YouTube')
+                        : t('Spotify’da ara', 'Search Spotify')
+                  }
                   aria-label={t('Şarkı ara', 'Search tracks')}
                 />
               </label>
+              {/^https?:\/\//.test(searchText.trim()) ? (
+                <button type="button" className="button compact" onClick={() => void resolveLink(searchText)}>
+                  {t('Bağlantıyı ekle', 'Add from link')}
+                </button>
+              ) : null}
               {player.current ? (
                 <button
                   type="button"
@@ -810,6 +998,30 @@ export function RoomPage() {
                     <span className="person-copy">
                       <strong>{track.title}</strong>
                       <small>{track.artist}</small>
+                    </span>
+                  </button>
+                ))}
+                {providerResults.map((item) => (
+                  <button
+                    type="button"
+                    key={`${item.source}-${item.id}`}
+                    className="person-row dm-picker-row"
+                    onClick={() =>
+                      addTrack({
+                        id: item.id,
+                        title: item.title,
+                        artist: item.artist,
+                        album: null,
+                        coverUrl: item.coverUrl,
+                        source: item.source,
+                        duration: item.duration,
+                      })
+                    }
+                  >
+                    <Cover src={item.coverUrl} alt="" seed={item.id} className="person-avatar" iconSize={14} />
+                    <span className="person-copy">
+                      <strong>{item.title}</strong>
+                      <small>{item.artist}</small>
                     </span>
                   </button>
                 ))}

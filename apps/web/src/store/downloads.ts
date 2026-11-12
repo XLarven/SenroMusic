@@ -15,6 +15,12 @@ import type { DownloadRecord, Track } from '../types';
 
 const controllers = new Map<string, AbortController>();
 const objectUrls = new Map<string, string>();
+/** FIFO download queue: one track at a time, in the order the user asked. */
+const queue: string[] = [];
+const tracksById = new Map<string, Track>();
+const canceled = new Set<string>();
+let activeId: string | null = null;
+const STALL_TIMEOUT_MS = 45_000;
 
 function now(): string {
   return new Date().toISOString();
@@ -87,11 +93,13 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
 
   download: async (track) => {
     const existing = get().records[track.id];
-    if (existing && ['queued', 'downloading', 'downloaded'].includes(existing.state)) return;
-    if (controllers.has(track.id)) return;
+    if (existing && ['queued', 'downloading', 'verifying', 'downloaded'].includes(existing.state)) return;
+    if (queue.includes(track.id) || activeId === track.id) return;
 
-    const controller = new AbortController();
-    controllers.set(track.id, controller);
+    // One worker, strict FIFO: the track only starts when everything queued
+    // before it has finished (or failed).
+    tracksById.set(track.id, track);
+    queue.push(track.id);
     const record: DownloadRecord = {
       ...baseRecord(track),
       state: 'queued',
@@ -100,112 +108,28 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     };
     set((state) => ({ records: { ...state.records, [track.id]: record } }));
     await saveDownloadRecord(record).catch(() => undefined);
-
-    try {
-      const connection = navigator as Navigator & { connection?: { type?: string } };
-      if (localStorage.getItem('Norie.wifiOnly') === 'true' && connection.connection?.type === 'cellular') {
-        throw new Error('Yalnızca Wi-Fi indirme açık. Wi-Fi bağlantısına geç.');
-      }
-      await requestPersistentStorage();
-      const estimate = await getStorageEstimate();
-      if (estimate && estimate.quota > 0 && estimate.usage + track.size > estimate.quota) {
-        throw new Error('Cihaz depolama alanı dolu. Bazı indirilen dosyaları sil.');
-      }
-
-      const setRecord = (update: Partial<DownloadRecord>) => {
-        const next = { ...record, ...update };
-        set((state) => ({ records: { ...state.records, [track.id]: next } }));
-        return saveDownloadRecord(next).catch(() => undefined);
-      };
-
-      await setRecord({ state: 'downloading', progress: 0, error: null });
-      // `streamUrl` is a server path for local files and a provider reference
-      // for remote ones; `mediaUrl` normalises both into a fetchable URL.
-      const response = await fetch(`${getServerUrl()}${mediaUrl(track)}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`Sunucu ${response.status} yanıtı döndü.`);
-
-      const chunks: BlobPart[] = [];
-      let received = 0;
-      let lastProgressUpdate = 0;
-      const declaredTotal = Number(response.headers.get('content-length') || 0);
-      const expectedTotal = declaredTotal > 0 ? declaredTotal : track.size > 0 ? track.size : 0;
-      if (response.body) {
-        const reader = response.body.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            received += value.byteLength;
-            // Only report a percentage we can actually back with bytes; when the
-            // provider hides the length the UI shows an indeterminate bar.
-            const progress = expectedTotal > 0 ? Math.min(99, Math.floor((received / expectedTotal) * 100)) : 0;
-            const stamp = Date.now();
-            if (stamp - lastProgressUpdate > 200 && (progress !== record.progress || expectedTotal === 0)) {
-              record.progress = progress;
-              record.received = received;
-              record.total = expectedTotal;
-              // Keep the state explicit: this update is built from the record
-              // captured at start, which still says "queued".
-              record.state = 'downloading';
-              lastProgressUpdate = stamp;
-              void setRecord({ state: 'downloading', progress, received, total: expectedTotal });
-            }
-          }
-        }
-      } else {
-        chunks.push(await response.arrayBuffer());
-      }
-
-      const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'audio/mpeg' });
-      if (blob.size === 0) throw new Error('Boş bir dosya alındı.');
-      await saveDownloadBlob(track.id, blob);
-      await setRecord({
-        state: 'downloaded',
-        progress: 100,
-        received: blob.size,
-        total: blob.size,
-        size: blob.size,
-        downloadedAt: now(),
-        error: null,
-      });
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        await saveDownloadRecord({
-          ...record,
-          state: 'paused',
-          error: null,
-        }).catch(() => undefined);
-        set((state) => ({
-          records: {
-            ...state.records,
-            [track.id]: { ...record, state: 'paused', error: null },
-          },
-        }));
-      } else {
-        const message = error instanceof Error ? error.message : 'İndirme başarısız oldu.';
-        await saveDownloadRecord({
-          ...record,
-          state: 'failed',
-          error: message,
-        }).catch(() => undefined);
-        set((state) => ({
-          records: {
-            ...state.records,
-            [track.id]: { ...record, state: 'failed', error: message },
-          },
-        }));
-      }
-    } finally {
-      controllers.delete(track.id);
-    }
+    void pump();
   },
 
   cancel: (trackId) => {
-    controllers.get(trackId)?.abort();
+    // A queued item leaves the queue immediately; an active one aborts and is
+    // parked as paused so it can be resumed later.
+    const index = queue.indexOf(trackId);
+    if (index >= 0) {
+      queue.splice(index, 1);
+      const record = get().records[trackId];
+      if (record) {
+        const next = { ...record, state: 'paused' as const, error: null };
+        set((state) => ({ records: { ...state.records, [trackId]: next } }));
+        void saveDownloadRecord(next).catch(() => undefined);
+      }
+      return;
+    }
+    const controller = controllers.get(trackId);
+    if (controller) {
+      canceled.add(trackId);
+      controller.abort();
+    }
   },
 
   remove: async (trackId) => {
@@ -268,3 +192,128 @@ export const useDownloads = create<DownloadsState>((set, get) => ({
     }
   },
 }));
+
+/** Runs one download to completion. Called only by the FIFO pump. */
+async function runDownload(track: Track): Promise<void> {
+  const set = useDownloads.setState;
+  const get = useDownloads.getState;
+  const controller = new AbortController();
+  controllers.set(track.id, controller);
+  canceled.delete(track.id);
+  const base = get().records[track.id] ?? baseRecord(track);
+  const setRecord = (update: Partial<DownloadRecord>) => {
+    const next = { ...base, ...update };
+    set((state) => ({ records: { ...state.records, [track.id]: next } }));
+    return saveDownloadRecord(next).catch(() => undefined);
+  };
+
+  // A stalled socket must not freeze the queue: if no bytes arrive for 45s the
+  // request is aborted and the next track gets its turn.
+  let lastChunk = Date.now();
+  let stalled = false;
+  const watchdog = window.setInterval(() => {
+    if (Date.now() - lastChunk > STALL_TIMEOUT_MS) {
+      stalled = true;
+      controller.abort();
+    }
+  }, 5_000);
+
+  try {
+    const connection = navigator as Navigator & { connection?: { type?: string } };
+    if (localStorage.getItem('Norie.wifiOnly') === 'true' && connection.connection?.type === 'cellular') {
+      throw new Error('Yalnızca Wi-Fi indirme açık. Wi-Fi bağlantısına geç.');
+    }
+    await requestPersistentStorage();
+    const estimate = await getStorageEstimate();
+    if (estimate && estimate.quota > 0 && estimate.usage + track.size > estimate.quota) {
+      throw new Error('Cihaz depolama alanı dolu. Bazı indirilen dosyaları sil.');
+    }
+
+    await setRecord({ state: 'downloading', progress: 0, received: 0, error: null });
+
+    const response = await fetch(`${getServerUrl()}${mediaUrl(track)}`, {
+      credentials: 'include',
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Sunucu ${response.status} yanıtı döndü.`);
+
+    const chunks: BlobPart[] = [];
+    let received = 0;
+    let lastProgressUpdate = 0;
+    const declaredTotal = Number(response.headers.get('content-length') || 0);
+    const expectedTotal = declaredTotal > 0 ? declaredTotal : track.size > 0 ? track.size : 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          lastChunk = Date.now();
+          chunks.push(value);
+          received += value.byteLength;
+          const progress = expectedTotal > 0 ? Math.min(99, Math.floor((received / expectedTotal) * 100)) : 0;
+          const stamp = Date.now();
+          if (stamp - lastProgressUpdate > 200) {
+            lastProgressUpdate = stamp;
+            void setRecord({ state: 'downloading', progress, received, total: expectedTotal });
+          }
+        }
+      }
+    } else {
+      chunks.push(await response.arrayBuffer());
+    }
+
+    const blob = new Blob(chunks, { type: response.headers.get('content-type') || 'audio/mpeg' });
+    if (blob.size === 0) throw new Error('Boş bir dosya alındı.');
+
+    // Verify step: the bytes go to IndexedDB first, then are read back and
+    // compared before the UI is allowed to claim "downloaded".
+    await setRecord({ state: 'verifying', progress: 100, received: blob.size, total: blob.size });
+    await saveDownloadBlob(track.id, blob);
+    const verified = await loadDownloadBlob(track.id).catch(() => null);
+    if (!verified || verified.size === 0 || verified.size !== blob.size) {
+      await deleteDownloadBlob(track.id).catch(() => undefined);
+      throw new Error('İndirilen dosya doğrulanamadı. Yeniden dene.');
+    }
+
+    await setRecord({
+      state: 'downloaded',
+      progress: 100,
+      received: verified.size,
+      total: verified.size,
+      size: verified.size,
+      downloadedAt: now(),
+      error: null,
+    });
+  } catch (error) {
+    if (controller.signal.aborted && canceled.has(track.id)) {
+      await setRecord({ state: 'paused', error: null });
+    } else if (stalled) {
+      await setRecord({ state: 'failed', error: 'İndirme zaman aşımına uğradı. Yeniden dene.' });
+    } else if (error instanceof DOMException && error.name === 'AbortError') {
+      await setRecord({ state: 'paused', error: null });
+    } else {
+      const message = error instanceof Error ? error.message : 'İndirme başarısız oldu.';
+      await setRecord({ state: 'failed', error: message });
+    }
+  } finally {
+    window.clearInterval(watchdog);
+    controllers.delete(track.id);
+  }
+}
+
+/** Starts the next queued download when the worker is free. */
+async function pump(): Promise<void> {
+  if (activeId) return;
+  const next = queue.shift();
+  if (!next) return;
+  activeId = next;
+  const track = tracksById.get(next);
+  try {
+    if (track) await runDownload(track);
+  } finally {
+    activeId = null;
+    tracksById.delete(next);
+    void pump();
+  }
+}

@@ -73,6 +73,12 @@ function roomQueue(state: RoomState): Track[] {
 
 function applyState(state: RoomState, offsetMs: number): void {
   const player = usePlayer.getState();
+  // Video mode: the room watches the official embed instead of the audio
+  // element, so local audio must stay silent.
+  if (state.videoMode) {
+    if (player.playing) player.pause();
+    return;
+  }
   if (!state.current) {
     if (player.current) player.clearQueue();
     return;
@@ -109,6 +115,8 @@ async function push(payload: Parameters<typeof api.roomPlayback>[1]): Promise<vo
 function tick(): void {
   if (!session) return;
   const { state, canControl, offsetMs } = session;
+  // Video sessions are driven by the embedded player, not the audio element.
+  if (state.videoMode) return;
   if (!state.current) return;
   const player = usePlayer.getState();
   const targetId = state.current.track.id;

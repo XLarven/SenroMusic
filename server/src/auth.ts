@@ -72,6 +72,16 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply):
     return;
   }
   request.user = user;
+  // Sliding renewal: an active session is extended before it expires, so an open
+  // app never logs the user out mid-session.
+  const rawSession = request.cookies[SESSION_COOKIE] ?? '';
+  const expiresAt = Number.parseInt(rawSession.split('.')[1] ?? '', 10);
+  if (Number.isFinite(expiresAt)) {
+    const remaining = expiresAt - Math.floor(Date.now() / 1000);
+    if (remaining > 0 && remaining < (config.sessionDays * 86_400) / 2) {
+      setSessionCookie(reply, user.id, config.secureCookies ?? request.protocol === 'https');
+    }
+  }
   const ip = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || request.ip || '';
   touchUserActive(user.id, ip, String(request.headers['user-agent'] || ''));
 }

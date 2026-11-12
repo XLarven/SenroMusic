@@ -201,28 +201,56 @@ export async function youtubeRoutes(app: FastifyInstance): Promise<void> {
         });
       }
       try {
-        const output = await runYtDlp([
-          `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`,
-          '--dump-json',
-          '--flat-playlist',
-          '--no-warnings',
-        ]);
-        const items = parseYouTubeJsonLines(output).slice(0, 500);
+        // yt-dlp prints one JSON object per entry; page through the playlist in
+        // batches so a 2000-track list cannot blow the buffer or the timeout.
+        const BATCH = 200;
+        const cap = Math.min(config.maxPlaylistTracks, 10_000);
+        const collected: ReturnType<typeof parseYouTubeJsonLines> = [];
         let title = 'YouTube çalma listesi';
-        for (const line of output.split(/\r?\n/)) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('{')) continue;
-          try {
-            const first = JSON.parse(trimmed) as { title?: string; playlist_title?: string };
-            if (first.playlist_title || first.title) {
-              title = first.playlist_title ?? first.title ?? title;
-              break;
+        let total = 0;
+        for (let start = 1; start <= cap; start += BATCH) {
+          const output = await runYtDlp([
+            `https://www.youtube.com/playlist?list=${encodeURIComponent(playlistId)}`,
+            '--dump-json',
+            '--flat-playlist',
+            '--no-warnings',
+            '--playlist-start',
+            String(start),
+            '--playlist-end',
+            String(start + BATCH - 1),
+          ]);
+          const batch = parseYouTubeJsonLines(output);
+          if (title === 'YouTube çalma listesi') {
+            for (const line of output.split(/\r?\n/)) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('{')) continue;
+              try {
+                const first = JSON.parse(trimmed) as {
+                  title?: string;
+                  playlist_title?: string;
+                  playlist_count?: number;
+                };
+                title = first.playlist_title ?? title;
+                if (typeof first.playlist_count === 'number' && first.playlist_count > 0) {
+                  total = first.playlist_count;
+                }
+              } catch {
+                // ignore
+              }
+              if (title !== 'YouTube çalma listesi') break;
             }
-          } catch {
-            // ignore
           }
+          if (batch.length === 0) break;
+          collected.push(...batch);
+          if (batch.length < BATCH) break;
+          if (total > 0 && collected.length >= total) break;
         }
-        return { title, items, total: items.length };
+        return {
+          title,
+          items: collected,
+          total: total > 0 ? total : collected.length,
+          truncated: total > 0 ? collected.length < total : false,
+        };
       } catch (error) {
         request.log.warn({ err: error }, 'youtube playlist metadata failed');
         return reply.code(502).send({

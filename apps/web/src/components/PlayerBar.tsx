@@ -21,6 +21,7 @@ import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { Cover } from './Cover';
 import { DownloadButton } from './DownloadButton';
 import { NMLyricsPanel } from './norie/NMLyricsPanel';
+import { RoomQuickActions } from '../features/rooms/RoomQuickActions';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
 import { formatDuration } from '../lib/format';
@@ -352,6 +353,7 @@ export function PlayerBar() {
         <div className="np-meta">
           <div className="np-title">{current.title}</div>
           <div className="np-artist">{current.artist}</div>
+          <RoomQuickActions track={current} />
           <button
             type="button"
             className={clsx('np-heart', liked && 'is-liked')}

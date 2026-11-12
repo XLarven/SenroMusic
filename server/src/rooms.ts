@@ -76,7 +76,7 @@ function newCode(): string {
 }
 
 function emptyState(): RoomState {
-  return { current: null, queue: [], position: 0, playing: false, revision: 0, updatedAt: nowIso() };
+  return { current: null, queue: [], position: 0, playing: false, revision: 0, updatedAt: nowIso(), videoMode: false };
 }
 
 function safeImageUrl(value: unknown): string | null {
@@ -146,6 +146,7 @@ export function parseState(row: RoomRow): RoomState {
       queue: Array.isArray(parsed.queue) ? parsed.queue.slice(0, ROOM_QUEUE_MAX) : [],
       position: Number.isFinite(parsed.position) ? Math.max(0, parsed.position) : 0,
       playing: Boolean(parsed.playing),
+      videoMode: Boolean(parsed.videoMode),
       revision: row.revision,
       updatedAt: row.updated_at,
     };
@@ -154,11 +155,22 @@ export function parseState(row: RoomRow): RoomState {
   }
 }
 
-function writeState(db: Database, roomId: string, state: Omit<RoomState, 'revision' | 'updatedAt'>): RoomState {
+function writeState(
+  db: Database,
+  roomId: string,
+  state: Omit<RoomState, 'revision' | 'updatedAt' | 'videoMode'> & { videoMode?: boolean },
+): RoomState {
   const at = nowIso();
-  const row = db.prepare('SELECT revision FROM listening_rooms WHERE id = ?').get(roomId) as
-    | { revision: number }
+  const row = db.prepare('SELECT revision, state_json FROM listening_rooms WHERE id = ?').get(roomId) as
+    | { revision: number; state_json: string }
     | undefined;
+  let previousVideo = false;
+  try {
+    previousVideo = Boolean((JSON.parse(row?.state_json ?? '{}') as { videoMode?: boolean }).videoMode);
+  } catch {
+    previousVideo = false;
+  }
+  const videoMode = state.videoMode ?? previousVideo;
   const revision = (row?.revision ?? 0) + 1;
   db.prepare(
     `UPDATE listening_rooms SET state_json = ?, revision = ?, updated_at = ?, owner_seen_at = ?
@@ -169,13 +181,14 @@ function writeState(db: Database, roomId: string, state: Omit<RoomState, 'revisi
       queue: state.queue,
       position: state.position,
       playing: state.playing,
+      videoMode,
     }),
     revision,
     at,
     at,
     roomId,
   );
-  return { ...state, revision, updatedAt: at };
+  return { ...state, videoMode, revision, updatedAt: at };
 }
 
 /* ---------- reads ---------- */
@@ -517,9 +530,10 @@ export function inviteToRoom(
 /* ---------- playback ---------- */
 
 export type PlaybackInput = {
-  action: 'play' | 'pause' | 'seek' | 'next' | 'play-track';
+  action: 'play' | 'pause' | 'seek' | 'next' | 'play-track' | 'video';
   position?: unknown;
   track?: unknown;
+  enabled?: unknown;
 };
 
 function clampPosition(state: RoomState, position: number): number {
@@ -568,6 +582,16 @@ export function applyPlayback(
     });
     return { ok: true, state: next };
   }
+  if (input.action === 'video') {
+    const next = writeState(db, roomId, {
+      current: state.current,
+      queue: state.queue,
+      position: state.position,
+      playing: state.playing,
+      videoMode: Boolean(input.enabled),
+    });
+    return { ok: true, state: next };
+  }
   if (input.action === 'next') {
     const [head, ...rest] = state.queue;
     if (!head) return { ok: false, code: 'empty' };
@@ -590,6 +614,8 @@ export function applyPlayback(
     queue: state.queue,
     position: 0,
     playing: true,
+    // Video mode only survives if the new track can actually be watched.
+    videoMode: state.videoMode && track.id.startsWith('yt_'),
   });
   return { ok: true, state: next };
 }

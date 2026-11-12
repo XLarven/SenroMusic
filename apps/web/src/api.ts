@@ -71,6 +71,27 @@ export class ApiError extends Error {
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
+/** Debounced session confirmation used before a client-side logout. */
+let sessionProbe: Promise<boolean> | null = null;
+function confirmSession(): Promise<boolean> {
+  if (!sessionProbe) {
+    sessionProbe = fetch(`${getServerUrl()}/api/auth/me`, { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) return response.status === 401 ? false : true;
+        const payload = (await response.json()) as { authenticated?: boolean };
+        return payload.authenticated === true;
+      })
+      // A network blip is not a logout. The next request will try again.
+      .catch(() => true)
+      .finally(() => {
+        window.setTimeout(() => {
+          sessionProbe = null;
+        }, 2000);
+      });
+  }
+  return sessionProbe;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
   const response = await fetch(`${getServerUrl()}${path}`, {
@@ -94,7 +115,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       // Keep the generic message when the server did not return JSON.
     }
     if (response.status === 401 && !path.startsWith('/api/auth/')) {
-      window.dispatchEvent(new CustomEvent('Norie:unauthorized'));
+      // A single 401 is not proof that the session is gone (an endpoint may
+      // reject one request). Confirm with the session endpoint before logging out,
+      // and treat network failures as "still signed in".
+      void confirmSession().then((valid) => {
+        if (!valid) window.dispatchEvent(new CustomEvent('Norie:unauthorized'));
+      });
     }
     throw new ApiError(response.status, code, message);
   }
@@ -472,7 +498,12 @@ export const api = {
     ),
   roomPlayback: (
     roomId: string,
-    payload: { action: 'play' | 'pause' | 'seek' | 'next' | 'play-track'; position?: number; track?: RoomTrack },
+    payload: {
+      action: 'play' | 'pause' | 'seek' | 'next' | 'play-track' | 'video';
+      position?: number;
+      track?: RoomTrack;
+      enabled?: boolean;
+    },
   ) =>
     request<{ state: RoomState; serverNow: string }>(`/api/rooms/${encodeURIComponent(roomId)}/playback`, {
       method: 'POST',

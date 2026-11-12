@@ -1,192 +1,155 @@
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Activity,
-  CalendarDays,
-  ListMusic,
+  MessageSquare,
   MessagesSquare,
-  Music4,
   Radio,
   Sparkles,
   Trophy,
+  UserPlus,
   Users,
   UsersRound,
-  UserPlus,
-  HeartHandshake,
 } from 'lucide-react';
-import { CommunitySection } from './CommunitySection';
-import { PeopleSearch } from './PeopleSearch';
-import { FriendsPanel } from './FriendsPanel';
-import { ListeningNow } from './ListeningNow';
-import { MessagesPanel } from './MessagesPanel';
-import { TasteMatchPanel } from './TasteMatchPanel';
-import { ListeningRoomsPanel } from './ListeningRoomsPanel';
-import { QuizTeaserPanel } from './QuizTeaserPanel';
-import { CommunityServer } from './CommunityServer';
+import { api } from '../../api';
+import { subscribeRealtime } from '../../lib/presence';
+import { useAuthStore } from '../../store/auth';
 import { t } from '../../lib/i18n';
+import { CommunityChat } from './CommunityChat';
+import { CommunityMembers } from './CommunityMembers';
+import { FriendsPanel } from './FriendsPanel';
+import { PeopleSearch } from './PeopleSearch';
+import { MessagesPanel } from './MessagesPanel';
+import { ListeningRoomsPanel } from './ListeningRoomsPanel';
+import { TasteMatchPanel } from './TasteMatchPanel';
+import { QuizTeaserPanel } from './QuizTeaserPanel';
+
+type SectionKey = 'chat' | 'friends' | 'messages' | 'rooms' | 'taste' | 'quiz' | 'members';
+
+const SECTIONS: Array<{ key: SectionKey; icon: typeof Users; tr: string; en: string }> = [
+  { key: 'chat', icon: MessageSquare, tr: 'Genel Sohbet', en: 'General Chat' },
+  { key: 'friends', icon: Users, tr: 'Arkadaşlar', en: 'Friends' },
+  { key: 'messages', icon: MessagesSquare, tr: 'Direkt Mesajlar', en: 'Direct Messages' },
+  { key: 'rooms', icon: Radio, tr: 'Birlikte Dinle', en: 'Listening Together' },
+  { key: 'taste', icon: Sparkles, tr: 'Zevk Uyumu', en: 'Taste Match' },
+  { key: 'quiz', icon: Trophy, tr: 'Müzik Yarışması', en: 'Music Quiz' },
+  { key: 'members', icon: UsersRound, tr: 'Üyeler', en: 'Members' },
+];
 
 /**
- * Community, phase 1: the page, the navigation and the real people search.
- * Everything else is scaffolding with an explicit "coming soon" badge — no
- * fake friends, no invented online dots, no simulated chats.
+ * Official community shell.
+ *
+ * One section at a time, chosen from the left rail (or the mobile chip row), with
+ * the member list as contextual right panel. Nothing is stacked vertically any
+ * more; every panel keeps its own loading/empty states.
  */
 export function CommunityPage() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('section');
+  const section: SectionKey = (SECTIONS.some((entry) => entry.key === raw) ? raw : 'chat') as SectionKey;
+  const me = useQuery({ queryKey: ['community', 'me'], queryFn: () => api.communityMe(), staleTime: 30_000 });
+  const myId = useAuthStore((state) => state.user?.id ?? null);
+  const queryClient = useQueryClient();
+
+  // Role and restriction changes for this account reach the composer live.
+  useEffect(() => {
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type === 'community_member_update' && event.userId === myId) {
+        void queryClient.invalidateQueries({ queryKey: ['community', 'me'] });
+      }
+      if (event.type === 'community_moderation' && event.targetUserId === myId) {
+        void queryClient.invalidateQueries({ queryKey: ['community', 'me'] });
+      }
+    });
+    return unsubscribe;
+  }, [myId, queryClient]);
+
+  const select = (key: SectionKey) => {
+    const next = new URLSearchParams(params);
+    if (key === 'chat') next.delete('section');
+    else next.set('section', key);
+    setParams(next, { replace: true });
+  };
+
+  const showAside = section === 'chat' || section === 'friends';
+
   return (
-    <div className="page community-page">
-      <header className="community-hero">
-        <span className="eyebrow">{t('Topluluk', 'Community')}</span>
-        <h1>{t('Müziği birlikte dinle', 'Listen together')}</h1>
-        <p>
-          {t(
-            'NorieMusic Community herkese açık tek resmî topluluk: genel sohbet, üye listesi, arkadaşlar, mesajlar, dinleme odaları, zevk uyumu ve müzik yarışması.',
-            'NorieMusic Community is the one official space for everyone: general chat, the member list, friends, messages, listening rooms, taste match and the music quiz.',
-          )}
-        </p>
-        <div className="community-hero-meta">
-          <span className="status-pill">
-            <Users size={14} /> {t('Tek resmî sunucu', 'One official server')}
-          </span>
-          <span className="status-pill is-warning">
-            <Sparkles size={14} /> {t('Tüm hesaplar üye', 'Every account is a member')}
-          </span>
+    <div className="page community-page community-workspace">
+      <header className="community-hero community-hero-compact">
+        <div>
+          <span className="eyebrow">{t('Topluluk', 'Community')}</span>
+          <h1>{me.data?.name ?? 'NorieMusic Community'}</h1>
+          <p>
+            {me.data
+              ? t(`${me.data.memberCount} üye · tek resmî sunucu`, `${me.data.memberCount} members · one official server`)
+              : t('Resmî topluluk yükleniyor…', 'Loading the official community…')}
+          </p>
         </div>
+        {me.data?.role !== 'member' ? (
+          <span className="community-role is-owner">
+            {me.data?.role === 'owner' ? t('Kurucu', 'Owner') : t('Moderatör', 'Moderator')}
+          </span>
+        ) : null}
       </header>
 
-      <CommunityServer />
-
-      <section className="content-section" aria-label={t('Kişiler', 'People')}>
-        <div className="section-heading">
-          <div>
-            <h2>{t('Kişiler', 'People')}</h2>
-            <p>
-              {t(
-                'Kayıtlı NorieMusic kullanıcılarını ara, profillerini aç.',
-                'Search registered NorieMusic users and open their profiles.',
-              )}
-            </p>
+      <div className="community-shell">
+        <nav className="community-rail" aria-label={t('Topluluk bölümleri', 'Community sections')}>
+          {SECTIONS.map(({ key, icon: Icon, tr, en }) => (
+            <button
+              key={key}
+              type="button"
+              className={`community-rail-item ${section === key ? 'is-active' : ''}`}
+              onClick={() => select(key)}
+              aria-current={section === key ? 'page' : undefined}
+            >
+              <Icon size={16} />
+              <span>{t(tr, en)}</span>
+            </button>
+          ))}
+          <div className="community-rail-foot">
+            <span className="status-pill">
+              <UserPlus size={12} /> {t('Resmî sunucu', 'Official server')}
+            </span>
           </div>
-        </div>
-        <PeopleSearch />
-      </section>
+        </nav>
 
-      <ListeningNow />
-
-      <section id="messages" className="content-section dm-section" aria-label={t('Mesajlar', 'Messages')}>
-        <div className="section-heading">
-          <div>
-            <h2>
-              <MessagesSquare size={18} /> {t('Mesajlar', 'Messages')}
-            </h2>
-            <p>
-              {t(
-                'Arkadaşlarınla birebir yazış, şarkı ve çalma listesi paylaş.',
-                'Chat one-to-one with your friends, share songs and playlists.',
-              )}
-            </p>
-          </div>
-        </div>
-        <MessagesPanel />
-      </section>
-
-      <div className="community-grid" id="friends">
-        <CommunitySection
-          icon={UserPlus}
-          title={t('Arkadaşlar', 'Friends')}
-          description={t(
-            'Arkadaş listen, gelen ve giden istekler.',
-            'Your friend list, incoming and sent requests.',
+        <main className="community-main">
+          {section === 'chat' ? (
+            <CommunityChat me={me.data ?? null} />
+          ) : section === 'friends' ? (
+            <div className="community-section-stack">
+              <section aria-label={t('Arkadaşlar', 'Friends')}>
+                <FriendsPanel />
+              </section>
+              <section aria-label={t('Kişiler', 'People')}>
+                <div className="section-heading">
+                  <div>
+                    <h2>{t('Kişiler', 'People')}</h2>
+                    <p>{t('Yeni arkadaşlar bul.', 'Find new friends.')}</p>
+                  </div>
+                </div>
+                <PeopleSearch />
+              </section>
+            </div>
+          ) : section === 'messages' ? (
+            <MessagesPanel />
+          ) : section === 'rooms' ? (
+            <ListeningRoomsPanel />
+          ) : section === 'taste' ? (
+            <TasteMatchPanel />
+          ) : section === 'quiz' ? (
+            <QuizTeaserPanel />
+          ) : (
+            <CommunityMembers me={me.data ?? null} />
           )}
-          className="community-card-wide"
-        >
-          <FriendsPanel />
-        </CommunitySection>
+        </main>
 
-        <CommunitySection
-          icon={Radio}
-          title={t('Birlikte Dinle', 'Listening Together')}
-          description={t(
-            'Aynı anda, aynı şarkıda senkron dinleme odaları.',
-            'Shared rooms with synchronized playback.',
-          )}
-        >
-          <ListeningRoomsPanel />
-        </CommunitySection>
-
-        <CommunitySection
-          icon={Activity}
-          title={t('Etkinlikler', 'Activities')}
-          description={t(
-            'Arkadaşlarının dinledikleri ve paylaştıkları.',
-            'What your friends listen to and share.',
-          )}
-          bullets={[
-            t('Arkadaş dinleme akışı', 'Friends’ listening feed'),
-            t('Paylaşılan şarkı ve listeler', 'Shared songs and playlists'),
-          ]}
-          comingSoon
-        />
-
-        <CommunitySection
-          icon={UsersRound}
-          title={t('Gruplar', 'Groups')}
-          description={t(
-            'Müzik toplulukları ve ortak çalma listeleri.',
-            'Music communities and collaborative playlists.',
-          )}
-          bullets={[
-            t('Temalı topluluklar', 'Themed communities'),
-            t('Ortak çalma listeleri', 'Collaborative playlists'),
-          ]}
-          comingSoon
-        />
-
-        <CommunitySection
-          icon={HeartHandshake}
-          title={t('Zevk Uyumu', 'Taste Match')}
-          description={t(
-            'İki kullanıcı arasındaki müzik uyumu.',
-            'Music compatibility between two people.',
-          )}
-          className="community-card-wide"
-        >
-          <TasteMatchPanel />
-        </CommunitySection>
-
-        <CommunitySection
-          icon={Trophy}
-          title={t('Müzik Yarışması', 'Music Quiz')}
-          description={t(
-            'Günün şarkısı, alıştırma ve arkadaşlarla yarış.',
-            'Daily song, practice and playing with friends.',
-          )}
-          className="community-card-wide"
-        >
-          <QuizTeaserPanel />
-        </CommunitySection>
+        {showAside ? (
+          <aside className="community-aside" aria-label={t('Üyeler', 'Members')}>
+            <CommunityMembers me={me.data ?? null} />
+          </aside>
+        ) : null}
       </div>
-
-      <section className="panel community-note" aria-label={t('Yol haritası', 'Roadmap')}>
-        <div>
-          <h2>
-            <ListMusic size={18} /> {t('Sırada ne var?', 'What comes next?')}
-          </h2>
-          <p>
-            {t(
-              'Bu aşamada yalnızca yapı hazır: gezinme, gerçek kullanıcı araması ve profil bağlantıları. Arkadaşlık, mesajlaşma ve senkron dinleme sunucu tarafında yeni uç noktalar gerektiriyor; sıradaki aşamalarda eklenecek.',
-              'This phase ships the structure only: navigation, real user search and profile links. Friends, messaging and synchronized listening need new server endpoints and arrive in the next phases.',
-            )}
-          </p>
-          <div className="community-hero-meta">
-            <span className="status-pill">
-              <Users size={13} /> {t('Kişiler', 'People')} · {t('hazır', 'ready')}
-            </span>
-            <span className="status-pill">
-              <Music4 size={13} /> {t('Müzik', 'Music')} · {t('değişmedi', 'unchanged')}
-            </span>
-            <span className="status-pill">
-              <CalendarDays size={13} /> {t('Aşama 2', 'Phase 2')} · {t('yakında', 'soon')}
-            </span>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

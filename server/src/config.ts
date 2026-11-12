@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,9 +33,37 @@ if (isProduction && !process.env.MUSIC_SESSION_SECRET?.trim()) {
   );
 }
 
-const sessionSecret =
-  process.env.MUSIC_SESSION_SECRET?.trim() ||
-  createHash('sha256').update(`Norie-session:${randomBytes(16).toString('hex')}`).digest('hex');
+const sessionSecretFile = resolve(serverRoot, 'data', '.session-secret');
+
+/**
+ * Session secret resolution.
+ *
+ * Production still requires MUSIC_SESSION_SECRET. In development a random secret
+ * per boot would log every browser out on each restart, so the generated secret is
+ * written once to data/.session-secret and reused.
+ */
+function resolveSessionSecret(): string {
+  const fromEnv = process.env.MUSIC_SESSION_SECRET?.trim();
+  if (fromEnv) return fromEnv;
+  if (isProduction) {
+    // The guard above already threw; this keeps the type honest.
+    throw new Error('MUSIC_SESSION_SECRET is required in production.');
+  }
+  try {
+    if (existsSync(sessionSecretFile)) {
+      const stored = readFileSync(sessionSecretFile, 'utf8').trim();
+      if (stored.length >= 32) return stored;
+    }
+    const generated = randomBytes(32).toString('hex');
+    mkdirSync(dirname(sessionSecretFile), { recursive: true });
+    writeFileSync(sessionSecretFile, generated, { mode: 0o600 });
+    return generated;
+  } catch {
+    return createHash('sha256').update(`Norie-session:${randomBytes(16).toString('hex')}`).digest('hex');
+  }
+}
+
+const sessionSecret = resolveSessionSecret();
 
 export const config = {
   isProduction,

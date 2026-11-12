@@ -159,6 +159,8 @@ export type RoomState = {
   queue: RoomQueueItem[];
   position: number;
   playing: boolean;
+  /** When true and the current track is a YouTube video, clients show the embed. */
+  videoMode: boolean;
   revision: number;
   updatedAt: string;
 };

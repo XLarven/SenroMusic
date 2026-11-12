@@ -9,17 +9,49 @@ export function DownloadButton({ track }: { track: Track }) {
   const cancel = useDownloads((state) => state.cancel);
   const pushToast = useToastStore((state) => state.push);
   const state = record?.state ?? 'not-downloaded';
+  const bytes =
+    record && record.received
+      ? `${(record.received / 1_048_576).toFixed(1)} MB${
+          record.total ? ` / ${(record.total / 1_048_576).toFixed(1)} MB` : ''
+        }`
+      : '';
 
-  if (state === 'downloading' || state === 'queued') {
+  if (state === 'downloading') {
     return (
       <button
         type="button"
         className="icon-button subtle track-action download-button is-downloading"
         onClick={() => cancel(track.id)}
-        title={`İndiriliyor (${record?.progress ?? 0}%) — iptal etmek için dokun`}
+        title={`İndiriliyor %${record?.progress ?? 0}${bytes ? ` · ${bytes}` : ''} — iptal etmek için dokun`}
         aria-label={`${track.title} indiriliyor, iptal et`}
       >
         <Loader2 size={16} className="spin" />
+      </button>
+    );
+  }
+
+  if (state === 'verifying') {
+    return (
+      <span
+        className="download-button is-verifying"
+        title="Dosya doğrulanıyor"
+        aria-label={`${track.title} doğrulanıyor`}
+      >
+        <Check size={16} />
+      </span>
+    );
+  }
+
+  if (state === 'queued') {
+    return (
+      <button
+        type="button"
+        className="icon-button subtle track-action download-button is-queued"
+        onClick={() => cancel(track.id)}
+        title="Sırada bekliyor — kuyruktan çıkarmak için dokun"
+        aria-label={`${track.title} indirme sırasında, kuyruktan çıkar`}
+      >
+        <CloudDownload size={16} />
       </button>
     );
   }

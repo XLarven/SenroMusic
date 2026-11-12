@@ -20,6 +20,8 @@ export type SpotifyPlaylist = {
   totalDuration: number | null;
   totalTracks: number;
   items: SpotifyItem[];
+  /** True when the provider returned fewer entries than it reported. */
+  truncated?: boolean;
 };
 
 export type SpotifySearchResult = {
@@ -190,7 +192,9 @@ export async function getSpotifyPlaylist(id: string): Promise<SpotifyPlaylist> {
   const token = await getSpotifyAccessToken();
   if (!token) throw new Error('Spotify credentials are not configured.');
   if (!/^[A-Za-z0-9]{22}$/.test(id)) throw new Error('Invalid Spotify playlist ID.');
-  const fields = 'name,description,images,owner(display_name,id),tracks.total,tracks.items(track(id,name,artists(name),album(name,images),duration_ms,external_ids(isrc),href))';
+
+  const trackFields = 'items(track(id,name,artists(name),album(name,images),duration_ms,external_ids(isrc),href)),total';
+  const fields = `name,description,images,owner(display_name,id),tracks.total,tracks(${trackFields})`;
   const json = (await spotifyGet(
     `/playlists/${encodeURIComponent(id)}?fields=${encodeURIComponent(fields)}`,
   )) as {
@@ -206,12 +210,14 @@ export async function getSpotifyPlaylist(id: string): Promise<SpotifyPlaylist> {
 
   const items: SpotifyItem[] = [];
   let totalDuration = 0;
-  for (const entry of json.tracks?.items ?? []) {
-    const track = entry.track;
-    if (!track) continue;
-    const artists = Array.isArray(track.artists)
-      ? track.artists.map((artist) => String((artist as { name?: string }).name ?? '')).filter(Boolean)
-      : [];
+
+  const append = (entries: Array<{ track?: Record<string, unknown> | null }> | undefined) => {
+    for (const entry of entries ?? []) {
+      const track = entry.track;
+      if (!track) continue;
+      const artists = Array.isArray(track.artists)
+        ? track.artists.map((artist) => String((artist as { name?: string }).name ?? '')).filter(Boolean)
+        : [];
       const artist = artists.join(', ') || 'Unknown';
       const title = String(track.name ?? '').trim();
       if (!title) continue;
@@ -230,6 +236,31 @@ export async function getSpotifyPlaylist(id: string): Promise<SpotifyPlaylist> {
         sourceUrl: typeof track.href === 'string' ? track.href : null,
         album: typeof album?.name === 'string' ? album.name : null,
       });
+    }
+  };
+
+  append(json.tracks?.items);
+
+  // Spotify returns at most 100 entries per page. A playlist can hold up to
+  // 10,000, so page until the provider is exhausted (bounded by our own cap).
+  const declaredTotal = typeof json.tracks?.total === 'number' ? json.tracks.total : items.length;
+  const hardCap = Math.min(config.maxPlaylistTracks, 10_000);
+  let offset = items.length;
+  let guard = 0;
+  while (offset < declaredTotal && offset < hardCap && guard < 120) {
+    guard += 1;
+    let page: { items?: Array<{ track?: Record<string, unknown> | null }> };
+    try {
+      page = (await spotifyGet(
+        `/playlists/${encodeURIComponent(id)}/tracks?offset=${offset}&limit=100&fields=${encodeURIComponent(trackFields)}`,
+      )) as { items?: Array<{ track?: Record<string, unknown> | null }> };
+    } catch {
+      break;
+    }
+    const batch = page.items ?? [];
+    if (batch.length === 0) break;
+    append(batch);
+    offset += batch.length;
   }
 
   return {
@@ -240,7 +271,8 @@ export async function getSpotifyPlaylist(id: string): Promise<SpotifyPlaylist> {
     creator: json.owner?.display_name ?? json.owner?.id ?? null,
     totalDuration: totalDuration > 0 ? totalDuration / 1000 : null,
     totalTracks: typeof json.tracks?.total === 'number' ? json.tracks.total : items.length,
-    items: items.slice(0, 500),
+    items: items.slice(0, hardCap),
+    truncated: items.length < (json.tracks?.total ?? items.length),
   };
 }
 

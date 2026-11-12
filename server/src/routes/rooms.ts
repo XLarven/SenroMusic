@@ -215,13 +215,14 @@ export async function roomsRoutes(app: FastifyInstance): Promise<void> {
       const db = getDb();
       const body = request.body ?? {};
       const action = body.action;
-      if (!['play', 'pause', 'seek', 'next', 'play-track'].includes(String(action))) {
+      if (!['play', 'pause', 'seek', 'next', 'play-track', 'video'].includes(String(action))) {
         return fail(reply, 'invalid_action', 'Geçersiz oynatma komutu.');
       }
       const result = applyPlayback(db, request.params.roomId, request.user!.id, {
         action: action as PlaybackInput['action'],
         position: body.position,
         track: body.track,
+        enabled: (body as { enabled?: unknown }).enabled,
       });
       if (!result.ok) return deny(reply, result.code);
       publishRoomState(db, request.params.roomId, result.state);

@@ -157,7 +157,7 @@ export async function resolveSpotify(url: string, requestedBy: string | null = n
   }
 
   const cover = biggestImage(entity);
-  const rawTracks = (entity.trackList ?? []).filter((t: any) => t.title).slice(0, MAX_PLAYLIST);
+  const rawTracks = (entity.trackList ?? []).filter((t: any) => t.title);
   const tracks = rawTracks.map((t: any) => ({
     title: t.title,
     url: null,
@@ -175,6 +175,8 @@ export async function resolveSpotify(url: string, requestedBy: string | null = n
     playlistTitle: entity.name ?? entity.title ?? 'Spotify playlist',
     source: 'Spotify',
     capped: (entity.trackList ?? []).length >= MAX_PLAYLIST,
+    // The embed endpoint itself stops at 100 for large lists; the Spotify API
+    // path pages through everything when credentials are configured.
   };
 }
 

@@ -384,6 +384,7 @@ export type RoomState = {
   queue: RoomQueueItem[];
   position: number;
   playing: boolean;
+  videoMode: boolean;
   revision: number;
   updatedAt: string;
 };
@@ -755,6 +756,7 @@ export type DownloadState =
   | 'not-downloaded'
   | 'queued'
   | 'downloading'
+  | 'verifying'
   | 'paused'
   | 'downloaded'
   | 'failed'
