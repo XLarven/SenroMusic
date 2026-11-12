@@ -597,6 +597,37 @@ export type CommunityReport = {
   createdAt: string;
 };
 
+export type DiscoveryItem = {
+  id: string;
+  title: string;
+  artist: string;
+  thumbnail: string;
+  duration: number | null;
+  url: string;
+  reason: string;
+};
+
+export type DiscoverySectionKey =
+  | 'madeForYou'
+  | 'becauseYouListened'
+  | 'discoverSomethingNew'
+  | 'hiddenGems'
+  | 'randomDiscovery';
+
+export type DiscoverySection = {
+  key: DiscoverySectionKey;
+  items: DiscoveryItem[];
+  seed?: { title: string; artist: string };
+  artists?: string[];
+};
+
+export type DiscoveryPayload = {
+  generatedAt: string;
+  personalized: boolean;
+  degraded: boolean;
+  sections: DiscoverySection[];
+};
+
 export type TasteTag = { name: string; plays: number };
 
 export type TasteTrackSummary = {

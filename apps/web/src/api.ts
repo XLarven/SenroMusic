@@ -52,6 +52,8 @@ import type {
   CommunityMessage,
   CommunityModerationEntry,
   CommunityReport,
+  DiscoveryPayload,
+  DiscoveryItem,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -632,6 +634,17 @@ export const api = {
       method: 'PUT',
       body: payload,
     }),
+  discovery: (refresh = false) => request<DiscoveryPayload>(`/api/discovery${refresh ? '?refresh=1' : ''}`),
+  discoverySimilar: (params: { title?: string; artist?: string; exclude?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params.title) query.set('title', params.title);
+    if (params.artist) query.set('artist', params.artist);
+    if (params.exclude) query.set('exclude', params.exclude);
+    if (params.limit) query.set('limit', String(params.limit));
+    return request<{ items: DiscoveryItem[] }>(`/api/discovery/similar?${query.toString()}`);
+  },
+  discoveryFeedback: (payload: { kind: 'track' | 'artist'; title?: string; artist?: string; undo?: boolean }) =>
+    request<{ ok: boolean; removed?: boolean }>('/api/discovery/feedback', { method: 'POST', body: payload }),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

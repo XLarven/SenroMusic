@@ -567,6 +567,23 @@ const migrations: Migration[] = [
       ).run(at);
     },
   },
+  {
+    id: 12,
+    name: 'discovery feedback',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS discovery_feedback (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          value TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (user_id, kind, value)
+        );
+        CREATE INDEX IF NOT EXISTS idx_discovery_feedback_user
+          ON discovery_feedback(user_id, kind);
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

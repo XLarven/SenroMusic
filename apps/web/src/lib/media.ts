@@ -40,6 +40,11 @@ function seconds(value: number | null | undefined): string | null {
  * is handed to the resolver with whatever identity the track has.
  */
 export function mediaUrl(track: Track): string {
+  // A local file or an internal endpoint is already playable: never send it
+  // through the provider resolver, or a library track would be re-matched by
+  // title and could come back as the wrong recording (or not at all).
+  if (track.streamUrl.startsWith('/api/')) return track.streamUrl;
+
   const videoId = youtubeIdOf(track);
   const params = new URLSearchParams();
 

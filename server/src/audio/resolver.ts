@@ -6,10 +6,10 @@
  * search -> extract. Every provider is optional: the chain returns the first
  * usable URL and `null` only when every source genuinely failed.
  */
-import { normalizeText, songTitle } from '../searchQuality.js';
+import { normalizeText, rankCandidates, songTitle } from '../searchQuality.js';
 import { resolveByMetadata } from './jiosaavn.js';
 import { pipedAvailable, resolveVideo } from './piped.js';
-import { extractAudio, searchVideoId } from './youtube.js';
+import { extractAudio, searchVideoCandidates } from './youtube.js';
 import type { ResolvedStream, StreamRequest } from './types.js';
 
 type Attempt = { key: string; label: string; run: () => Promise<ResolvedStream | null> };
@@ -104,8 +104,15 @@ function attemptsFor(request: StreamRequest): Attempt[] {
       label: 'youtube-search',
       run: async () => {
         const query = [request.artist, songTitle(request.title ?? '')].filter(Boolean).join(' ').trim();
-        const found = await searchVideoId(query);
-        return found ? extractAudio(found) : null;
+        // Score every raw hit and try the plausible ones in order: the top raw
+        // result is often karaoke or a reaction upload.
+        const candidates = await searchVideoCandidates(query, 8);
+        const ranked = rankCandidates(candidates, query, 4);
+        for (const candidate of ranked) {
+          const stream = await extractAudio(candidate.id);
+          if (stream) return stream;
+        }
+        return null;
       },
     });
   }
@@ -113,17 +120,42 @@ function attemptsFor(request: StreamRequest): Attempt[] {
   return attempts;
 }
 
+/** Failed resolutions are remembered briefly so a dead track cannot hammer providers. */
+const negative = new Map<string, number>();
+const NEGATIVE_TTL_MS = 60_000;
+const ATTEMPT_TIMEOUT_MS = 22_000;
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function resolveUncached(request: StreamRequest): Promise<ResolvedStream | null> {
   const attempts = attemptsFor(request);
-  for (const attempt of attempts) {
+  for (let index = 0; index < attempts.length; index += 1) {
+    const attempt = attempts[index]!;
     try {
-      const stream = await attempt.run();
+      const stream = await withTimeout(attempt.run(), ATTEMPT_TIMEOUT_MS);
       if (stream) {
         console.info('[audio] resolved via', attempt.label, '->', stream.label);
         return stream;
       }
     } catch (error) {
       console.warn('[audio] provider failed:', attempt.label, (error as Error).message.slice(0, 120));
+    }
+    // Small bounded pause between providers: enough for a transient hiccup to
+    // clear, never a retry storm.
+    if (index < attempts.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (index + 1)));
     }
   }
   return null;
@@ -136,12 +168,24 @@ export async function resolveStream(request: StreamRequest): Promise<ResolvedStr
   const cached = readCache(key);
   if (cached) return cached;
 
+  const blockedUntil = negative.get(key);
+  if (blockedUntil && blockedUntil > Date.now()) return null;
+
   const running = inflight.get(key);
   if (running) return running;
 
   const task = resolveUncached(request)
     .then((stream) => {
-      if (stream) writeCache(key, stream);
+      if (stream) {
+        writeCache(key, stream);
+        negative.delete(key);
+      } else {
+        negative.set(key, Date.now() + NEGATIVE_TTL_MS);
+        if (negative.size > 500) {
+          const now = Date.now();
+          for (const [entry, until] of negative) if (until <= now) negative.delete(entry);
+        }
+      }
       return stream;
     })
     .finally(() => {
@@ -153,6 +197,6 @@ export async function resolveStream(request: StreamRequest): Promise<ResolvedStr
 }
 
 /** Diagnostics for /api/media/sources. */
-export function sourceStatus(): { cached: number; inflight: number; piped: boolean } {
-  return { cached: cache.size, inflight: inflight.size, piped: pipedAvailable() };
+export function sourceStatus(): { cached: number; inflight: number; negative: number; piped: boolean } {
+  return { cached: cache.size, inflight: inflight.size, negative: negative.size, piped: pipedAvailable() };
 }

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
 import { rateLimit } from '../ratelimit.js';
+import { findSimilarTracks } from '../audio/similar.js';
 import { artistOf, rankCandidates } from '../searchQuality.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -79,8 +80,6 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // Related songs for autoplay. Accepts either an explicit query or title+artist.
-  // Uses a music-weighted search instead of undocumented radio endpoints.
   app.get<{ Querystring: { q?: string; title?: string; artist?: string; exclude?: string; limit?: string } }>(
     '/api/youtube/similar',
     {
@@ -95,24 +94,28 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
       const explicit = (request.query.q ?? '').trim();
       const title = (request.query.title ?? '').trim();
       const artist = (request.query.artist ?? '').trim();
-      const hasArtist = artist && !/^unknown$/i.test(artist);
-      // Recommendations favour more from the same artist, which is what
-      // listeners expect after a track ends; fall back to title+artist.
-      const query = explicit || (hasArtist ? artist : `${artist} ${title}`.trim());
-      if (!query) return { results: [] };
+      if (!explicit && !title && !artist) return { results: [] };
 
-      try {
-        const fetchCount = Math.min(limit * 3, 40);
-        const items = await ytSearchJson(`ytsearch${fetchCount}:${query}`, fetchCount);
-        const songs = items
-          .map((item) => toSong(item))
-          .filter((song): song is NonNullable<ReturnType<typeof toSong>> => song !== null);
-        const ranked = rankCandidates(songs, hasArtist ? title : query, limit + 2, { strict: false });
-        const results = ranked.filter((song) => song.id !== exclude).slice(0, limit);
-        return { results };
-      } catch {
-        return { results: [] };
-      }
+      // Shared pipeline: real search candidates, quality-scored, variant-filtered,
+      // cached for 10 minutes and guaranteed to exclude the seed recording.
+      const items = await findSimilarTracks(
+        {
+          title: explicit || title,
+          artist,
+          excludeVideoId: /^[\w-]{11}$/.test(exclude) ? exclude : null,
+        },
+        limit,
+      );
+      return {
+        results: items.map((item) => ({
+          id: item.id.startsWith('yt_') ? item.id.slice(3) : item.id,
+          title: item.title,
+          artist: item.artist,
+          thumbnail: item.thumbnail,
+          duration: item.duration,
+          url: item.url,
+        })),
+      };
     },
   );
 }

@@ -109,34 +109,6 @@ export async function extractAudio(videoId: string): Promise<ResolvedStream | nu
   };
 }
 
-/**
- * First YouTube Music result for a free-text song query. Used only when the
- * caller has no video id yet (a Spotify track that was never matched).
- */
-export async function searchVideoId(query: string): Promise<string | null> {
-  const trimmed = query.trim().slice(0, 160);
-  if (!trimmed) return null;
-
-  const result = await runYtDlp(
-    [
-      '--flat-playlist',
-      '--no-warnings',
-      '--no-progress',
-      '--socket-timeout',
-      '12',
-      '--print',
-      '%(id)s',
-      '-I',
-      '1:1',
-      `ytsearch1:${trimmed}`,
-    ],
-    25_000,
-  );
-
-  const id = result?.stdout.trim().split(/\r?\n/)[0]?.trim() ?? '';
-  return /^[\w-]{11}$/.test(id) ? id : null;
-}
-
 /** HEAD probe used when a cached URL has to be validated before serving. */
 export async function probeAudio(url: string): Promise<boolean> {
   try {
@@ -149,4 +121,67 @@ export async function probeAudio(url: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export type VideoCandidate = {
+  id: string;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  thumbnail: string;
+  url: string;
+};
+
+/**
+ * Raw YouTube search candidates.
+ *
+ * Callers score them (searchQuality) before choosing, because the first raw hit
+ * for "artist song" is very often a karaoke backing track or a reaction video.
+ * Returns [] instead of throwing so a provider failure degrades a page instead of
+ * breaking a request.
+ */
+export async function searchVideoCandidates(query: string, limit = 10): Promise<VideoCandidate[]> {
+  const trimmed = query.trim().slice(0, 160);
+  if (!trimmed) return [];
+  const fetchCount = Math.min(Math.max(limit * 3, 10), 40);
+  const result = await runYtDlp(
+    [
+      '--flat-playlist',
+      '--dump-json',
+      '--no-warnings',
+      '--no-progress',
+      '--no-playlist',
+      '--socket-timeout',
+      '12',
+      `ytsearch${fetchCount}:${trimmed}`,
+    ],
+    30_000,
+  );
+  if (!result) return [];
+  const out: VideoCandidate[] = [];
+  for (const line of result.stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line) as Record<string, unknown>;
+      const id = String(entry.id ?? '');
+      if (!/^[\w-]{11}$/.test(id)) continue;
+      out.push({
+        id,
+        title: String(entry.title ?? ''),
+        uploader: String(entry.uploader ?? entry.channel ?? ''),
+        duration: Number.isFinite(Number(entry.duration)) ? Number(entry.duration) : null,
+        thumbnail: String(entry.thumbnail ?? `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
+        url: `https://www.youtube.com/watch?v=${id}`,
+      });
+    } catch {
+      // A malformed line is skipped; the rest of the page still counts.
+    }
+  }
+  return out;
+}
+
+/** First YouTube Music result for a free-text song query (legacy callers). */
+export async function searchVideoId(query: string): Promise<string | null> {
+  const candidates = await searchVideoCandidates(query, 1);
+  return candidates[0]?.id ?? null;
 }

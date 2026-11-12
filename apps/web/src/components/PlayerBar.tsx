@@ -39,6 +39,7 @@ export function PlayerBar() {
   const repeat = usePlayer((state) => state.repeat);
   const queueOpen = usePlayer((state) => state.queueOpen);
   const sleepTimer = usePlayer((state) => state.sleepTimer);
+  const playbackError = usePlayer((state) => state.error);
 
   const toggle = usePlayer((state) => state.toggle);
   const next = usePlayer((state) => state.next);
@@ -302,6 +303,24 @@ export function PlayerBar() {
           />
         </div>
       </div>
+
+      {playbackError && current ? (
+        <div className="player-error" role="status">
+          <span className="player-error-text">{playbackError}</span>
+          <button
+            type="button"
+            className="button ghost compact"
+            onClick={() => usePlayer.getState().playFrom(current, currentTime)}
+          >
+            {t('Yeniden dene', 'Retry')}
+          </button>
+          {queue.length > 1 || usePlayer.getState().index < queue.length - 1 ? (
+            <button type="button" className="button ghost compact" onClick={next}>
+              {t('Sonrakini dene', 'Try next')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
 
     {expanded && current ? (

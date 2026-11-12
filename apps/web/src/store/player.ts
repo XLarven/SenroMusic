@@ -21,6 +21,7 @@ type PlayerState = {
   queueOpen: boolean;
   error: string | null;
   sleepTimer: number | null;
+  roomMode: boolean;
 
   playTrack: (track: Track, sourceTracks?: Track[]) => void;
   playFrom: (track: Track, startTime: number, sourceTracks?: Track[]) => void;
@@ -41,6 +42,8 @@ type PlayerState = {
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   handleEnded: () => void;
+  prefetchRelated: () => void;
+  setRoomMode: (active: boolean) => void;
   restoreSession: () => void;
 };
 
@@ -162,6 +165,15 @@ function attachAudioListeners(): void {
         .recordPlay(state.current.id, Math.round(element.currentTime * 1000), source)
         .catch(() => undefined);
     }
+    // Rolling autoplay: queue the next related track before this one ends.
+    if (
+      Number.isFinite(element.duration) &&
+      element.duration > 0 &&
+      element.duration - element.currentTime < 25 &&
+      state.playing
+    ) {
+      usePlayer.getState().prefetchRelated();
+    }
   });
   element.addEventListener('durationchange', () => {
     if (Number.isFinite(element.duration)) update({ duration: element.duration });
@@ -215,6 +227,9 @@ function playElement(): void {
 // Autoplay support: when the queue runs out, ask the server for songs similar to
 // the last track and append them. Guards against repeats and failure loops.
 let autoplayInFlight = false;
+/** Prefetch bookkeeping: one request per track, and a hard stop after success. */
+let prefetchingFor: string | null = null;
+let lastPrefetchedFor: string | null = null;
 
 async function extendWithSimilar(get: () => PlayerState): Promise<void> {
   if (autoplayInFlight) return;
@@ -284,6 +299,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   queueOpen: false,
   error: null,
   sleepTimer: null,
+  roomMode: false,
 
   playTrack: (track, sourceTracks) => {
     const queue = sourceTracks && sourceTracks.length > 0 ? sourceTracks : [track];
@@ -542,6 +558,67 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     }
     get().playAt(nextIndex);
   },
+
+  /**
+   * Rolling recommendations: while the last queued track is still playing, ask the
+   * server for similar real tracks and append them. Never touches the current
+   * track, never runs in a listening room, and stops when playback stops.
+   */
+  prefetchRelated: () => {
+    const state = get();
+    if (state.roomMode) return;
+    if (!state.current || !state.playing) return;
+    if (state.repeat === 'one') return;
+    if (localStorage.getItem('Norie.autoplay') !== 'true') return;
+    // Only when the queue has nothing else waiting.
+    if (state.index < state.queue.length - 1) return;
+    if (prefetchingFor === state.current.id || lastPrefetchedFor === state.current.id) return;
+
+    const seed = state.current;
+    prefetchingFor = seed.id;
+    const exclude = seed.id.startsWith('yt_') ? seed.id.slice(3) : undefined;
+    void api
+      .discoverySimilar({ title: seed.title, artist: seed.artist, exclude, limit: 5 })
+      .then((payload) => {
+        const current = usePlayer.getState();
+        if (current.current?.id !== seed.id) return;
+        const existing = new Set(current.queue.map((track) => track.id));
+        const additions: Track[] = (payload.items ?? [])
+          .filter((item) => item.id && !existing.has(item.id))
+          .map((item) => {
+            const videoId = item.id.startsWith('yt_') ? item.id.slice(3) : item.id;
+            return {
+              id: item.id,
+              title: item.title,
+              artist: item.artist,
+              album: 'YouTube',
+              albumArtist: item.artist,
+              genre: null,
+              year: null,
+              trackNo: null,
+              discNo: null,
+              duration: item.duration ?? 0,
+              bitrate: null,
+              sampleRate: null,
+              channels: null,
+              format: 'youtube',
+              size: 0,
+              coverUrl: item.thumbnail,
+              streamUrl: `youtube:${videoId}`,
+              addedAt: new Date().toISOString(),
+            };
+          });
+        if (additions.length === 0) return;
+        usePlayer.setState({ queue: [...current.queue, ...additions] });
+        lastPrefetchedFor = seed.id;
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        prefetchingFor = null;
+      });
+  },
+
+  setRoomMode: (active) => set({ roomMode: active }),
 
   restoreSession: () => {
     const saved = loadSession();

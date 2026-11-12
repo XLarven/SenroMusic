@@ -145,8 +145,10 @@ export function RoomPage() {
     void load(params.get('code') ?? undefined);
     // The room owns playback while it is open, so the global bar is redundant.
     document.body.classList.add('room-mode');
+    usePlayer.getState().setRoomMode(true);
     return () => {
       document.body.classList.remove('room-mode');
+      usePlayer.getState().setRoomMode(false);
       endRoomSync();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

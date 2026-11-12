@@ -5,6 +5,7 @@ import { ArrowRight, Clock3, HardDrive, Heart, Play, Search, Upload } from 'luci
 import clsx from 'clsx';
 import { api } from '../api';
 import { AlbumCard } from '../components/AlbumCard';
+import { DiscoveryFeed } from '../features/discovery/DiscoveryFeed';
 import { Cover } from '../components/Cover';
 import { EmptyState } from '../components/EmptyState';
 import { PlayButton } from '../components/PlayButton';
@@ -212,6 +213,8 @@ export function HomePage() {
             </div>
           ) : null}
         </section>
+
+          <DiscoveryFeed />
 
           <section className="content-section home-quick" aria-label="Hızlı erişim">
             <div className="section-heading">

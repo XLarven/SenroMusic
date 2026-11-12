@@ -7,6 +7,7 @@ import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
 import { rateLimit } from '../ratelimit.js';
 import { scanLibrary } from '../scanner.js';
+import { findSimilarTracks } from '../audio/similar.js';
 import { artistOf, rankCandidates } from '../searchQuality.js';
 
 const execFileAsync = promisify(execFile);

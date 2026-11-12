@@ -25,6 +25,7 @@ import { presenceRoutes, sweepPresence } from './routes/presence.js';
 import { tasteRoutes } from './routes/taste.js';
 import { roomsRoutes } from './routes/rooms.js';
 import { quizRoutes } from './routes/quiz.js';
+import { discoveryRoutes } from './routes/discovery.js';
 import { communityRoutes } from './routes/community.js';
 import { closeDueRounds } from './quiz.js';
 import { ensureMembershipForAll } from './community.js';
@@ -106,6 +107,7 @@ export async function buildServer() {
   await app.register(tasteRoutes);
   await app.register(roomsRoutes);
   await app.register(quizRoutes);
+  await app.register(discoveryRoutes);
   await app.register(communityRoutes);
 
   if (existsSync(paths.webIndex)) {
