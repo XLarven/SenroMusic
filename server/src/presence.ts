@@ -100,7 +100,18 @@ export type RealtimeEvent =
   | { type: 'room_members'; roomId: string; members: RoomMember[]; at: string }
   | { type: 'room_chat'; roomId: string; message: RoomChatMessage; at: string }
   | { type: 'room_invite'; room: RoomSummary; at: string }
-  | { type: 'room_closed'; roomId: string; reason: string; at: string };
+  | { type: 'room_closed'; roomId: string; reason: string; at: string }
+  | {
+      type: 'quiz_party';
+      partyId: string;
+      event: string;
+      at: string;
+      roundNo?: number;
+      endsAt?: string;
+      userId?: string;
+      result?: { title: string; artist: string; coverUrl: string | null } | null;
+      podium?: unknown;
+    };
 
 export type RoomTrack = {
   id: string;

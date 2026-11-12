@@ -349,6 +349,137 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 10,
+    name: 'music quiz',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS quiz_tracks (
+          track_id TEXT PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          artist TEXT NOT NULL,
+          language TEXT NOT NULL DEFAULT 'intl',
+          duration REAL NOT NULL DEFAULT 0,
+          active INTEGER NOT NULL DEFAULT 1,
+          synced_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_quiz_tracks_lang ON quiz_tracks(language, active);
+
+        CREATE TABLE IF NOT EXISTS quiz_challenges (
+          id TEXT PRIMARY KEY,
+          day TEXT NOT NULL,
+          category TEXT NOT NULL,
+          track_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE (day, category)
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_attempts (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          mode TEXT NOT NULL,
+          category TEXT NOT NULL,
+          challenge_id TEXT,
+          party_id TEXT,
+          track_id TEXT NOT NULL,
+          preview_start REAL NOT NULL,
+          stage INTEGER NOT NULL DEFAULT 0,
+          guesses INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'active',
+          score INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT,
+          UNIQUE (user_id, challenge_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user ON quiz_attempts(user_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS quiz_guesses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          attempt_id TEXT NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+          stage INTEGER NOT NULL,
+          guess TEXT NOT NULL,
+          normalized TEXT NOT NULL,
+          correct INTEGER NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_daily_results (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          day TEXT NOT NULL,
+          category TEXT NOT NULL,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          attempt_id TEXT NOT NULL UNIQUE REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+          score INTEGER NOT NULL DEFAULT 0,
+          correct INTEGER NOT NULL DEFAULT 0,
+          preview_seconds REAL,
+          created_at TEXT NOT NULL,
+          UNIQUE (user_id, day, category)
+        );
+        CREATE INDEX IF NOT EXISTS idx_quiz_results_day ON quiz_daily_results(day, score DESC);
+
+        CREATE TABLE IF NOT EXISTS quiz_streaks (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          current INTEGER NOT NULL DEFAULT 0,
+          best INTEGER NOT NULL DEFAULT 0,
+          last_day TEXT,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_parties (
+          id TEXT PRIMARY KEY,
+          host_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          category TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open',
+          round_no INTEGER NOT NULL DEFAULT 0,
+          round_started_at TEXT,
+          round_ends_at TEXT,
+          code TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          closed_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_party_members (
+          party_id TEXT NOT NULL REFERENCES quiz_parties(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          score INTEGER NOT NULL DEFAULT 0,
+          joined_at TEXT NOT NULL,
+          PRIMARY KEY (party_id, user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_party_rounds (
+          party_id TEXT NOT NULL REFERENCES quiz_parties(id) ON DELETE CASCADE,
+          round_no INTEGER NOT NULL,
+          track_id TEXT NOT NULL,
+          preview_start REAL NOT NULL,
+          started_at TEXT NOT NULL,
+          ends_at TEXT NOT NULL,
+          revealed_at TEXT,
+          PRIMARY KEY (party_id, round_no)
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_party_answers (
+          party_id TEXT NOT NULL,
+          round_no INTEGER NOT NULL,
+          user_id TEXT NOT NULL,
+          guess_no INTEGER NOT NULL,
+          value TEXT NOT NULL,
+          correct INTEGER NOT NULL DEFAULT 0,
+          points INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (party_id, round_no, user_id, guess_no)
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_party_invites (
+          party_id TEXT NOT NULL REFERENCES quiz_parties(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          invited_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (party_id, user_id)
+        );
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

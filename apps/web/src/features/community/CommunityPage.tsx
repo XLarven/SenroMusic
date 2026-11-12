@@ -19,6 +19,7 @@ import { ListeningNow } from './ListeningNow';
 import { MessagesPanel } from './MessagesPanel';
 import { TasteMatchPanel } from './TasteMatchPanel';
 import { ListeningRoomsPanel } from './ListeningRoomsPanel';
+import { QuizTeaserPanel } from './QuizTeaserPanel';
 import { t } from '../../lib/i18n';
 
 /**
@@ -153,15 +154,10 @@ export function CommunityPage() {
             'Günün şarkısı, alıştırma ve arkadaşlarla yarış.',
             'Daily song, practice and playing with friends.',
           )}
-          bullets={[
-            t('Günün şarkısı', 'Daily song'),
-            t('Alıştırma modu', 'Practice mode'),
-            t('Liderlik tablosu', 'Leaderboard'),
-            t('Arkadaşlarla oyna', 'Play with friends'),
-          ]}
-          comingSoon
           className="community-card-wide"
-        />
+        >
+          <QuizTeaserPanel />
+        </CommunitySection>
       </div>
 
       <section className="panel community-note" aria-label={t('Yol haritası', 'Roadmap')}>

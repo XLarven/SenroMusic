@@ -338,7 +338,18 @@ export type RealtimeEvent =
   | { type: 'room_members'; roomId: string; members: RoomMember[]; at: string }
   | { type: 'room_chat'; roomId: string; message: RoomChatMessage; at: string }
   | { type: 'room_invite'; room: RoomSummary; at: string }
-  | { type: 'room_closed'; roomId: string; reason: string; at: string };
+  | { type: 'room_closed'; roomId: string; reason: string; at: string }
+  | {
+      type: 'quiz_party';
+      partyId: string;
+      event: string;
+      at: string;
+      roundNo?: number;
+      endsAt?: string;
+      userId?: string;
+      result?: { title: string; artist: string; coverUrl: string | null } | null;
+      podium?: unknown;
+    };
 
 export type RoomTrack = {
   id: string;
@@ -408,6 +419,95 @@ export type RoomDetail = {
   canControl: boolean;
   canEditQueue: boolean;
   joinCode?: string | null;
+};
+
+export type QuizCategory = 'tr' | 'intl' | 'mixed';
+
+export type QuizResult = {
+  title: string;
+  artist: string;
+  coverUrl: string | null;
+};
+
+export type QuizAttempt = {
+  attemptId: string;
+  mode: 'daily' | 'practice';
+  category: QuizCategory;
+  stage: number;
+  stageCount: number;
+  guesses: number;
+  attemptsLeft: number;
+  possiblePoints: number;
+  previewDuration: number;
+  previewUrl: string | null;
+  status: 'active' | 'won' | 'lost';
+  score: number;
+  startedAt: string;
+  result: QuizResult | null;
+  day?: string;
+  resetsAt?: string;
+  timezone?: string;
+};
+
+export type QuizGuessResponse =
+  | { ok: true; kind: 'correct'; points: number; view: QuizAttempt }
+  | { ok: true; kind: 'wrong'; view: QuizAttempt }
+  | { ok: true; kind: 'ambiguous' | 'invalid'; message: string; view: QuizAttempt };
+
+export type QuizLeaderboardRow = {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  points: number;
+  correct: number;
+  averagePreviewSeconds: number | null;
+  streak: number;
+  rank: number;
+};
+
+export type QuizStats = {
+  totalCorrect: number;
+  totalPoints: number;
+  averagePreviewSeconds: number | null;
+  currentStreak: number;
+  bestStreak: number;
+  dailyPlayed: number;
+  achievements: Array<{ key: string; unlocked: boolean }>;
+};
+
+export type QuizHistoryEntry = {
+  day: string;
+  category: string;
+  score: number;
+  correct: boolean;
+  previewSeconds: number | null;
+  title: string;
+  artist: string;
+};
+
+export type QuizPartyMember = {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  score: number;
+};
+
+export type QuizPartyState = {
+  id: string;
+  hostId: string;
+  category: QuizCategory;
+  status: 'open' | 'playing' | 'finished';
+  roundNo: number;
+  roundStartedAt: string | null;
+  roundEndsAt: string | null;
+  members: QuizPartyMember[];
+  reveal: (QuizResult & { roundNo: number }) | null;
+  yourAnswers: number;
+  yourScore: number;
+  code: string;
+  finished: boolean;
 };
 
 export type TasteTag = { name: string; plays: number };

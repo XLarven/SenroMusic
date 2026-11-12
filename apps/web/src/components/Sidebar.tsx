@@ -13,6 +13,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Trophy,
   Users,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { to: '/library', labelTr: 'Kütüphane', labelEn: 'Library', icon: LibraryBig, end: false },
   { to: '/community', labelTr: 'Topluluk', labelEn: 'Community', icon: Users, end: false },
   { to: '/rooms', labelTr: 'Birlikte Dinle', labelEn: 'Listening Rooms', icon: Radio, end: false },
+  { to: '/quiz', labelTr: 'Müzik Yarışması', labelEn: 'Music Quiz', icon: Trophy, end: false },
   { to: '/favorites', labelTr: 'Favoriler', labelEn: 'Favorites', icon: Heart, end: false },
   { to: '/notifications', labelTr: 'Bildirimler', labelEn: 'Notifications', icon: Bell, end: false },
 ];

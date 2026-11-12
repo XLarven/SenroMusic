@@ -24,6 +24,8 @@ import { messagesRoutes } from './routes/messages.js';
 import { presenceRoutes, sweepPresence } from './routes/presence.js';
 import { tasteRoutes } from './routes/taste.js';
 import { roomsRoutes } from './routes/rooms.js';
+import { quizRoutes } from './routes/quiz.js';
+import { closeDueRounds } from './quiz.js';
 import { getDb } from './db.js';
 import { presenceStore } from './presence.js';
 import { sweepRooms } from './rooms.js';
@@ -101,6 +103,7 @@ export async function buildServer() {
   await app.register(messagesRoutes);
   await app.register(tasteRoutes);
   await app.register(roomsRoutes);
+  await app.register(quizRoutes);
 
   if (existsSync(paths.webIndex)) {
     await app.register(fastifyStatic, {
@@ -160,6 +163,16 @@ async function main(): Promise<void> {
     }
   }, 30_000);
   roomSweeper.unref?.();
+
+  // Quiz parties: close rounds whose time is up and publish the reveal.
+  const quizSweeper = setInterval(() => {
+    try {
+      closeDueRounds(getDb(), Date.now());
+    } catch (error) {
+      app.log.error({ err: error }, 'quiz round sweep failed');
+    }
+  }, 5_000);
+  quizSweeper.unref?.();
 
   if (config.scanOnStart) {
     void scanLibrary()

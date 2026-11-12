@@ -39,6 +39,13 @@ import type {
   RoomMember,
   RoomChatMessage,
   RoomTrack,
+  QuizAttempt,
+  QuizCategory,
+  QuizGuessResponse,
+  QuizHistoryEntry,
+  QuizLeaderboardRow,
+  QuizPartyState,
+  QuizStats,
 } from './types';
 import { getServerUrl } from './lib/serverUrl';
 
@@ -502,6 +509,65 @@ export const api = {
       `/api/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}`,
       { method: 'DELETE' },
     ),
+  quizPool: () =>
+    request<{ size: number; turkish: number; international: number; previewStages: number[]; previewAvailable: boolean }>(
+      '/api/quiz/pool',
+    ),
+  quizDaily: (category: QuizCategory) => request<QuizAttempt>(`/api/quiz/daily?category=${category}`),
+  quizHistory: () =>
+    request<{ items: QuizHistoryEntry[]; stats: QuizStats }>('/api/quiz/daily/history'),
+  quizPractice: (category: QuizCategory, fresh = false) =>
+    request<QuizAttempt>(`/api/quiz/practice?category=${category}${fresh ? '&fresh=1' : ''}`),
+  quizGuess: (attemptId: string, guess: string) =>
+    request<QuizGuessResponse>('/api/quiz/guess', { method: 'POST', body: { attemptId, guess } }),
+  quizSkip: (attemptId: string) =>
+    request<QuizGuessResponse>('/api/quiz/skip', { method: 'POST', body: { attemptId } }),
+  quizSuggest: (q: string) =>
+    request<{ suggestions: string[] }>(`/api/quiz/suggest?q=${encodeURIComponent(q)}`),
+  quizLeaderboard: (range: 'daily' | 'weekly' | 'monthly' | 'all' | 'friends') =>
+    request<{ range: string; rows: QuizLeaderboardRow[] }>(`/api/quiz/leaderboard?range=${range}`),
+  quizStats: (userId: string) =>
+    request<{ userId: string; stats: QuizStats }>(`/api/quiz/stats/${encodeURIComponent(userId)}`),
+  quizParties: () =>
+    request<{
+      invites: Array<{ id: string; hostId: string; category: string; code: string }>;
+      current: { id: string; hostId: string; status: string; roundNo: number } | null;
+    }>('/api/quiz/parties'),
+  quizCreateParty: (category: QuizCategory) =>
+    request<{ id: string; code: string }>('/api/quiz/parties', { method: 'POST', body: { category } }),
+  quizJoinParty: (partyId: string, code?: string | null) =>
+    request<{ ok: boolean }>(`/api/quiz/parties/${encodeURIComponent(partyId)}/join`, {
+      method: 'POST',
+      body: code ? { code } : {},
+    }),
+  quizJoinPartyByCode: (code: string) =>
+    request<{ id: string }>('/api/quiz/parties/join', { method: 'POST', body: { code } }),
+  quizParty: (partyId: string) =>
+    request<{ state: QuizPartyState; rounds: number; serverNow: string }>(
+      `/api/quiz/parties/${encodeURIComponent(partyId)}`,
+    ),
+  quizInviteParty: (partyId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/quiz/parties/${encodeURIComponent(partyId)}/invite`, {
+      method: 'POST',
+      body: { userId },
+    }),
+  quizStartPartyRound: (partyId: string) =>
+    request<{ ok: boolean; roundNo: number }>(`/api/quiz/parties/${encodeURIComponent(partyId)}/start`, {
+      method: 'POST',
+      body: {},
+    }),
+  quizNextPartyRound: (partyId: string) =>
+    request<{ ok: boolean; roundNo: number }>(`/api/quiz/parties/${encodeURIComponent(partyId)}/next`, {
+      method: 'POST',
+      body: {},
+    }),
+  quizPartyPreview: (partyId: string) =>
+    request<{ url: string; duration: number }>(`/api/quiz/parties/${encodeURIComponent(partyId)}/preview`),
+  quizPartyAnswer: (partyId: string, guess: string) =>
+    request<
+      | { ok: true; kind: 'correct'; points: number; answered: number }
+      | { ok: true; kind: 'wrong' | 'ambiguous' | 'invalid'; message?: string; answered: number }
+    >(`/api/quiz/parties/${encodeURIComponent(partyId)}/answer`, { method: 'POST', body: { guess } }),
   friends: (limit = 20, offset = 0) =>
     request<{ friends: FriendListPage; counts: FriendCounts }>(`/api/friends?limit=${limit}&offset=${offset}`),
   friendRequests: (direction: 'in' | 'out', limit = 20, offset = 0) =>

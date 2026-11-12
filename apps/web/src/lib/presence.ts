@@ -142,6 +142,7 @@ const REALTIME_TYPES = [
   'room_chat',
   'room_invite',
   'room_closed',
+  'quiz_party',
 ] as const;
 
 function ensureStream(): void {
