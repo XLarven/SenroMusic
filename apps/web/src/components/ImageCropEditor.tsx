@@ -20,6 +20,7 @@ const STRINGS = {
     cancel: 'İptal',
     save: 'Kaydet',
     hint: 'Sürükleyerek konumlandır · fare tekerleği veya iki parmakla yakınlaştır',
+    error: 'Görsel açılamadı. JPEG, PNG veya WebP seç.',
   },
   en: {
     zoom: 'Zoom',
@@ -28,6 +29,7 @@ const STRINGS = {
     cancel: 'Cancel',
     save: 'Save Image',
     hint: 'Drag to reposition · mouse wheel or pinch to zoom',
+    error: 'The image could not be opened. Pick a JPEG, PNG or WebP file.',
   },
 };
 
@@ -44,9 +46,15 @@ export function ImageCropEditor({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
+  // The parent passes inline arrow functions. Keeping them in refs stops the
+  // image-loading effect from re-running on every render (that loop reloaded the
+  // picture forever and made the editor unusable).
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const strings = STRINGS[getAppLanguage()] ?? STRINGS.tr;
 
   const draw = useCallback(() => {
@@ -67,6 +75,8 @@ export function ImageCropEditor({
 
   useEffect(() => {
     let cancelled = false;
+    setReady(false);
+    setFailed(false);
     const image = new Image();
     image.onload = () => {
       if (cancelled) return;
@@ -76,13 +86,13 @@ export function ImageCropEditor({
       setReady(true);
     };
     image.onerror = () => {
-      if (!cancelled) onCancel();
+      if (!cancelled) setFailed(true);
     };
     image.src = imageUrl;
     return () => {
       cancelled = true;
     };
-  }, [imageUrl, onCancel]);
+  }, [imageUrl]);
 
   useEffect(() => {
     if (ready) draw();
@@ -194,6 +204,14 @@ export function ImageCropEditor({
           aria-label={strings.reposition}
         />
         {shape === 'circle' ? <div className="image-editor-circle-mask" aria-hidden="true" /> : null}
+        {failed ? (
+          <div className="image-editor-error">
+            <span>{strings.error}</span>
+            <button type="button" className="button ghost compact" onClick={() => onCancelRef.current()}>
+              {strings.cancel}
+            </button>
+          </div>
+        ) : null}
       </div>
       <p className="settings-hint">{strings.hint}</p>
       <div className="image-editor-controls">

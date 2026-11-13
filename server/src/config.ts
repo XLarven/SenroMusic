@@ -101,7 +101,7 @@ export const config = {
   scanOnStart: envFlag('SCAN_ON_START', true),
   maxScanFiles: envInt('MAX_SCAN_FILES', 50_000),
   maxPlaylistsPerAccount: envInt('MAX_PLAYLISTS_PER_ACCOUNT', 1000),
-  maxPlaylistTracks: envInt('MAX_PLAYLIST_TRACKS', 10_000),
+  maxPlaylistTracks: envInt('MAX_PLAYLIST_TRACKS', 1000),
   serverRoot,
   projectRoot,
 } as const;
@@ -109,12 +109,13 @@ export const config = {
 export const paths = {
   db: resolve(config.dataDir, 'library.db'),
   covers: resolve(config.dataDir, 'covers'),
+  uploads: resolve(config.dataDir, 'uploads'),
   webIndex: resolve(config.webDist, 'index.html'),
   webAssets: config.webDist,
 } as const;
 
 export function ensureRuntimeDirs(): void {
-  for (const dir of [config.dataDir, paths.covers]) {
+  for (const dir of [config.dataDir, paths.covers, paths.uploads]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
 }

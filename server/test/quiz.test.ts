@@ -24,6 +24,7 @@ import {
   partyState,
   pickStart,
   pickTrack,
+  poolSize,
   quizDay,
   quizStats,
   shiftDay,
@@ -62,7 +63,8 @@ function makeDb() {
     );
     CREATE TABLE quiz_tracks (
       track_id TEXT PRIMARY KEY, title TEXT NOT NULL, artist TEXT NOT NULL,
-      language TEXT NOT NULL DEFAULT 'intl', duration REAL NOT NULL DEFAULT 0,
+      language TEXT NOT NULL DEFAULT 'intl', language_source TEXT NOT NULL DEFAULT 'unknown',
+      duration REAL NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1, synced_at TEXT NOT NULL
     );
     CREATE TABLE quiz_challenges (
@@ -127,14 +129,16 @@ function makeDb() {
   ).run(USER_A, USER_B, [USER_A, USER_B].sort().join(':'));
 
   const insertTrack = db.prepare(
-    `INSERT INTO quiz_tracks (track_id, title, artist, language, duration, active, synced_at)
-     VALUES (?, ?, ?, ?, ?, 1, '2026-01-01')`,
+    `INSERT INTO quiz_tracks (track_id, title, artist, language, language_source, duration, active, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, '2026-01-01')`,
   );
-  insertTrack.run('t_aaa111', 'Kesariya', 'Arijit Singh', 'intl', 200);
-  insertTrack.run('t_bbb222', 'Tum Hi Ho', 'Arijit Singh', 'intl', 210);
-  insertTrack.run('t_ccc333', 'Nereden Bileceksiniz', 'Ahmet Kaya', 'tr', 240);
-  insertTrack.run('t_ddd444', 'Midnight Drive', 'Nova Lane', 'intl', 180);
-  insertTrack.run('t_eee555', 'Golden Hour', 'Mira Sol', 'intl', 190);
+  // language_source = 'script' marks a metadata-verified row; 'unknown' rows are
+  // deliberately excluded from the Turkish/International pools.
+  insertTrack.run('t_aaa111', 'Kesariya', 'Arijit Singh', 'intl', 'script', 200);
+  insertTrack.run('t_bbb222', 'Tum Hi Ho', 'Arijit Singh', 'intl', 'script', 210);
+  insertTrack.run('t_ccc333', 'Nereden Bileceksiniz', 'Ahmet Kaya', 'tr', 'script', 240);
+  insertTrack.run('t_ddd444', 'Midnight Drive', 'Nova Lane', 'intl', 'script', 180);
+  insertTrack.run('t_eee555', 'Golden Hour', 'Mira Sol', 'intl', 'script', 190);
   return db;
 }
 
@@ -299,6 +303,33 @@ test('preview starts always leave room for the longest clip', () => {
       assert.ok(start + 16 <= duration + 0.001, `${start} + 16 > ${duration}`);
     }
   }
+});
+
+test('language categories only use verified metadata', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'norie-quiz-lang-'));
+  const file = join(dir, 'song.wav');
+  writeFileSync(file, 'x');
+  const db = makeDb();
+  db.prepare('DELETE FROM quiz_tracks').run();
+  const insert = db.prepare('INSERT INTO tracks (id, title, artist, duration, path) VALUES (?, ?, ?, 150, ?)');
+  insert.run('t_tr', 'Şımarık', 'Tarkan', file);
+  insert.run('t_intl', 'Blinding Lights', 'The Weeknd', file);
+  insert.run('t_cyr', 'Звезда по имени Солнце', 'Кино', file);
+
+  syncQuizPool(db);
+  const rows = db
+    .prepare('SELECT track_id, language, language_source FROM quiz_tracks ORDER BY track_id')
+    .all() as Array<{ track_id: string; language: string; language_source: string }>;
+  assert.equal(rows.find((row) => row.track_id === 't_tr')?.language, 'tr');
+  assert.equal(rows.find((row) => row.track_id === 't_tr')?.language_source, 'script');
+  assert.equal(rows.find((row) => row.track_id === 't_intl')?.language, 'intl');
+  assert.equal(rows.find((row) => row.track_id === 't_cyr')?.language, 'unknown');
+  assert.equal(rows.find((row) => row.track_id === 't_cyr')?.language_source, 'unknown');
+
+  // Unknown-script rows stay out of both language pools but remain in mixed.
+  assert.equal(poolSize(db, 'tr'), 1);
+  assert.equal(poolSize(db, 'intl'), 1);
+  assert.equal(poolSize(db, 'mixed'), 3);
 });
 
 test('the pool only holds tracks with a long enough local file', () => {

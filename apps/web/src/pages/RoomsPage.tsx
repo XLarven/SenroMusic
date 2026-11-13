@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Headphones, Loader2, Lock, Plus, Radio, Users } from 'lucide-react';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { Cover } from '../components/Cover';
 import { EmptyState } from '../components/EmptyState';
 import { t } from '../lib/i18n';
 import { subscribeRealtime } from '../lib/presence';
+import { JoinRoomDialog } from '../features/rooms/JoinRoomDialog';
 import { useToastStore } from '../store/toast';
 
 /**
@@ -20,6 +21,8 @@ export function RoomsPage() {
   const [name, setName] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [queueMode, setQueueMode] = useState<'owner' | 'collab'>('owner');
+  const [pendingJoin, setPendingJoin] = useState<{ roomId: string; roomName: string; fromRoomId: string } | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: () => api.rooms(), staleTime: 15_000 });
 
@@ -50,8 +53,17 @@ export function RoomsPage() {
       await queryClient.invalidateQueries({ queryKey: ['rooms'] });
       navigate(`/rooms/${roomId}`);
     },
-    onError: (error) =>
-      pushToast(error instanceof Error ? error.message : t('Odaya katılınamadı.', 'Could not join the room.'), 'error'),
+    onError: (error, roomId) => {
+      if (error instanceof ApiError && error.code === 'already_in_room') {
+        setPendingJoin({
+          roomId,
+          roomName: typeof error.details.roomName === 'string' ? error.details.roomName : '',
+          fromRoomId: typeof error.details.roomId === 'string' ? error.details.roomId : '',
+        });
+        return;
+      }
+      pushToast(error instanceof Error ? error.message : t('Odaya katılınamadı.', 'Could not join the room.'), 'error');
+    },
   });
 
   const sections = rooms.data;
@@ -68,6 +80,32 @@ export function RoomsPage() {
           )}
         </p>
       </header>
+
+      {pendingJoin ? (
+        <JoinRoomDialog
+          roomName={pendingJoin.roomName}
+          busy={switching}
+          onCancel={() => setPendingJoin(null)}
+          onConfirm={() =>
+            void (async () => {
+              setSwitching(true);
+              try {
+                if (pendingJoin.fromRoomId) await api.leaveRoom(pendingJoin.fromRoomId);
+                await api.joinRoom(pendingJoin.roomId);
+                await queryClient.invalidateQueries({ queryKey: ['rooms'] });
+                setPendingJoin(null);
+                navigate(`/rooms/${pendingJoin.roomId}`);
+              } catch (error) {
+                // Leaving succeeded but the new join failed: stay on the list, the
+                // user is not stranded inside a half-joined room.
+                pushToast(error instanceof Error ? error.message : t('Yeni odaya katılınamadı.', 'Could not join the new room.'), 'error');
+              } finally {
+                setSwitching(false);
+              }
+            })()
+          }
+        />
+      ) : null}
 
       <section className="content-section" aria-label={t('Oda aç', 'Create room')}>
         <div className="section-heading">

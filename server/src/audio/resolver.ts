@@ -60,6 +60,18 @@ export function invalidateUrl(url: string): void {
   }
 }
 
+/**
+ * Forget one request entirely (positive cache, in-flight entry and the negative
+ * marker). A retry from the player passes `fresh=1` and must not be answered
+ * with the same dead URL or the 60 s failure memory.
+ */
+export function forgetRequest(request: StreamRequest): void {
+  const key = cacheKey(request);
+  cache.delete(key);
+  inflight.delete(key);
+  negative.delete(key);
+}
+
 function attemptsFor(request: StreamRequest): Attempt[] {
   const attempts: Attempt[] = [];
   const excluded = new Set(request.exclude ?? []);
@@ -108,7 +120,15 @@ function attemptsFor(request: StreamRequest): Attempt[] {
         // result is often karaoke or a reaction upload.
         const candidates = await searchVideoCandidates(query, 8);
         const ranked = rankCandidates(candidates, query, 4);
-        for (const candidate of ranked) {
+        // Extraction is the slow half (~3 s each). The two best candidates are
+        // extracted in parallel so a single dead upload does not double the wait.
+        const [best, second] = await Promise.all([
+          ranked[0] ? extractAudio(ranked[0].id).catch(() => null) : Promise.resolve(null),
+          ranked[1] ? extractAudio(ranked[1].id).catch(() => null) : Promise.resolve(null),
+        ]);
+        if (best) return best;
+        if (second) return second;
+        for (const candidate of ranked.slice(2)) {
           const stream = await extractAudio(candidate.id);
           if (stream) return stream;
         }
@@ -139,9 +159,44 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null
   }
 }
 
+/**
+ * Races independent providers and returns the first stream that resolves.
+ * Hedging removes the serial wait (a cold YouTube extraction often loses to
+ * JioSaavn by seconds) without reordering the configured chain.
+ */
+async function firstSuccess(tasks: Array<() => Promise<ResolvedStream | null>>): Promise<ResolvedStream | null> {
+  if (tasks.length === 0) return null;
+  return new Promise<ResolvedStream | null>((resolve) => {
+    let pending = tasks.length;
+    let settled = false;
+    for (const task of tasks) {
+      withTimeout(task(), ATTEMPT_TIMEOUT_MS)
+        .then((stream) => {
+          if (!settled && stream) {
+            settled = true;
+            resolve(stream);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          pending -= 1;
+          if (pending === 0 && !settled) resolve(null);
+        });
+    }
+  });
+}
+
 async function resolveUncached(request: StreamRequest): Promise<ResolvedStream | null> {
   const attempts = attemptsFor(request);
-  for (let index = 0; index < attempts.length; index += 1) {
+  // Hedge the first two providers; the rest run sequentially as fallbacks.
+  const hedgeCount = Math.min(attempts.length, 2);
+  const hedged = attempts.slice(0, hedgeCount);
+  const winner = await firstSuccess(hedged.map((attempt) => attempt.run));
+  if (winner) {
+    console.info('[audio] resolved via hedge ->', winner.label);
+    return winner;
+  }
+  for (let index = hedgeCount; index < attempts.length; index += 1) {
     const attempt = attempts[index]!;
     try {
       const stream = await withTimeout(attempt.run(), ATTEMPT_TIMEOUT_MS);
@@ -152,8 +207,6 @@ async function resolveUncached(request: StreamRequest): Promise<ResolvedStream |
     } catch (error) {
       console.warn('[audio] provider failed:', attempt.label, (error as Error).message.slice(0, 120));
     }
-    // Small bounded pause between providers: enough for a transient hiccup to
-    // clear, never a retry storm.
     if (index < attempts.length - 1) {
       await new Promise((resolve) => setTimeout(resolve, 150 * (index + 1)));
     }

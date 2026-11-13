@@ -231,7 +231,14 @@ export function sendCommunityMessage(
   }
 
   const id = `cm_${randomBytes(9).toString('hex')}`;
-  const at = new Date(now).toISOString();
+  // Timestamps are the pagination cursor, so two messages in the same millisecond
+  // must not share one: the older page would silently skip a message.
+  const lastAt = db
+    .prepare('SELECT created_at FROM community_messages ORDER BY created_at DESC, rowid DESC LIMIT 1')
+    .get() as { created_at: string } | undefined;
+  const previous = lastAt ? Date.parse(lastAt.created_at) : Number.NaN;
+  const stamp = Number.isFinite(previous) && previous >= now ? previous + 1 : now;
+  const at = new Date(stamp).toISOString();
   db.prepare(
     `INSERT INTO community_messages (id, user_id, body, client_id, attachment_json, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,

@@ -41,7 +41,7 @@ export function AddToPlaylistMenu({ track, className, label }: AddToPlaylistMenu
   };
 
   const addMutation = useMutation({
-    mutationFn: (playlistId: string) => api.addTrack(playlistId, track.id),
+    mutationFn: (playlistId: string) => api.addTrack(playlistId, track.id, track),
     onMutate: (playlistId) => setAddingTo(playlistId),
     onSuccess: async (_result, playlistId) => {
       await invalidatePlaylists();

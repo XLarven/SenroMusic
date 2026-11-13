@@ -169,6 +169,9 @@ function tick(): void {
     applyState(state, offsetMs);
     return;
   }
+  // The track already reached its end locally. Playing again here would restart
+  // the same song on every tick until the room promotes the next one.
+  if (player.duration > 0 && player.currentTime >= player.duration - 0.75 && !player.loading) return;
   if (state.playing && !player.playing) player.play();
   else if (!state.playing && player.playing) player.pause();
   else if (state.playing && !player.loading && Math.abs(player.currentTime - expected) > LISTENER_DRIFT_MS / 1000) {
@@ -199,6 +202,7 @@ export function beginRoomSync(detail: RoomDetail): void {
   applyState(detail.state, offsetMs);
   lastHostPosition = usePlayer.getState().currentTime;
   suppressUntil = Date.now() + 1_500;
+  usePlayer.setState({ roomControl: detail.canControl });
   startTimer();
 }
 
@@ -218,6 +222,7 @@ export function updateRoomSync(state: RoomState, serverNow?: string): void {
 
 export function setRoomControl(canControl: boolean): void {
   if (session) session.canControl = canControl;
+  usePlayer.setState({ roomControl: canControl });
 }
 
 export function endRoomSync(): void {

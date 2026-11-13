@@ -71,7 +71,10 @@ export function CommunityPage() {
     setParams(next, { replace: true });
   };
 
-  const showAside = section === 'chat' || section === 'friends';
+  const canViewDirectory = me.data?.canViewDirectory === true;
+  // A member who follows an old ?section=members link lands on chat instead.
+  const active = section === 'members' && me.data && !canViewDirectory ? 'chat' : section;
+  const showAside = canViewDirectory && (active === 'chat' || active === 'friends');
 
   return (
     <div className="page community-page community-workspace">
@@ -81,7 +84,9 @@ export function CommunityPage() {
           <h1>{me.data?.name ?? 'NorieMusic Community'}</h1>
           <p>
             {me.data
-              ? t(`${me.data.memberCount} üye · tek resmî sunucu`, `${me.data.memberCount} members · one official server`)
+              ? me.data.memberCount !== null
+                ? t(`${me.data.memberCount} üye · tek resmî sunucu`, `${me.data.memberCount} members · one official server`)
+                : t('Tek resmî sunucu · genel sohbet', 'One official server · general chat')
               : t('Resmî topluluk yükleniyor…', 'Loading the official community…')}
           </p>
         </div>
@@ -94,13 +99,13 @@ export function CommunityPage() {
 
       <div className="community-shell">
         <nav className="community-rail" aria-label={t('Topluluk bölümleri', 'Community sections')}>
-          {SECTIONS.map(({ key, icon: Icon, tr, en }) => (
+          {SECTIONS.filter((entry) => entry.key !== 'members' || canViewDirectory).map(({ key, icon: Icon, tr, en }) => (
             <button
               key={key}
               type="button"
-              className={`community-rail-item ${section === key ? 'is-active' : ''}`}
+              className={`community-rail-item ${active === key ? 'is-active' : ''}`}
               onClick={() => select(key)}
-              aria-current={section === key ? 'page' : undefined}
+              aria-current={active === key ? 'page' : undefined}
             >
               <Icon size={16} />
               <span>{t(tr, en)}</span>
@@ -114,9 +119,9 @@ export function CommunityPage() {
         </nav>
 
         <main className="community-main">
-          {section === 'chat' ? (
+          {active === 'chat' ? (
             <CommunityChat me={me.data ?? null} />
-          ) : section === 'friends' ? (
+          ) : active === 'friends' ? (
             <div className="community-section-stack">
               <section aria-label={t('Arkadaşlar', 'Friends')}>
                 <FriendsPanel />
@@ -131,13 +136,13 @@ export function CommunityPage() {
                 <PeopleSearch />
               </section>
             </div>
-          ) : section === 'messages' ? (
+          ) : active === 'messages' ? (
             <MessagesPanel />
-          ) : section === 'rooms' ? (
+          ) : active === 'rooms' ? (
             <ListeningRoomsPanel />
-          ) : section === 'taste' ? (
+          ) : active === 'taste' ? (
             <TasteMatchPanel />
-          ) : section === 'quiz' ? (
+          ) : active === 'quiz' ? (
             <QuizTeaserPanel />
           ) : (
             <CommunityMembers me={me.data ?? null} />

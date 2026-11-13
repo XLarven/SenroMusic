@@ -572,7 +572,8 @@ export type CommunityMe = {
     reason: 'muted' | 'suspended' | null;
   };
   settings: { slowModeSeconds: number; maxMessageLength: number };
-  memberCount: number;
+  memberCount: number | null;
+  canViewDirectory: boolean;
 };
 
 export type CommunityModerationEntry = {

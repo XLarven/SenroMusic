@@ -60,12 +60,15 @@ import { getServerUrl } from './lib/serverUrl';
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** Extra fields the server attached to the error (e.g. the blocking room). */
+  readonly details: Record<string, unknown>;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, details: Record<string, unknown> = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -107,10 +110,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     let code = 'request_failed';
     let message = `İstek başarısız oldu (${response.status}).`;
+    let details: Record<string, unknown> = {};
     try {
-      const payload = (await response.json()) as { error?: { code?: string; message?: string } };
+      const payload = (await response.json()) as {
+        error?: { code?: string; message?: string } & Record<string, unknown>;
+      };
       code = payload.error?.code ?? code;
       message = payload.error?.message ?? message;
+      const { code: _code, message: _message, ...rest } = payload.error ?? {};
+      details = rest as Record<string, unknown>;
     } catch {
       // Keep the generic message when the server did not return JSON.
     }
@@ -122,7 +130,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         if (!valid) window.dispatchEvent(new CustomEvent('Norie:unauthorized'));
       });
     }
-    throw new ApiError(response.status, code, message);
+    throw new ApiError(response.status, code, message, details);
   }
 
   if (response.status === 204) return undefined as T;
@@ -284,10 +292,12 @@ export const api = {
     }),
   deletePlaylist: (id: string) =>
     request<{ ok: boolean }>(`/api/playlists/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  addTrack: (playlistId: string, trackId: string) =>
-    request<{ ok: boolean; entryId: number }>(
+  addTrack: (playlistId: string, trackId: string, track?: Track) =>
+    request<{ ok: boolean; entryId: number; external?: boolean }>(
       `/api/playlists/${encodeURIComponent(playlistId)}/tracks`,
-      { method: 'POST', body: { trackId } },
+      // The full track lets a searched (YouTube/Spotify) song be stored as an
+      // external playlist entry instead of failing with "track not found".
+      { method: 'POST', body: track ? { trackId, track } : { trackId } },
     ),
   removeTrack: (playlistId: string, entryId: number) =>
     request<{ ok: boolean }>(

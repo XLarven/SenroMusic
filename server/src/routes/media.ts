@@ -11,7 +11,7 @@ import { Readable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
 import { BROWSER_UA } from '../audio/types.js';
-import { invalidateUrl, resolveStream, sourceStatus } from '../audio/resolver.js';
+import { forgetRequest, invalidateUrl, resolveStream, sourceStatus } from '../audio/resolver.js';
 import type { ResolvedStream } from '../audio/types.js';
 
 type StreamQuery = {
@@ -19,6 +19,7 @@ type StreamQuery = {
   title?: string;
   artist?: string;
   duration?: string;
+  fresh?: string;
 };
 
 const PASSTHROUGH = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'last-modified'];
@@ -73,6 +74,9 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: { code: 'bad_request', message: 'videoId veya title gerekli.' } });
       }
 
+      // `fresh=1` is the player's retry: drop the cached URL and the failure
+      // memory so a dead stream is not replayed for the next minute.
+      if (request.query.fresh) forgetRequest(wanted);
       const resolved = await resolveStream(wanted);
       if (!resolved) {
         return reply.code(502).send({
@@ -188,4 +192,17 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   );
 
   app.get('/api/media/sources', { preHandler: requireAuth }, async () => sourceStatus());
+
+  /**
+   * Warm the resolver cache for an upcoming track without streaming any bytes.
+   * The player calls this for the next queue item so pressing play there does not
+   * pay the cold provider extraction.
+   */
+  app.get<{ Querystring: StreamQuery }>('/api/media/warm', { preHandler: requireAuth }, async (request) => {
+    const wanted = buildRequest(request.query);
+    if (!wanted.videoId && !wanted.title) return { ready: false };
+    const started = Date.now();
+    const resolved = await resolveStream(wanted);
+    return { ready: Boolean(resolved), source: resolved?.source ?? null, ms: Date.now() - started };
+  });
 }

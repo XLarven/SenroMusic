@@ -69,14 +69,19 @@ export async function communityRoutes(app: FastifyInstance): Promise<void> {
     ensureMembership(db, userId);
     const role = communityRole(db, userId);
     const state = restrictions(db, userId);
+    const staff = isStaff(role);
     return {
       name: COMMUNITY_NAME,
       role,
-      canModerate: isStaff(role),
+      canModerate: staff,
       canManage: role === 'owner',
       restrictions: state,
       settings: readCommunitySettings(db),
-      memberCount: (db.prepare('SELECT COUNT(*) AS c FROM community_members').get() as { c: number }).c,
+      // Directory size is part of the staff-only member data.
+      memberCount: staff
+        ? (db.prepare('SELECT COUNT(*) AS c FROM community_members').get() as { c: number }).c
+        : null,
+      canViewDirectory: staff,
     };
   });
 
@@ -170,8 +175,13 @@ export async function communityRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { q?: string; limit?: string; offset?: string } }>(
     '/api/community/members',
     { preHandler: [requireAuth, readLimit] },
-    async (request) => {
+    async (request, reply) => {
       const db = getDb();
+      // The full registered-member directory is staff-only. Regular members keep
+      // profile search, friends and messaging; only this directory is restricted.
+      if (!isStaff(communityRole(db, request.user!.id))) {
+        return fail(reply, 'forbidden', 'Üye dizini yalnızca yetkililere açıktır.', 403);
+      }
       const limit = Number.parseInt(String(request.query.limit ?? ''), 10);
       const offset = Number.parseInt(String(request.query.offset ?? ''), 10);
       return listCommunityMembers(db, request.user!.id, {

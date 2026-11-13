@@ -1,4 +1,5 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ChevronDown,
   Heart,
@@ -22,6 +23,7 @@ import { Cover } from './Cover';
 import { DownloadButton } from './DownloadButton';
 import { NMLyricsPanel } from './norie/NMLyricsPanel';
 import { RoomQuickActions } from '../features/rooms/RoomQuickActions';
+import { useMusicData } from '../MusicDataContext';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
 import { formatDuration } from '../lib/format';
@@ -42,6 +44,18 @@ export function PlayerBar() {
   const sleepTimer = usePlayer((state) => state.sleepTimer);
   const playbackError = usePlayer((state) => state.error);
 
+  // Provider resolution can take a few seconds on a cold track. Saying what is
+  // happening beats an endless spinner.
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoad(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSlowLoad(true), 2200);
+    return () => window.clearTimeout(timer);
+  }, [loading, current?.id]);
+
   const toggle = usePlayer((state) => state.toggle);
   const next = usePlayer((state) => state.next);
   const previous = usePlayer((state) => state.previous);
@@ -53,6 +67,13 @@ export function PlayerBar() {
   const setQueueOpen = usePlayer((state) => state.setQueueOpen);
   const setSleepTimer = usePlayer((state) => state.setSleepTimer);
   const [expanded, setExpanded] = useState(false);
+  const { library } = useMusicData();
+  const artistIds = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const artist of library.artists) map.set(artist.name, artist.id);
+    return map;
+  }, [library.artists]);
+  const artistId = current ? artistIds.get(current.artist) ?? null : null;
   const favIds = useFavorites((state) => state.ids);
   const toggleFav = useFavorites((state) => state.toggle);
   const liked = current ? favIds.includes(current.id) : false;
@@ -153,7 +174,18 @@ export function PlayerBar() {
         )}
         <div className="player-meta">
           <span className="player-title">{current?.title ?? t('Bir şarkı seç', 'Pick a song')}</span>
-          <span className="player-artist">{current?.artist ?? t('Kitaplığın seni bekliyor', 'Your library is waiting')}</span>
+          {artistId ? (
+            <Link to={`/artist/${artistId}`} className="player-artist player-artist-link">
+              {current?.artist}
+            </Link>
+          ) : (
+            <span className="player-artist">{current?.artist ?? t('Kitaplığın seni bekliyor', 'Your library is waiting')}</span>
+          )}
+          {slowLoad ? (
+            <span className="player-source-hint">
+              {t('Kaynak aranıyor…', 'Finding the source…')}
+            </span>
+          ) : null}
         </div>
         {current ? (
           <button
@@ -311,7 +343,7 @@ export function PlayerBar() {
           <button
             type="button"
             className="button ghost compact"
-            onClick={() => usePlayer.getState().playFrom(current, currentTime)}
+            onClick={() => usePlayer.getState().retryCurrent()}
           >
             {t('Yeniden dene', 'Retry')}
           </button>
@@ -352,7 +384,17 @@ export function PlayerBar() {
 
         <div className="np-meta">
           <div className="np-title">{current.title}</div>
-          <div className="np-artist">{current.artist}</div>
+          {artistId ? (
+            <Link
+              to={`/artist/${artistId}`}
+              className="np-artist np-artist-link"
+              onClick={() => setExpanded(false)}
+            >
+              {current.artist}
+            </Link>
+          ) : (
+            <div className="np-artist">{current.artist}</div>
+          )}
           <RoomQuickActions track={current} />
           <button
             type="button"

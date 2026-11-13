@@ -26,8 +26,9 @@ import { tasteRoutes } from './routes/taste.js';
 import { roomsRoutes } from './routes/rooms.js';
 import { quizRoutes } from './routes/quiz.js';
 import { discoveryRoutes } from './routes/discovery.js';
+import { uploadRoutes } from './uploads.js';
 import { communityRoutes } from './routes/community.js';
-import { closeDueRounds } from './quiz.js';
+import { closeDueRounds, reclassifyStoredLanguages } from './quiz.js';
 import { ensureMembershipForAll } from './community.js';
 import { getDb } from './db.js';
 import { presenceStore } from './presence.js';
@@ -66,7 +67,22 @@ export async function buildServer() {
     reply.header('X-Frame-Options', 'DENY');
     reply.header(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data: https:; media-src 'self' blob: https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'",
+      [
+        "default-src 'self'",
+        // blob: is required by the profile crop editor, which previews the picked
+        // file from an object URL before it is uploaded.
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' blob: https:",
+        "connect-src 'self' https:",
+        "style-src 'self' 'unsafe-inline'",
+        // The official YouTube IFrame Player API loads its script from youtube.com
+        // and renders the video in a youtube.com frame.
+        "script-src 'self' https://www.youtube.com https://s.ytimg.com",
+        "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+        "font-src 'self' data:",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+      ].join('; '),
     );
     reply.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     if (request.protocol === 'https' || config.secureCookies) {
@@ -108,6 +124,7 @@ export async function buildServer() {
   await app.register(roomsRoutes);
   await app.register(quizRoutes);
   await app.register(discoveryRoutes);
+  await app.register(uploadRoutes);
   await app.register(communityRoutes);
 
   if (existsSync(paths.webIndex)) {
@@ -148,6 +165,15 @@ async function main(): Promise<void> {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Music directory: ${resolve(config.musicDir)}`);
   app.log.info(`Data directory: ${resolve(config.dataDir)}`);
+
+  // Language metadata added after the pool was built: backfill it once so the
+  // Turkish/International categories are usable without a full re-sync.
+  try {
+    const reclassified = reclassifyStoredLanguages(getDb());
+    if (reclassified > 0) app.log.info(`Quiz language metadata refreshed for ${reclassified} track(s)`);
+  } catch (error) {
+    app.log.error({ err: error }, 'quiz language backfill failed');
+  }
 
   // Reconcile community membership for accounts created while the server was off.
   try {

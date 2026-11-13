@@ -85,12 +85,24 @@ export function nextResetAt(now = new Date()): string {
 /* ---------- pool ---------- */
 
 const TURKISH_MARKERS = /[çğıöşüÇĞİÖŞÜ]/;
+/** Latin-script-only metadata; anything else is classified as unknown. */
+const LATIN_SCRIPT = /^[\p{Script=Latin}\p{N}\p{P}\p{Z}\p{S}]+$/u;
 const UNKNOWN_ARTISTS = new Set(['unknown', 'various artists', 'various', '—', '-']);
 
-function guessLanguage(title: string, artist: string, stored: string | null): 'tr' | 'intl' {
-  if (stored === 'tr' || stored === 'intl') return stored;
-  if (TURKISH_MARKERS.test(`${title} ${artist}`)) return 'tr';
-  return 'intl';
+function guessLanguage(
+  title: string,
+  artist: string,
+  stored: string | null,
+): { language: 'tr' | 'intl' | 'unknown'; source: 'tag' | 'script' | 'unknown' } {
+  // Only verified signals: an explicit tag, or Turkish-specific characters in
+  // the metadata (high precision). Anything else in Latin script is treated as
+  // international; other scripts stay unknown and are excluded from the
+  // language-specific categories.
+  if (stored === 'tr' || stored === 'intl') return { language: stored, source: 'tag' };
+  const text = `${title} ${artist}`;
+  if (TURKISH_MARKERS.test(text)) return { language: 'tr', source: 'script' };
+  if (LATIN_SCRIPT.test(text)) return { language: 'intl', source: 'script' };
+  return { language: 'unknown', source: 'unknown' };
 }
 
 /** Removes provider noise so the expected answer is just the song name. */
@@ -110,10 +122,11 @@ export function syncQuizPool(db: Database, now = new Date()): number {
     .all() as Array<{ id: string; title: string; artist: string; language: string | null; duration: number; path: string }>;
   const at = now.toISOString();
   const upsert = db.prepare(
-    `INSERT INTO quiz_tracks (track_id, title, artist, language, duration, active, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO quiz_tracks (track_id, title, artist, language, language_source, duration, active, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (track_id) DO UPDATE SET
        title = excluded.title, artist = excluded.artist, language = excluded.language,
+       language_source = excluded.language_source,
        duration = excluded.duration, active = excluded.active, synced_at = excluded.synced_at`,
   );
   let eligible = 0;
@@ -125,11 +138,13 @@ export function syncQuizPool(db: Database, now = new Date()): number {
       eligible += 1;
       keep.add(row.id);
     }
+    const classified = guessLanguage(row.title, row.artist, row.language);
     upsert.run(
       row.id,
       cleanTitle(row.title) || row.title,
       row.artist,
-      guessLanguage(row.title, row.artist, row.language),
+      classified.language,
+      classified.source,
       Number(row.duration) || 0,
       usable ? 1 : 0,
       at,
@@ -143,11 +158,43 @@ export function syncQuizPool(db: Database, now = new Date()): number {
 
 type PoolRow = { track_id: string; title: string; artist: string; language: string; duration: number };
 
+/**
+ * Rows imported before language metadata existed carry the migration default
+ * (`language_source = 'unknown'`). Re-derive their classification from the stored
+ * title/artist so the language pools are populated without touching any quiz
+ * score, streak or daily history.
+ */
+export function reclassifyStoredLanguages(db: Database): number {
+  const rows = db
+    .prepare("SELECT track_id, title, artist, language FROM quiz_tracks WHERE language_source = 'unknown'")
+    .all() as Array<{ track_id: string; title: string; artist: string; language: string }>;
+  const update = db.prepare('UPDATE quiz_tracks SET language = ?, language_source = ? WHERE track_id = ?');
+  let changed = 0;
+  const run = db.transaction(() => {
+    for (const row of rows) {
+      const classified = guessLanguage(row.title, row.artist, null);
+      if (classified.source === 'unknown' && row.language !== 'unknown') {
+        // No reliable signal: keep it out of both language pools.
+        update.run('unknown', 'unknown', row.track_id);
+        changed += 1;
+        continue;
+      }
+      if (classified.language === row.language && classified.source === 'unknown') continue;
+      update.run(classified.language, classified.source, row.track_id);
+      changed += 1;
+    }
+  });
+  run();
+  return changed;
+}
+
 function poolRows(db: Database, category: QuizCategory): PoolRow[] {
   if (category === 'mixed') {
     return db.prepare('SELECT * FROM quiz_tracks WHERE active = 1').all() as PoolRow[];
   }
-  return db.prepare('SELECT * FROM quiz_tracks WHERE active = 1 AND language = ?').all(category) as PoolRow[];
+  return db
+    .prepare("SELECT * FROM quiz_tracks WHERE active = 1 AND language = ? AND language_source <> 'unknown'")
+    .all(category) as PoolRow[];
 }
 
 function hashString(value: string): number {

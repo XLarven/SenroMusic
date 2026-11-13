@@ -584,6 +584,13 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 13,
+    name: 'quiz language source',
+    up(db) {
+      addColumn(db, 'quiz_tracks', "language_source TEXT NOT NULL DEFAULT 'unknown'");
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

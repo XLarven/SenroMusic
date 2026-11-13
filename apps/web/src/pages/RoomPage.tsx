@@ -41,6 +41,8 @@ import {
 import { useAuthStore } from '../store/auth';
 import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
+import { JoinRoomDialog } from '../features/rooms/JoinRoomDialog';
+import { VideoStage } from '../features/rooms/VideoStage';
 import type {
   RoomChatMessage,
   RoomDetail,
@@ -89,6 +91,7 @@ export function RoomPage() {
   const [tab, setTab] = useState<Tab>('queue');
   const [joinCode, setJoinCode] = useState(params.get('code') ?? '');
   const [joining, setJoining] = useState(false);
+  const [pendingJoin, setPendingJoin] = useState<{ fromRoomId: string; roomName: string } | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invitable, setInvitable] = useState<Array<{ id: string; displayName: string; username: string | null; avatarUrl: string | null }>>([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -301,6 +304,13 @@ export function RoomPage() {
       setLoadError(null);
       await load();
     } catch (error) {
+      if (error instanceof ApiError && error.code === 'already_in_room') {
+        setPendingJoin({
+          fromRoomId: typeof error.details.roomId === 'string' ? error.details.roomId : '',
+          roomName: typeof error.details.roomName === 'string' ? error.details.roomName : '',
+        });
+        return;
+      }
       pushToast(error instanceof Error ? error.message : t('Odaya katılınamadı.', 'Could not join.'), 'error');
     } finally {
       setJoining(false);
@@ -453,6 +463,34 @@ export function RoomPage() {
     return code ? `${base}?code=${encodeURIComponent(code)}` : base;
   }, [detail, params]);
 
+  if (pendingJoin) {
+    return (
+      <div className="page room-page">
+        <JoinRoomDialog
+          roomName={pendingJoin.roomName}
+          busy={joining}
+          onCancel={() => setPendingJoin(null)}
+          onConfirm={() =>
+            void (async () => {
+              setJoining(true);
+              try {
+                if (pendingJoin.fromRoomId) await api.leaveRoom(pendingJoin.fromRoomId);
+                await api.joinRoom(roomId, joinCode.trim() || undefined);
+                setPendingJoin(null);
+                setLoadError(null);
+                await load();
+              } catch (error) {
+                pushToast(error instanceof Error ? error.message : t('Yeni odaya katılınamadı.', 'Could not join the new room.'), 'error');
+              } finally {
+                setJoining(false);
+              }
+            })()
+          }
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="page room-page">
@@ -504,10 +542,7 @@ export function RoomPage() {
   const current = state.current;
   const videoId =
     current && state.videoMode && current.track.id.startsWith('yt_') ? current.track.id.slice(3) : null;
-  const videoStart = Math.max(0, Math.floor(position));
-  const videoSrc = videoId
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=${state.playing ? 1 : 0}&start=${videoStart}&rel=0&modestbranding=1&playsinline=1`
-    : null;
+
 
   return (
     <div className="page room-page">
@@ -552,14 +587,13 @@ export function RoomPage() {
         <section className="room-stage" aria-label={t('Çalan', 'Now playing')}>
           <div className={`room-art ${state.videoMode ? 'is-video' : ''}`}>
             {state.videoMode ? (
-              videoSrc ? (
-                <iframe
-                  key={`${state.revision}-${videoId}`}
-                  src={videoSrc}
-                  title={current?.track.title ?? t('YouTube', 'YouTube')}
-                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                  allowFullScreen
-                  className="room-video-frame"
+              videoId ? (
+                <VideoStage
+                  videoId={videoId}
+                  position={position}
+                  playing={state.playing}
+                  canControl={canControl}
+                  onLocalSeek={(seconds) => seekTo(seconds)}
                 />
               ) : (
                 <p className="room-note">

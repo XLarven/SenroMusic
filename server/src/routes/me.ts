@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { clearSessionCookie, requireAuth } from '../auth.js';
-import { cacheCoverBuffer } from '../covers.js';
+import { saveProfileImage, isUploadUrl } from '../uploads.js';
 import { config } from '../config.js';
 import { getDb, getTrackRow, trackToDto } from '../db.js';
 import { getPublicPlaylists } from '../library.js';
@@ -108,11 +108,12 @@ async function normalizeImageField(value: unknown): Promise<string | null | unde
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
   if (typeof value !== 'string') return undefined;
-  if (value.startsWith('/api/covers/c_')) return value.slice(0, 2048);
+  // Existing uploads and legacy covers stay valid when the field is echoed back.
+  if (isUploadUrl(value) || value.startsWith('/api/covers/c_')) return value.slice(0, 2048);
   const parsed = parseImageDataUrl(value);
   if (!parsed) return undefined;
-  const coverId = await cacheCoverBuffer(parsed.bytes, parsed.mime);
-  return coverId ? `/api/covers/${coverId}` : undefined;
+  const url = await saveProfileImage(parsed.bytes);
+  return url ?? undefined;
 }
 
 function parseStoredSetting(value: string): unknown {
@@ -140,7 +141,11 @@ function getSetting(userId: string, key: string): unknown {
 export async function meRoutes(app: FastifyInstance): Promise<void> {
   app.patch<{ Body: ProfileBody }>(
     '/api/auth/me',
-    { preHandler: [requireAuth, rateLimit({ name: 'profile-update', max: 30, windowMs: 60_000, keyBy: 'user' })] },
+    {
+      preHandler: [requireAuth, rateLimit({ name: 'profile-update', max: 30, windowMs: 60_000, keyBy: 'user' })],
+      // Profile images are sent as data URLs (up to 20 MB, ~27 MB base64).
+      bodyLimit: 30 * 1024 * 1024,
+    },
     async (request, reply) => {
       const user = request.user!;
       const body = request.body ?? {};
@@ -178,8 +183,8 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       if (username !== undefined && username !== null && !/^[a-z0-9_.]{3,30}$/.test(username)) {
         return badRequest(reply, 'Kullanıcı adı 3-30 karakter olmalı: küçük harfler, rakamlar, alt çizgi veya nokta.');
       }
-      if (body.avatarUrl !== undefined && avatarUrl === undefined) return badRequest(reply, 'Avatar görseli JPEG veya PNG olmalı.');
-      if (body.bannerUrl !== undefined && bannerUrl === undefined) return badRequest(reply, 'Banner görseli JPEG veya PNG olmalı.');
+      if (body.avatarUrl !== undefined && avatarUrl === undefined) return badRequest(reply, 'Avatar görseli JPEG, PNG veya WebP olmalı (en fazla 20 MB).');
+      if (body.bannerUrl !== undefined && bannerUrl === undefined) return badRequest(reply, 'Banner görseli JPEG, PNG veya WebP olmalı (en fazla 20 MB).');
       if (favoriteGenres === null) return badRequest(reply, 'Favori türler metin listesi olmalı.');
 
       if (username) {

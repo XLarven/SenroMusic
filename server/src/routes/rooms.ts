@@ -156,6 +156,16 @@ export async function roomsRoutes(app: FastifyInstance): Promise<void> {
       const code = typeof request.body?.code === 'string' ? request.body.code : null;
       const result = joinRoom(db, userId, request.params.roomId, code);
       if (!result.ok) {
+        if (result.code === 'already_in_room') {
+          return reply.code(409).send({
+            error: {
+              code: 'already_in_room',
+              message: 'Zaten başka bir dinleme odasındasın.',
+              roomId: result.roomId,
+              roomName: result.roomName,
+            },
+          });
+        }
         const message =
           result.code === 'invite_required'
             ? 'Bu oda özel. Davet veya bağlantı kodu gerekli.'

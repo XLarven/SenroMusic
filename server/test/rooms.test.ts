@@ -290,8 +290,51 @@ test('leaving transfers ownership, the last member closes the room', () => {
   assert.ok(row.closed_at);
 });
 
-test('only the owner closes or renames a room', () => {
+test('one account can only be a member of one active room', () => {
   const db = makeDb();
+  const first = room(db);
+  const second = room(db);
+
+  assert.deepEqual(joinRoom(db, LISTENER, first), { ok: true, roomId: first, alreadyMember: false });
+  const blocked = joinRoom(db, LISTENER, second);
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) {
+    assert.equal(blocked.code, 'already_in_room');
+    assert.equal(blocked.roomId, first);
+    assert.equal(blocked.roomName, 'Gece odası');
+  }
+  assert.equal(roleOf(db, second, LISTENER), null);
+
+  leaveRoom(db, first, LISTENER);
+  assert.deepEqual(joinRoom(db, LISTENER, second), { ok: true, roomId: second, alreadyMember: false });
+});
+
+test('a stale duplicate membership is released by the sweep', () => {
+  const db = makeDb();
+  const first = room(db);
+  const second = room(db);
+  db.prepare("INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'listener', ?)").run(
+    first,
+    LISTENER,
+    '2026-01-01T00:00:00.000Z',
+  );
+  db.prepare("INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'listener', ?)").run(
+    second,
+    LISTENER,
+    '2026-01-02T00:00:00.000Z',
+  );
+  db.prepare("UPDATE listening_rooms SET updated_at = '2026-01-02T00:00:00.000Z' WHERE id = ?").run(second);
+  db.prepare("UPDATE listening_rooms SET updated_at = '2026-01-01T00:00:00.000Z' WHERE id = ?").run(first);
+
+  sweepRooms(db);
+  const memberships = db.prepare('SELECT room_id FROM room_members WHERE user_id = ?').all(LISTENER) as Array<{
+    room_id: string;
+  }>;
+  assert.equal(memberships.length, 1);
+  assert.equal(memberships[0]?.room_id, second);
+});
+
+test('only the owner closes or renames a room', () => {  const db = makeDb();
   const id = room(db);
   joinRoom(db, MOD, id);
   assert.equal(closeRoom(db, id, MOD), false);

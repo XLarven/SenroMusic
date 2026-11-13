@@ -370,7 +370,12 @@ export function createRoom(
 
 export type JoinResult =
   | { ok: true; roomId: string; alreadyMember: boolean }
-  | { ok: false; code: 'not_found' | 'closed' | 'blocked' | 'invite_required' | 'full' };
+  | {
+      ok: false;
+      code: 'not_found' | 'closed' | 'blocked' | 'invite_required' | 'full' | 'already_in_room';
+      roomId?: string;
+      roomName?: string;
+    };
 
 export function joinRoom(db: Database, userId: string, roomId: string, code?: string | null): JoinResult {
   const room = getRoomRow(db, roomId);
@@ -379,22 +384,36 @@ export function joinRoom(db: Database, userId: string, roomId: string, code?: st
   if (isBlockedPair(db, userId, room.owner_id)) return { ok: false, code: 'blocked' };
   const existing = roleOf(db, roomId, userId);
   if (existing) return { ok: true, roomId, alreadyMember: true };
-  if (room.visibility === 'private') {
-    const invited = db
-      .prepare('SELECT 1 FROM room_invites WHERE room_id = ? AND user_id = ?')
-      .get(roomId, userId);
-    const codeOk = typeof code === 'string' && room.join_code && code.toUpperCase() === room.join_code;
-    if (!invited && !codeOk) return { ok: false, code: 'invite_required' };
-  }
-  const count = (db.prepare('SELECT COUNT(*) AS c FROM room_members WHERE room_id = ?').get(roomId) as { c: number }).c;
-  if (count >= ROOM_MEMBER_MAX) return { ok: false, code: 'full' };
-  db.prepare("INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'listener', ?)").run(
-    roomId,
-    userId,
-    nowIso(),
-  );
-  db.prepare('DELETE FROM room_invites WHERE room_id = ? AND user_id = ?').run(roomId, userId);
-  return { ok: true, roomId, alreadyMember: false };
+
+  // One account, one active room. The check and the insert share a transaction so
+  // two tabs cannot both join different rooms.
+  const join = db.transaction((): JoinResult => {
+    const other = db
+      .prepare(
+        `SELECT m.room_id AS roomId, r.name AS roomName
+         FROM room_members m JOIN listening_rooms r ON r.id = m.room_id
+         WHERE m.user_id = ? AND m.room_id <> ? AND r.closed_at IS NULL
+         LIMIT 1`,
+      )
+      .get(userId, roomId) as { roomId: string; roomName: string } | undefined;
+    if (other) return { ok: false, code: 'already_in_room', roomId: other.roomId, roomName: other.roomName };
+
+    if (room.visibility === 'private') {
+      const invited = db.prepare('SELECT 1 FROM room_invites WHERE room_id = ? AND user_id = ?').get(roomId, userId);
+      const codeOk = typeof code === 'string' && room.join_code && code.toUpperCase() === room.join_code;
+      if (!invited && !codeOk) return { ok: false, code: 'invite_required' };
+    }
+    const count = (db.prepare('SELECT COUNT(*) AS c FROM room_members WHERE room_id = ?').get(roomId) as { c: number }).c;
+    if (count >= ROOM_MEMBER_MAX) return { ok: false, code: 'full' };
+    db.prepare("INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'listener', ?)").run(
+      roomId,
+      userId,
+      nowIso(),
+    );
+    db.prepare('DELETE FROM room_invites WHERE room_id = ? AND user_id = ?').run(roomId, userId);
+    return { ok: true, roomId, alreadyMember: false };
+  });
+  return join();
 }
 
 function transferOwnership(db: Database, roomId: string, newOwnerId: string): void {
@@ -850,8 +869,7 @@ export function publishRoomClosed(db: Database, roomId: string, reason: string):
  */
 export function sweepRooms(db: Database, now = Date.now()): string[] {
   const touched: string[] = [];
-  const rows = db.prepare('SELECT * FROM listening_rooms WHERE closed_at IS NULL').all() as RoomRow[];
-  for (const room of rows) {
+  const rows = db.prepare('SELECT * FROM listening_rooms WHERE closed_at IS NULL').all() as RoomRow[];  for (const room of rows) {
     const members = memberIds(db, room.id);
     if (members.length === 0) {
       db.prepare('UPDATE listening_rooms SET closed_at = ?, updated_at = ? WHERE id = ?').run(
@@ -893,6 +911,27 @@ export function sweepRooms(db: Database, now = Date.now()): string[] {
       }
     }
   }
+
+  // One account, one active room: older memberships are released. Owners go
+  // through leaveRoom so ownership transfers instead of vanishing.
+  const duplicates = db
+    .prepare(
+      `SELECT m.user_id, m.room_id, r.updated_at
+       FROM room_members m JOIN listening_rooms r ON r.id = m.room_id
+       WHERE r.closed_at IS NULL
+       ORDER BY m.user_id, r.updated_at DESC`,
+    )
+    .all() as Array<{ user_id: string; room_id: string; updated_at: string }>;
+  const kept = new Set<string>();
+  for (const row of duplicates) {
+    if (!kept.has(row.user_id)) {
+      kept.add(row.user_id);
+      continue;
+    }
+    leaveRoom(db, row.room_id, row.user_id);
+    touched.push(row.room_id);
+  }
+
   return touched;
 }
 

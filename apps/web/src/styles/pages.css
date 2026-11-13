@@ -7340,3 +7340,152 @@ body.room-mode .room-page {
     font-size: 18px;
   }
 }
+
+/* Lyrics: the panel owns its scroll; the page must never move. */
+.lyrics-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.lyrics-shell .lyrics-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+}
+
+.lyrics-follow {
+  position: sticky;
+  top: 0;
+  align-self: flex-end;
+  z-index: 2;
+  margin: 0 12px 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 178, 36, 0.4);
+  background: rgba(28, 34, 45, 0.95);
+  color: var(--amber);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.np-sheet .lyrics-shell {
+  grid-area: lyrics;
+  min-height: 0;
+  height: 100%;
+}
+
+.np-sheet {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .np-sheet {
+    max-height: 100dvh;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  }
+
+  .np-sheet .lyrics-shell {
+    min-height: 0;
+  }
+}
+
+/* Official YouTube IFrame API surface inside a room. */
+.room-video-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.room-video-frame-host {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.room-video-frame-host .room-video-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.room-video-status {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+}
+
+.room-video-seek {
+  width: 100%;
+  margin-top: 6px;
+  accent-color: var(--amber);
+}
+
+/* The dialog used when moving between rooms. */
+.join-room-dialog {
+  padding-bottom: 14px;
+}
+
+.join-room-copy {
+  margin: 0;
+  padding: 12px 14px 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.join-room-target {
+  margin: 6px 14px 0;
+  font-size: 12.5px;
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.join-room-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px;
+}
+
+/* Playback: artist links and the "resolving source" hint. */
+.track-artist-link,
+.player-artist-link,
+.np-artist-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.track-artist-link:hover,
+.player-artist-link:hover,
+.np-artist-link:hover {
+  color: var(--amber);
+  text-decoration: underline;
+}
+
+.player-source-hint {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--amber);
+  opacity: 0.85;
+}

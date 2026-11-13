@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../api';
 import { mediaUrl } from '../lib/media';
+import { getServerUrl } from '../lib/serverUrl';
 import type { Track } from '../types';
 import { useDownloads } from './downloads';
 
@@ -22,6 +23,8 @@ type PlayerState = {
   error: string | null;
   sleepTimer: number | null;
   roomMode: boolean;
+  /** True when this tab owns the listening-room timeline. */
+  roomControl: boolean;
 
   playTrack: (track: Track, sourceTracks?: Track[]) => void;
   playFrom: (track: Track, startTime: number, sourceTracks?: Track[]) => void;
@@ -43,6 +46,7 @@ type PlayerState = {
   clearQueue: () => void;
   handleEnded: () => void;
   prefetchRelated: () => void;
+  retryCurrent: () => void;
   setRoomMode: (active: boolean) => void;
   restoreSession: () => void;
 };
@@ -51,6 +55,8 @@ let audio: HTMLAudioElement | null = null;
 let listenersAttached = false;
 let sleepTimerHandle: ReturnType<typeof setTimeout> | null = null;
 let lastRecordedTrackId: string | null = null;
+/** Track whose resolver cache has already been warmed. */
+let warmedFor: string | null = null;
 let lastSessionSave = 0;
 /** Tracks that already burned their one automatic stream retry. */
 const failedRetries = new Set<string>();
@@ -58,6 +64,48 @@ const failedRetries = new Set<string>();
 const SESSION_KEY = 'Norie.player.session';
 const GRACEFUL_NETWORK_MESSAGE = 'Bağlantı kesildi. Yerel dosya yoksa parça burada duraklatıldı.';
 const SOURCE_UNAVAILABLE_MESSAGE = 'Bu parça için ses kaynağı bulunamadı. Sonraki parçaya geçebilirsin.';
+/** No metadata within this window means the stream never started. */
+const LOAD_WATCHDOG_MS = 18_000;
+
+let loadWatchdog: ReturnType<typeof setTimeout> | null = null;
+
+function clearLoadWatchdog(): void {
+  if (loadWatchdog) {
+    clearTimeout(loadWatchdog);
+    loadWatchdog = null;
+  }
+}
+
+/**
+ * A resolved stream that never reaches `canplay` would otherwise spin forever.
+ * One fresh resolution is attempted (server side cache bypassed), then the track
+ * reports a real error so the queue can move on.
+ */
+function armLoadWatchdog(track: Track): void {
+  clearLoadWatchdog();
+  loadWatchdog = setTimeout(() => {
+    loadWatchdog = null;
+    const state = usePlayer.getState();
+    if (state.current?.id !== track.id || !state.loading) return;
+    const element = getAudio();
+    if (element.readyState >= 2) {
+      usePlayer.setState({ loading: false });
+      return;
+    }
+    if (!failedRetries.has(track.id)) {
+      failedRetries.add(track.id);
+      void startTrack(track, state.currentTime, true);
+      return;
+    }
+    usePlayer.setState({ playing: false, loading: false, error: SOURCE_UNAVAILABLE_MESSAGE });
+  }, LOAD_WATCHDOG_MS);
+}
+
+/** Adds a cache-bypass marker so a retry cannot be answered by the same URL. */
+function withFresh(source: string): string {
+  if (!source.startsWith('/api/')) return source;
+  return `${source}${source.includes('?') ? '&' : '?'}fresh=${Date.now()}`;
+}
 
 type SavedSession = {
   current: Track | null;
@@ -100,20 +148,22 @@ function loadSession(): SavedSession | null {
   }
 }
 
-async function startTrack(track: Track, startTime = 0): Promise<void> {
+async function startTrack(track: Track, startTime = 0, forceFresh = false): Promise<void> {
   attachAudioListeners();
   const element = getAudio();
   // Downloaded tracks play from their stored blob; everything else is streamed
   // through the backend resolver, which proxies whatever provider answers.
   const isDownloaded = useDownloads.getState().records[track.id]?.state === 'downloaded';
-  const source = isDownloaded
+  const resolved = isDownloaded
     ? await useDownloads
         .getState()
         .resolveSource(track)
         .catch(() => mediaUrl(track))
     : mediaUrl(track);
   if (usePlayer.getState().current?.id !== track.id) return;
+  const source = forceFresh ? withFresh(resolved) : resolved;
   element.src = source;
+  armLoadWatchdog(track);
   if (Number.isFinite(startTime) && startTime > 0) {
     // `currentTime` is only writable once the element knows its duration.
     const applySeek = () => {
@@ -179,16 +229,24 @@ function attachAudioListeners(): void {
     if (Number.isFinite(element.duration)) update({ duration: element.duration });
   });
   element.addEventListener('loadedmetadata', () => {
+    clearLoadWatchdog();
     if (Number.isFinite(element.duration)) update({ duration: element.duration, loading: false });
   });
-  element.addEventListener('play', () => update({ playing: true, error: null }));
+  element.addEventListener('play', () => {
+    update({ playing: true, error: null });
+    warmUpcoming(usePlayer.getState());
+  });
   element.addEventListener('pause', () => {
     update({ playing: false });
     saveSession(usePlayer.getState());
   });
   element.addEventListener('waiting', () => update({ loading: true }));
-  element.addEventListener('canplay', () => update({ loading: false }));
+  element.addEventListener('canplay', () => {
+    clearLoadWatchdog();
+    update({ loading: false });
+  });
   element.addEventListener('error', () => {
+    clearLoadWatchdog();
     const state = usePlayer.getState();
     const code = element.error?.code;
     // MEDIA_ERR_SRC_NOT_SUPPORTED on a remote track usually means the proxied
@@ -200,7 +258,7 @@ function attachAudioListeners(): void {
       const time = state.currentTime;
       setTimeout(() => {
         if (usePlayer.getState().current?.id !== track.id) return;
-        void startTrack(track, time);
+        void startTrack(track, time, true);
       }, 600);
       return;
     }
@@ -211,6 +269,18 @@ function attachAudioListeners(): void {
     });
   });
   element.addEventListener('ended', () => usePlayer.getState().handleEnded());
+}
+
+function warmUpcoming(state: PlayerState): void {
+  const next = state.queue[state.index + 1];
+  if (!next || next.id === warmedFor) return;
+  const target = mediaUrl(next);
+  // Local files need no warm-up; remote ones pay provider extraction up front.
+  if (!target.startsWith('/api/media/stream')) return;
+  warmedFor = next.id;
+  void fetch(`${getServerUrl()}${target.replace('/api/media/stream', '/api/media/warm')}`, {
+    credentials: 'include',
+  }).catch(() => undefined);
 }
 
 function playElement(): void {
@@ -300,6 +370,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   error: null,
   sleepTimer: null,
   roomMode: false,
+  roomControl: false,
 
   playTrack: (track, sourceTracks) => {
     const queue = sourceTracks && sourceTracks.length > 0 ? sourceTracks : [track];
@@ -527,13 +598,33 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   handleEnded: () => {
-    const { repeat } = get();
+    const { repeat, roomMode, roomControl, queue, index, shuffle } = get();
+    // A listening-room listener never advances on its own: the room timeline
+    // decides the next track, and a local advance here made the last track
+    // restart over and over on every listener.
+    if (roomMode && !roomControl) return;
+    if (roomMode && roomControl) {
+      // The controller promotes the room queue; repeat modes stay out of it.
+      if (queue.length === 0) return;
+      const nextIndex = shuffle && queue.length > 1
+        ? (() => {
+            let candidate = index;
+            while (candidate === index) candidate = Math.floor(Math.random() * queue.length);
+            return candidate;
+          })()
+        : index + 1;
+      if (nextIndex >= queue.length) {
+        set({ playing: false });
+        return;
+      }
+      get().playAt(nextIndex);
+      return;
+    }
     if (repeat === 'one') {
       get().seek(0);
       playElement();
       return;
     }
-    const { queue, index, shuffle } = get();
     if (queue.length === 0) return;
     if (shuffle && queue.length > 1) {
       let nextIndex = index;
@@ -618,7 +709,16 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       });
   },
 
-  setRoomMode: (active) => set({ roomMode: active }),
+  /** Retry the current track with a fresh resolution (cache bypassed). */
+  retryCurrent: () => {
+    const { current, currentTime } = get();
+    if (!current) return;
+    failedRetries.delete(current.id);
+    set({ loading: true, error: null, playing: true });
+    void startTrack(current, currentTime, true);
+  },
+
+  setRoomMode: (active) => set({ roomMode: active, roomControl: active ? get().roomControl : false }),
 
   restoreSession: () => {
     const saved = loadSession();

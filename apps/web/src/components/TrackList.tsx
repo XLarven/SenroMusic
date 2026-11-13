@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Heart, Pause, Play, Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
 import clsx from 'clsx';
 import { Cover } from './Cover';
 import { AddToPlaylistMenu } from './AddToPlaylistMenu';
 import { DownloadButton } from './DownloadButton';
 import { formatDuration } from '../lib/format';
+import { useMusicData } from '../MusicDataContext';
 import { usePlayer } from '../store/player';
 import { useFavorites } from '../store/favorites';
 import type { Track } from '../types';
@@ -66,6 +68,14 @@ export function TrackList({
   const playing = usePlayer((state) => state.playing);
   const playQueue = usePlayer((state) => state.playQueue);
   const toggle = usePlayer((state) => state.toggle);
+  const { library } = useMusicData();
+
+  // Name -> id once per library change instead of a scan per rendered row.
+  const artistIds = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const artist of library.artists) map.set(artist.name, artist.id);
+    return map;
+  }, [library.artists]);
 
   const startTrack = (index: number) => {
     const track = tracks[index];
@@ -135,7 +145,27 @@ export function TrackList({
               ) : null}
               <div className="track-copy">
                 <span className="track-title">{track.title}</span>
-                <span className="track-artist">{track.artist}</span>
+                {artistIds.has(track.artist) ? (
+                  <Link
+                    to={`/artist/${artistIds.get(track.artist)}`}
+                    className="track-artist track-artist-link"
+                    onClick={(event) => event.stopPropagation()}
+                    tabIndex={-1}
+                    title={`${track.artist} sayfası`}
+                  >
+                    {track.artist}
+                  </Link>
+                ) : (
+                  <Link
+                    to={`/search?q=${encodeURIComponent(track.artist)}`}
+                    className="track-artist track-artist-link"
+                    onClick={(event) => event.stopPropagation()}
+                    tabIndex={-1}
+                    title={`${track.artist} ara`}
+                  >
+                    {track.artist}
+                  </Link>
+                )}
               </div>
             </div>
 

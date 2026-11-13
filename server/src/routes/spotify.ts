@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAdmin, requireAuth } from '../auth.js';
+import { config } from '../config.js';
 import { rateLimit } from '../ratelimit.js';
 import { getSpotifyAccessToken, getSpotifyPlaylist, isSpotifyConfigured, searchSpotify, type SpotifyItem } from '../spotifyApi.js';
 import { resolveSpotify } from '../spotifyEmbed.js';
@@ -119,7 +120,11 @@ async function resolveViaYtDlp(url: string): Promise<{ type: string; title: stri
     }
 
     if (items.length === 0) return null;
-    return { type: type === 'playlist' ? 'playlist' : 'track', title, items: items.slice(0, 100) };
+    return {
+      type: type === 'playlist' ? 'playlist' : 'track',
+      title,
+      items: items.slice(0, config.maxPlaylistTracks),
+    };
   } catch {
     return null;
   }
@@ -293,7 +298,7 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
       // Primary: SONORA-style embed-page scraping (no official API needed)
       try {
         const resolved = await resolveSpotify(url);
-        const items = resolved.tracks.map((t: any) => ({
+        let items = resolved.tracks.map((t: any) => ({
           providerTrackId: t.videoId ?? null,
           title: t.title,
           artist: t.uploader ?? 'Unknown',
@@ -305,6 +310,34 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
           pending: t.pending ?? false,
           videoId: t.videoId ?? null,
         }));
+        let capped = resolved.capped ?? false;
+
+        // The public embed page is truncated at 100 entries. When credentials are
+        // configured, page the official API so long playlists import completely.
+        const playlistId = extractPlaylistId(url);
+        if (capped && playlistId && isSpotifyConfigured()) {
+          try {
+            const full = await getSpotifyPlaylist(playlistId);
+            if (full.items.length > items.length) {
+              items = full.items.map((item) => ({
+                providerTrackId: item.providerTrackId ?? null,
+                title: item.title,
+                artist: item.artist,
+                album: item.album ?? null,
+                duration: item.duration ?? null,
+                artworkUrl: item.artworkUrl ?? null,
+                sourceUrl: item.sourceUrl ?? url,
+                youtubeQuery: `${item.artist} ${item.title}`.trim(),
+                pending: true,
+                videoId: null,
+              }));
+              capped = capped && items.length >= config.maxPlaylistTracks;
+            }
+          } catch (error) {
+            request.log.warn({ err: error }, 'spotify api paging failed; keeping embed page');
+          }
+        }
+
         return {
           type: resolved.playlistTitle ? 'playlist' : 'track',
           title: resolved.playlistTitle ?? resolved.trackTitle ?? resolved.tracks[0]?.title ?? 'Spotify',
@@ -312,9 +345,9 @@ export async function spotifyRoutes(app: FastifyInstance): Promise<void> {
           artworkUrl: resolved.tracks[0]?.thumbnail ?? null,
           creator: null,
           totalDuration: resolved.tracks.reduce((s: number, t: any) => s + (t.duration ?? 0), 0) || null,
-          totalTracks: resolved.tracks.length,
+          totalTracks: items.length,
           items,
-          capped: resolved.capped ?? false,
+          capped,
           source: 'spotify-embed',
         };
       } catch (error) {

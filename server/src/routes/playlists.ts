@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requireAuth } from '../auth.js';
+import { config } from '../config.js';
 import { getDb, getTrackRow } from '../db.js';
 import { cacheCoverBuffer } from '../covers.js';
 import { getPlaylist, getPlaylists, playlistExists } from '../library.js';
@@ -12,7 +13,7 @@ type PlaylistBody = {
   description?: unknown;
   visibility?: unknown;
 };
-type AddTrackBody = { trackId?: unknown };
+type AddTrackBody = { trackId?: unknown; track?: unknown };
 type ReorderBody = { entryIds?: unknown };
 type CoverBody = { imageDataUrl?: unknown; dataUrl?: unknown };
 
@@ -74,6 +75,45 @@ function parseImageBody(value: unknown): { bytes: Buffer; mime: string } | null 
 }
 
 const writeLimiter = rateLimit({ name: 'playlist-write', max: 60, windowMs: 60_000, keyBy: 'user' });
+
+/** A provider song that is not in the local library, stored as an external row. */
+function cleanExternal(value: unknown, fallbackId: string): {
+  provider: string;
+  providerTrackId: string | null;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration: number | null;
+  artworkUrl: string | null;
+  sourceUrl: string | null;
+} | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const row = value as Record<string, unknown>;
+  const title = typeof row.title === 'string' ? row.title.trim().slice(0, 200) : '';
+  const artist = typeof row.artist === 'string' ? row.artist.trim().slice(0, 200) : '';
+  if (!title || !artist) return null;
+  const id = typeof row.id === 'string' && row.id ? row.id : fallbackId;
+  const provider = id.startsWith('yt_') ? 'youtube' : id.startsWith('sp_') ? 'spotify' : 'norie';
+  const providerTrackId =
+    provider === 'youtube' && id.startsWith('yt_')
+      ? id.slice(3)
+      : typeof row.providerTrackId === 'string'
+        ? row.providerTrackId.slice(0, 200)
+        : null;
+  const duration = Number(row.duration);
+  const artworkUrl = typeof row.coverUrl === 'string' && row.coverUrl.startsWith('https://') ? row.coverUrl.slice(0, 2048) : null;
+  const sourceUrl = typeof row.streamUrl === 'string' && row.streamUrl.startsWith('https://') ? row.streamUrl.slice(0, 2048) : null;
+  return {
+    provider,
+    providerTrackId,
+    title,
+    artist,
+    album: typeof row.album === 'string' ? row.album.trim().slice(0, 200) || null : null,
+    duration: Number.isFinite(duration) && duration > 0 ? duration : null,
+    artworkUrl,
+    sourceUrl,
+  };
+}
 
 export async function playlistRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/playlists', { preHandler: requireAuth }, async (request) => ({
@@ -263,7 +303,57 @@ export async function playlistRoutes(app: FastifyInstance): Promise<void> {
       if (!isAllowedMutate(user, profile)) return forbidden(reply);
       const trackId = typeof request.body?.trackId === 'string' ? request.body.trackId : '';
       if (!trackId) return badRequest(reply, 'trackId gerekli.');
-      if (!getTrackRow(trackId)) return reply.code(404).send({ error: { code: 'track_not_found', message: 'Parça bulunamadı.' } });
+
+      const current = getDb()
+        .prepare(
+          `SELECT (SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = ?)
+                + (SELECT COUNT(*) FROM playlist_external_tracks WHERE playlist_id = ?) AS c`,
+        )
+        .get(request.params.id, request.params.id) as { c: number };
+      if (current.c >= config.maxPlaylistTracks) {
+        return reply.code(409).send({
+          error: {
+            code: 'playlist_track_limit',
+            message: `Bir listede en fazla ${config.maxPlaylistTracks} parça olabilir.`,
+          },
+        });
+      }
+
+      // A searched song (YouTube / Spotify) is not in the local library, so it is
+      // stored as an external entry instead of answering "Parça bulunamadı".
+      if (!getTrackRow(trackId)) {
+        const external = cleanExternal(request.body?.track, trackId);
+        if (!external) {
+          return reply.code(404).send({ error: { code: 'track_not_found', message: 'Parça bulunamadı.' } });
+        }
+        const positionRow = getDb()
+          .prepare(
+            `SELECT COALESCE(MAX(position), -1) + 1 AS position
+             FROM playlist_external_tracks WHERE playlist_id = ?`,
+          )
+          .get(request.params.id) as { position: number };
+        const info = getDb()
+          .prepare(
+            `INSERT INTO playlist_external_tracks
+             (playlist_id, provider, provider_track_id, title, artist, album, duration, artwork_url, source_url, position, matched_track_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+          )
+          .run(
+            request.params.id,
+            external.provider,
+            external.providerTrackId,
+            external.title,
+            external.artist,
+            external.album,
+            external.duration,
+            external.artworkUrl,
+            external.sourceUrl,
+            positionRow.position,
+            now(),
+          );
+        getDb().prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(now(), request.params.id);
+        return reply.code(201).send({ ok: true, entryId: Number(info.lastInsertRowid), external: true });
+      }
 
       const positionRow = getDb()
         .prepare('SELECT COALESCE(MAX(position), -1) + 1 AS position FROM playlist_tracks WHERE playlist_id = ?')
