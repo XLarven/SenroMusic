@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuth } from '../auth.js';
 import { BROWSER_UA } from '../audio/types.js';
 import { forgetRequest, invalidateUrl, resolveStream, sourceStatus } from '../audio/resolver.js';
+import { forgetVideoId, lookupVideoId, rememberVideoId } from '../audio/map.js';
 import type { ResolvedStream } from '../audio/types.js';
 
 type StreamQuery = {
@@ -62,6 +63,28 @@ function buildRequest(query: StreamQuery) {
   };
 }
 
+type StreamWanted = ReturnType<typeof buildRequest>;
+
+/**
+ * Resolves a request, reusing the remembered upload for metadata-only songs.
+ * A remembered id that no longer streams is forgotten and the search runs again
+ * exactly once, so the map can never wedge a track.
+ */
+async function resolveForRequest(wanted: StreamWanted, fresh = false) {
+  if (fresh) {
+    forgetRequest(wanted);
+    forgetVideoId(wanted);
+  }
+  const remembered = lookupVideoId(wanted);
+  let resolved = await resolveStream(remembered ? { ...wanted, videoId: remembered } : wanted);
+  if (!resolved && remembered) {
+    forgetVideoId(wanted);
+    resolved = await resolveStream(wanted);
+  }
+  if (resolved) rememberVideoId(wanted, resolved);
+  return { resolved, remembered: Boolean(remembered) };
+}
+
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: StreamQuery }>(
     '/api/media/stream',
@@ -74,10 +97,9 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: { code: 'bad_request', message: 'videoId veya title gerekli.' } });
       }
 
-      // `fresh=1` is the player's retry: drop the cached URL and the failure
-      // memory so a dead stream is not replayed for the next minute.
-      if (request.query.fresh) forgetRequest(wanted);
-      const resolved = await resolveStream(wanted);
+      // `fresh=1` is the player's retry: drop the cached URL, the remembered
+      // upload and the failure memory so a dead stream is not replayed.
+      const { resolved } = await resolveForRequest(wanted, Boolean(request.query.fresh));
       if (!resolved) {
         return reply.code(502).send({
           error: {
@@ -175,7 +197,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
           .code(400)
           .send({ error: { code: 'bad_request', message: 'videoId veya title gerekli.' } });
       }
-      const resolved = await resolveStream(wanted);
+      const { resolved } = await resolveForRequest(wanted);
       if (!resolved) {
         return reply
           .code(502)
@@ -202,7 +224,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     const wanted = buildRequest(request.query);
     if (!wanted.videoId && !wanted.title) return { ready: false };
     const started = Date.now();
-    const resolved = await resolveStream(wanted);
+    const { resolved } = await resolveForRequest(wanted);
     return { ready: Boolean(resolved), source: resolved?.source ?? null, ms: Date.now() - started };
   });
 }

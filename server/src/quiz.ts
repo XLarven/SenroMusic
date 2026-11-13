@@ -87,18 +87,27 @@ export function nextResetAt(now = new Date()): string {
 const TURKISH_MARKERS = /[çğıöşüÇĞİÖŞÜ]/;
 /** Latin-script-only metadata; anything else is classified as unknown. */
 const LATIN_SCRIPT = /^[\p{Script=Latin}\p{N}\p{P}\p{Z}\p{S}]+$/u;
+/**
+ * Instrumentals have no vocal language. They stay out of the Turkish/International
+ * pools on purpose and only appear in the mixed category.
+ */
+const INSTRUMENTAL_MARKER =
+  /\b(instrumental|enstrümantal|enstrumantal|karaoke|off[\s-]?vocal|backing track|playback)\b/i;
 const UNKNOWN_ARTISTS = new Set(['unknown', 'various artists', 'various', '—', '-']);
 
 function guessLanguage(
   title: string,
   artist: string,
   stored: string | null,
-): { language: 'tr' | 'intl' | 'unknown'; source: 'tag' | 'script' | 'unknown' } {
+): { language: 'tr' | 'intl' | 'unknown'; source: 'tag' | 'script' | 'unknown' | 'instrumental' } {
   // Only verified signals: an explicit tag, or Turkish-specific characters in
   // the metadata (high precision). Anything else in Latin script is treated as
   // international; other scripts stay unknown and are excluded from the
   // language-specific categories.
   if (stored === 'tr' || stored === 'intl') return { language: stored, source: 'tag' };
+  if (INSTRUMENTAL_MARKER.test(`${title} ${artist}`)) {
+    return { language: 'unknown', source: 'instrumental' };
+  }
   const text = `${title} ${artist}`;
   if (TURKISH_MARKERS.test(text)) return { language: 'tr', source: 'script' };
   if (LATIN_SCRIPT.test(text)) return { language: 'intl', source: 'script' };
@@ -166,8 +175,14 @@ type PoolRow = { track_id: string; title: string; artist: string; language: stri
  */
 export function reclassifyStoredLanguages(db: Database): number {
   const rows = db
-    .prepare("SELECT track_id, title, artist, language FROM quiz_tracks WHERE language_source = 'unknown'")
-    .all() as Array<{ track_id: string; title: string; artist: string; language: string }>;
+    .prepare(
+      `SELECT track_id, title, artist, language, language_source FROM quiz_tracks
+       WHERE language_source = 'unknown'
+          OR lower(title) LIKE '%instrumental%'
+          OR lower(title) LIKE '%karaoke%'
+          OR lower(title) LIKE '%enstrümantal%'`,
+    )
+    .all() as Array<{ track_id: string; title: string; artist: string; language: string; language_source: string }>;
   const update = db.prepare('UPDATE quiz_tracks SET language = ?, language_source = ? WHERE track_id = ?');
   let changed = 0;
   const run = db.transaction(() => {
@@ -180,6 +195,7 @@ export function reclassifyStoredLanguages(db: Database): number {
         continue;
       }
       if (classified.language === row.language && classified.source === 'unknown') continue;
+      if (classified.language === row.language && classified.source === row.language_source) continue;
       update.run(classified.language, classified.source, row.track_id);
       changed += 1;
     }

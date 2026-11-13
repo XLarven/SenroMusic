@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../api';
-import { mediaUrl } from '../lib/media';
-import { getServerUrl } from '../lib/serverUrl';
+import { mediaUrl, warmTrack } from '../lib/media';
 import type { Track } from '../types';
 import { useDownloads } from './downloads';
 
@@ -55,8 +54,6 @@ let audio: HTMLAudioElement | null = null;
 let listenersAttached = false;
 let sleepTimerHandle: ReturnType<typeof setTimeout> | null = null;
 let lastRecordedTrackId: string | null = null;
-/** Track whose resolver cache has already been warmed. */
-let warmedFor: string | null = null;
 let lastSessionSave = 0;
 /** Tracks that already burned their one automatic stream retry. */
 const failedRetries = new Set<string>();
@@ -273,14 +270,8 @@ function attachAudioListeners(): void {
 
 function warmUpcoming(state: PlayerState): void {
   const next = state.queue[state.index + 1];
-  if (!next || next.id === warmedFor) return;
-  const target = mediaUrl(next);
-  // Local files need no warm-up; remote ones pay provider extraction up front.
-  if (!target.startsWith('/api/media/stream')) return;
-  warmedFor = next.id;
-  void fetch(`${getServerUrl()}${target.replace('/api/media/stream', '/api/media/warm')}`, {
-    credentials: 'include',
-  }).catch(() => undefined);
+  if (!next) return;
+  warmTrack(next);
 }
 
 function playElement(): void {

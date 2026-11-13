@@ -122,6 +122,8 @@ export type SpotifyResolved = {
   totalDuration?: number | null;
   totalTracks?: number;
   items: SpotifyItem[];
+  /** The provider itself truncated the list (public Spotify playlists stop at 100). */
+  capped?: boolean;
 };
 
 export type SpotifyCatalogSearch = {

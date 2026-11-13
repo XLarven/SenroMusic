@@ -19,6 +19,8 @@ type Props = {
   importLabel?: string;
   importing?: boolean;
   onImport?: () => void;
+  /** The provider truncated the playlist before it reached us. */
+  truncated?: boolean;
 };
 
 function shuffled<T>(items: T[]): T[] {
@@ -46,6 +48,7 @@ export function RemotePlaylistView({
   importLabel,
   importing,
   onImport,
+  truncated,
 }: Props) {
   const playQueue = usePlayer((state) => state.playQueue);
   // Imported playlists hand every row the playlist cover; fetch the real album
@@ -86,6 +89,20 @@ export function RemotePlaylistView({
               {source === 'spotify' ? 'Spotify' : 'YouTube'}
             </span>
           </div>
+
+          {truncated ? (
+            <p className="import-limit-note" role="status">
+              {source === 'spotify'
+                ? t(
+                    'Spotify herkese açık bağlantılarda yalnızca ilk 100 parçayı veriyor; liste burada kesiliyor.',
+                    'Spotify only exposes the first 100 tracks for public links, so the list stops there.',
+                  )
+                : t(
+                    `Bu liste ${tracksWithArtwork.length} parçada kesildi; liste başına üst sınır 1000.`,
+                    `This list was truncated at ${tracksWithArtwork.length} tracks; the limit is 1000 per playlist.`,
+                  )}
+            </p>
+          ) : null}
 
           <div className="detail-actions">
             <button

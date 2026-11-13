@@ -7489,3 +7489,15 @@ body.room-mode .room-page {
   color: var(--amber);
   opacity: 0.85;
 }
+
+/* Import preview: honest truncation notice from the provider. */
+.import-limit-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 178, 36, 0.35);
+  background: rgba(255, 178, 36, 0.08);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}

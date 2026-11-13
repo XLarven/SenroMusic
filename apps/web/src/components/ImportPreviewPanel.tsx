@@ -30,6 +30,8 @@ export type PlaylistPreview = {
   sourceUrl: string;
   sourcePlaylistId: string | null;
   items: PreviewItem[];
+  /** The provider truncated the list (Spotify stops at 100 for public links). */
+  capped?: boolean;
 };
 
 const PROVIDER_LABELS: Record<PlaylistPreview['provider'], string> = {
@@ -129,6 +131,13 @@ export function ImportPreviewPanel({
             ) : null}
             <span className="status-pill"><ListMusic size={13} /> {preview.items.length} referans korundu</span>
           </div>
+          {preview.capped ? (
+            <p className="import-limit-note" role="status">
+              {preview.provider === 'spotify'
+                ? 'Spotify herkese açık bağlantılarda yalnızca ilk 100 parçayı veriyor; liste burada kesiliyor. Kalanları eklemek için Spotify hesabını bağlamak gerekir.'
+                : `Bu liste ${preview.items.length} parçada kesildi; liste başına üst sınır 1000.`}
+            </p>
+          ) : null}
           <div className="detail-actions">
             <button type="button" className="button primary" onClick={() => playQueue(matchedTracks)} disabled={matchedTracks.length === 0}>
               <Play size={16} fill="currentColor" /> Çal

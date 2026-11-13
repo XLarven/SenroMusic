@@ -315,6 +315,7 @@ test('language categories only use verified metadata', () => {
   insert.run('t_tr', 'Şımarık', 'Tarkan', file);
   insert.run('t_intl', 'Blinding Lights', 'The Weeknd', file);
   insert.run('t_cyr', 'Звезда по имени Солнце', 'Кино', file);
+  insert.run('t_inst', 'Nihavend Saz Semaisi (Instrumental)', 'Saz Ekibi', file);
 
   syncQuizPool(db);
   const rows = db
@@ -325,11 +326,16 @@ test('language categories only use verified metadata', () => {
   assert.equal(rows.find((row) => row.track_id === 't_intl')?.language, 'intl');
   assert.equal(rows.find((row) => row.track_id === 't_cyr')?.language, 'unknown');
   assert.equal(rows.find((row) => row.track_id === 't_cyr')?.language_source, 'unknown');
+  // Explicit policy: an instrumental has no vocal language, even when the title
+  // contains Turkish characters.
+  assert.equal(rows.find((row) => row.track_id === 't_inst')?.language, 'unknown');
+  assert.equal(rows.find((row) => row.track_id === 't_inst')?.language_source, 'instrumental');
 
-  // Unknown-script rows stay out of both language pools but remain in mixed.
+  // Unknown-script and instrumental rows stay out of both language pools but
+  // remain available in the mixed category.
   assert.equal(poolSize(db, 'tr'), 1);
   assert.equal(poolSize(db, 'intl'), 1);
-  assert.equal(poolSize(db, 'mixed'), 3);
+  assert.equal(poolSize(db, 'mixed'), 4);
 });
 
 test('the pool only holds tracks with a long enough local file', () => {

@@ -591,6 +591,23 @@ const migrations: Migration[] = [
       addColumn(db, 'quiz_tracks', "language_source TEXT NOT NULL DEFAULT 'unknown'");
     },
   },
+  {
+    id: 14,
+    name: 'stream resolution map',
+    up(db) {
+      // Metadata-only songs (Spotify rows) are matched to a YouTube upload once;
+      // remembering the id keeps the same recording across restarts and skips the
+      // provider search on the next play.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS stream_resolutions (
+          key TEXT PRIMARY KEY,
+          video_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {

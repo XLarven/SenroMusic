@@ -1,4 +1,5 @@
 import type { Track } from '../types';
+import { getServerUrl } from './serverUrl';
 
 /**
  * Playback source resolution for the browser.
@@ -70,4 +71,21 @@ export function trackIdentity(track: Track): { videoId: string | null; title: st
     title: track.title ?? '',
     artist: track.artist ?? '',
   };
+}
+
+/**
+ * Asks the server to resolve a remote track without streaming any bytes, so the
+ * provider extraction is already paid for when the user presses play. Local
+ * files are ignored, and each track is warmed at most once per session.
+ */
+const warmedTargets = new Set<string>();
+
+export function warmTrack(track: Track | null | undefined): void {
+  if (!track) return;
+  const target = mediaUrl(track);
+  if (!target.startsWith('/api/media/stream')) return;
+  if (warmedTargets.has(target)) return;
+  warmedTargets.add(target);
+  const warmUrl = target.replace('/api/media/stream', '/api/media/warm');
+  void fetch(`${getServerUrl()}${warmUrl}`, { credentials: 'include' }).catch(() => undefined);
 }

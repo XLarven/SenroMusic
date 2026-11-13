@@ -21,6 +21,7 @@ import { usePlayer } from '../store/player';
 import { useToastStore } from '../store/toast';
 import { coverGradient } from '../lib/gradient';
 import { formatCount, formatDuration } from '../lib/format';
+import { warmTrack } from '../lib/media';
 import type { Track, YouTubeResult, SpotifyResolved, SpotifyCatalogSearch, UserSearchResult } from '../types';
 import { useNavigate } from 'react-router-dom';
 
@@ -327,6 +328,9 @@ export function SearchPage() {
       .then((payload) => {
         if (cancelled) return;
         setYtResults(payload.results);
+        // The first rows are what people press play on; resolve them in the
+        // background so playback is already warm.
+        payload.results.slice(0, 2).forEach((item) => warmTrack(youtubeResultToTrack(item)));
       })
       .catch((error) => {
         if (cancelled) return;
@@ -381,7 +385,11 @@ export function SearchPage() {
       void api
         .spotifySearch(deferredQuery, 10)
         .then((result) => {
-          if (!cancelled) setSpotifyCatalog(result);
+          if (cancelled) return;
+          setSpotifyCatalog(result);
+          // These rows have no YouTube id yet, so the resolver has to search.
+          // Warm the first one while the user is still reading the list.
+          result.tracks.slice(0, 2).forEach((track) => warmTrack(spotifyCatalogTrackToTrack(track)));
         })
         .catch((error) => {
           if (cancelled) return;
@@ -425,7 +433,8 @@ export function SearchPage() {
   }, [deferredQuery]);
 
   useEffect(() => {
-    if (!spotify || !isPlaylistUrl(deferredQuery) || !deferredQuery.includes('open.spotify.com')) return;    const items = withMatches(
+    if (!spotify || !isPlaylistUrl(deferredQuery) || !deferredQuery.includes('open.spotify.com')) return;
+    const items = withMatches(
       spotify.items.map((item) => ({
         providerTrackId: item.providerTrackId ?? null,
         title: item.title,
@@ -447,6 +456,7 @@ export function SearchPage() {
       sourceUrl: deferredQuery,
       sourcePlaylistId: deferredQuery.match(/playlist\/([^?/]+)/)?.[1] ?? null,
       items,
+      capped: spotify.capped === true || spotify.items.length >= 100,
     });
     setPreviewError(null);
     setPreviewLoading(false);
@@ -908,6 +918,7 @@ export function SearchPage() {
         importing={importing}
         onImport={() => void handleSpotifyImport()}
         importLabel="Çalma listesini oluştur"
+        truncated={spotify.capped === true || spotify.items.length >= 100}
       />
     );
   };
