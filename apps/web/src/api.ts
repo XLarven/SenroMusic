@@ -97,15 +97,25 @@ function confirmSession(): Promise<boolean> {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
-  const response = await fetch(`${getServerUrl()}${path}`, {
-    credentials: 'include',
-    ...rest,
-    headers: {
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...headers,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const send = () =>
+    fetch(`${getServerUrl()}${path}`, {
+      credentials: 'include',
+      ...rest,
+      headers: {
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+  let response = await send();
+  // 502/503/504 come from the reverse proxy while the app restarts or after an
+  // upstream timeout. A single retry on a safe request is cheaper than a dead page.
+  const idempotent = !options.method || options.method === 'GET' || options.method === 'HEAD';
+  if (idempotent && (response.status === 502 || response.status === 503 || response.status === 504)) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    response = await send();
+  }
 
   if (!response.ok) {
     let code = 'request_failed';
@@ -120,7 +130,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       const { code: _code, message: _message, ...rest } = payload.error ?? {};
       details = rest as Record<string, unknown>;
     } catch {
-      // Keep the generic message when the server did not return JSON.
+      // No JSON body: almost always the gateway/proxy, not this server.
+      if (response.status === 502 || response.status === 503 || response.status === 504) {
+        code = 'server_unreachable';
+        message = `Sunucuya ulaşılamadı (${response.status}). Birkaç saniye sonra tekrar dene.`;
+        details = { path };
+        if (typeof console !== 'undefined') console.warn('[api] gateway error', response.status, path);
+      }
     }
     if (response.status === 401 && !path.startsWith('/api/auth/')) {
       // A single 401 is not proof that the session is gone (an endpoint may

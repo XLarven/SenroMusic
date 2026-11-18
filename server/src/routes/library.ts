@@ -73,6 +73,10 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
       mysqlEnabled: Boolean(config.mysqlHost && config.mysqlUser),
       spotifyConfigured: isSpotifyConfigured(),
       database: await getDatabaseStatus(),
+      // Liveness facts a reverse proxy or an uptime monitor can read cheaply.
+      uptimeSeconds: Math.round(process.uptime()),
+      startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+      node: process.version,
     };
   });
 

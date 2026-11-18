@@ -164,12 +164,8 @@ export async function buildDiscovery(
 
   const { seeds, personalized } = collectSeeds(db, userId);
   const feedback = readFeedback(db, userId);
-  const recentTracks = db
-    .prepare(
-      `SELECT t.title, t.artist FROM listening_history h JOIN tracks t ON t.id = h.track_id
-       WHERE h.user_id = ? AND h.played_at >= ? ORDER BY h.played_at DESC LIMIT 60`,
-    )
-    .all(userId, new Date(now - 7 * 86_400_000).toISOString()) as Array<{ title: string; artist: string }>;
+  // Recently played (local and streamed) so a recommendation never repeats them.
+  const recentTracks = recentPlaySeeds(db, userId, 60).map((row) => ({ title: row.title, artist: row.artist }));
   const recentIdentities = new Set(recentTracks.map((track) => trackIdentity(track)));
 
   const perSeed = await Promise.all(

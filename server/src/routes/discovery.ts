@@ -7,7 +7,7 @@ import { requireAuth } from '../auth.js';
 import { getDb } from '../db.js';
 import { rateLimit } from '../ratelimit.js';
 import { findSimilarTracks } from '../audio/similar.js';
-import { buildDiscovery, recordFeedback, removeFeedback, trackIdentity } from '../discovery.js';
+import { buildDiscovery, recordFeedback, removeFeedback, trackIdentity, type DiscoveryPayload } from '../discovery.js';
 import { normalizeText } from '../searchQuality.js';
 
 const readLimit = rateLimit({ name: 'discovery-read', max: 60, windowMs: 60_000, keyBy: 'user' });
@@ -22,10 +22,24 @@ export async function discoveryRoutes(app: FastifyInstance): Promise<void> {
     '/api/discovery',
     { preHandler: [requireAuth, readLimit] },
     async (request) => {
-      const payload = await buildDiscovery(getDb(), request.user!.id, {
-        refresh: request.query.refresh === '1',
+      // A provider stall must never hold the request open long enough for a
+      // reverse proxy to answer 502: after the budget the feed degrades instead.
+      const budget = new Promise<DiscoveryPayload>((resolve) => {
+        setTimeout(
+          () =>
+            resolve({
+              generatedAt: new Date().toISOString(),
+              personalized: false,
+              degraded: true,
+              sections: [],
+            }),
+          9_000,
+        );
       });
-      return payload;
+      return Promise.race([
+        buildDiscovery(getDb(), request.user!.id, { refresh: request.query.refresh === '1' }),
+        budget,
+      ]);
     },
   );
 

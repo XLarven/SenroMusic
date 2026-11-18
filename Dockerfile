@@ -9,7 +9,9 @@ COPY apps ./apps
 COPY server ./server
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @norie/server build && pnpm --filter @norie/web build
+# The workspace package names are "@Norie/server" and "@Norie/web"; pnpm filters
+# are case-sensitive, so a lowercase filter matches nothing and the build fails.
+RUN pnpm --filter @Norie/server build && pnpm --filter @Norie/web build
 
 ENV NODE_ENV=production
 ENV MUSIC_DIR=/music
@@ -20,4 +22,4 @@ ENV HOST=0.0.0.0
 VOLUME ["/music", "/data"]
 EXPOSE 8787
 
-CMD ["pnpm", "--filter", "@norie/server", "start"]
+CMD ["pnpm", "--filter", "@Norie/server", "start"]

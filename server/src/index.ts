@@ -156,6 +156,15 @@ async function main(): Promise<void> {
   mkdirSync(config.musicDir, { recursive: true });
   const app = await buildServer();
 
+  // A stray rejected promise used to end the process on Node 22, which the proxy
+  // reported to the browser as a 502. Log it and keep serving instead.
+  process.on('unhandledRejection', (reason) => {
+    app.log.error({ err: reason instanceof Error ? reason.message : String(reason) }, 'unhandled rejection');
+  });
+  process.on('uncaughtException', (error) => {
+    app.log.error({ err: error.message, stack: error.stack }, 'uncaught exception');
+  });
+
   if (config.mysqlHost) {
     const ok = await initMysqlSchema();
     app.log.info(`MySQL ${ok ? 'bağlantısı kuruldu' : 'bağlanamadı'} (${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase})`);

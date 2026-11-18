@@ -1,15 +1,41 @@
 services:
-  Norie Music:
+  norie-music:
     build: .
-    image: Norie Music:latest
-    container_name: Norie Music
+    image: norie-music:latest
+    container_name: norie-music
     ports:
       - "${PORT:-8787}:8787"
+    # Values are interpolated from the .env file next to this compose file
+    # (copy server/.env.example and fill in the real secrets).
     environment:
-      MUSIC_TOKEN: ${MUSIC_TOKEN:-change-this-token-before-exposing}
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8787
+      MUSIC_DIR: /music
+      DATA_DIR: /data
+      MUSIC_SESSION_SECRET: ${MUSIC_SESSION_SECRET:-}
       SECURE_COOKIES: ${SECURE_COOKIES:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8787}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      MYSQL_HOST: ${MYSQL_HOST:-}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_USER: ${MYSQL_USER:-}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-norie_music}
     volumes:
       - ./music:/music
       - ./data:/data
     restart: unless-stopped
+    # The Node image has no curl, so the probe uses fetch. A crash loop or an
+    # unbuilt server shows up as "unhealthy" here instead of a bare 502 upstream.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
