@@ -7,6 +7,14 @@ import { getPublicPlaylists } from '../library.js';
 import { getRelationship } from '../friends.js';
 import { presenceStore, publishActivity, publishPresence } from '../presence.js';
 import { noteTasteChange } from '../taste.js';
+import {
+  cleanRemoteTrack,
+  listHistory,
+  recordRemotePlay,
+  topHistoryArtists,
+  type HistorySource,
+  type RemoteTrackInput,
+} from '../history.js';
 import { rateLimit } from '../ratelimit.js';
 import {
   findUserById,
@@ -29,7 +37,12 @@ type ProfileBody = {
 };
 type SettingsBody = { key?: unknown; value?: unknown };
 type FavoriteBody = { trackId?: unknown };
-type HistoryBody = { trackId?: unknown; msPlayed?: unknown; source?: unknown };
+type HistoryBody = {
+  trackId?: unknown;
+  msPlayed?: unknown;
+  source?: unknown;
+  track?: unknown;
+};
 type ArtistFollowBody = { artistId?: unknown; artistName?: unknown };
 type PasswordBody = { currentPassword?: unknown; newPassword?: unknown; password?: unknown };
 
@@ -303,7 +316,7 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       const trackId = typeof request.body?.trackId === 'string' ? request.body.trackId : '';
       const msPlayed = Number(request.body?.msPlayed);
       const source = typeof request.body?.source === 'string' ? request.body.source : 'player';
-      if (!trackId || !getTrackRow(trackId)) {
+      if (!trackId) {
         return reply.code(404).send({ error: { code: 'track_not_found', message: 'Parça bulunamadı.' } });
       }
       if (!Number.isFinite(msPlayed) || msPlayed < 0 || msPlayed > 24 * 60 * 60 * 1000) {
@@ -311,9 +324,20 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       }
       if (!['player', 'stream', 'download'].includes(source)) return badRequest(reply, 'source geçersiz.');
       if (getSetting(user.id, 'historyEnabled') === false) return { ok: true, recorded: false };
-      getDb()
-        .prepare('INSERT INTO listening_history (user_id, track_id, played_at, ms_played, source) VALUES (?, ?, ?, ?, ?)')
-        .run(user.id, trackId, new Date().toISOString(), Math.round(msPlayed), source);
+
+      if (getTrackRow(trackId)) {
+        getDb()
+          .prepare('INSERT INTO listening_history (user_id, track_id, played_at, ms_played, source) VALUES (?, ?, ?, ?, ?)')
+          .run(user.id, trackId, new Date().toISOString(), Math.round(msPlayed), source);
+      } else {
+        // A song played from search never enters the library, so it is recorded
+        // with its own metadata instead of being rejected.
+        const remote = cleanRemoteTrack(trackId, (request.body?.track ?? null) as RemoteTrackInput | null);
+        if (!remote) {
+          return reply.code(404).send({ error: { code: 'track_not_found', message: 'Parça bulunamadı.' } });
+        }
+        recordRemotePlay(getDb(), user.id, remote, msPlayed, source as HistorySource);
+      }
       // New playback changes taste results for this user and everyone compared with them.
       noteTasteChange(user.id);
       return { ok: true, recorded: true };
@@ -322,45 +346,44 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/me/history', { preHandler: requireAuth }, async (request) => {
     const limit = Math.min(Math.max(Number(new URL(request.url, 'http://localhost').searchParams.get('limit') ?? '50'), 1), 200);
-    const rows = getDb()
-      .prepare(
-        `SELECT t.*, h.played_at, h.ms_played, h.source
-         FROM (SELECT track_id, MAX(played_at) as played_at FROM listening_history WHERE user_id = ? GROUP BY track_id) recent
-         JOIN listening_history h ON h.user_id = ? AND h.track_id = recent.track_id AND h.played_at = recent.played_at
-         JOIN tracks t ON t.id = h.track_id
-         ORDER BY h.played_at DESC
-         LIMIT ?`,
-      )
-      .all(request.user!.id, request.user!.id, limit) as Array<Parameters<typeof trackToDto>[0] & { played_at: string; ms_played: number; source: string }>;
-    return {
-      items: rows.map((row) => ({ track: trackToDto(row), playedAt: row.played_at, msPlayed: row.ms_played, source: row.source })),
-    };
+    const items = listHistory(getDb(), request.user!.id, limit, (row) =>
+      trackToDto(row as Parameters<typeof trackToDto>[0]),
+    );
+    return { items };
+  });
+
+  app.delete('/api/me/history', { preHandler: requireAuth }, async (request) => {
+    const db = getDb();
+    const userId = request.user!.id;
+    const local = db.prepare('DELETE FROM listening_history WHERE user_id = ?').run(userId);
+    const remote = db.prepare('DELETE FROM remote_plays WHERE user_id = ?').run(userId);
+    return { ok: true, removed: local.changes + remote.changes };
   });
 
   app.get('/api/me/history/stats', { preHandler: requireAuth }, async (request) => {
+    const userId = request.user!.id;
     const row = getDb()
       .prepare(
-        `SELECT COUNT(*) AS totalPlays,
-                COALESCE(SUM(ms_played), 0) AS totalMs,
-                MAX(played_at) AS lastPlayedAt
-         FROM listening_history WHERE user_id = ?`,
+        `SELECT
+           (SELECT COUNT(*) FROM listening_history WHERE user_id = ?)
+         + (SELECT COUNT(*) FROM remote_plays WHERE user_id = ?) AS totalPlays,
+           (SELECT COALESCE(SUM(ms_played), 0) FROM listening_history WHERE user_id = ?)
+         + (SELECT COALESCE(SUM(ms_played), 0) FROM remote_plays WHERE user_id = ?) AS totalMs,
+           MAX(
+             COALESCE((SELECT MAX(played_at) FROM listening_history WHERE user_id = ?), ''),
+             COALESCE((SELECT MAX(played_at) FROM remote_plays WHERE user_id = ?), '')
+           ) AS lastPlayedAt`,
       )
-      .get(request.user!.id) as { totalPlays: number; totalMs: number; lastPlayedAt: string | null };
-    const topArtists = getDb()
-      .prepare(
-        `SELECT t.artist, COUNT(*) AS plays
-         FROM listening_history h
-         JOIN tracks t ON t.id = h.track_id
-         WHERE h.user_id = ?
-         GROUP BY t.artist
-         ORDER BY plays DESC
-         LIMIT 5`,
-      )
-      .all(request.user!.id) as Array<{ artist: string; plays: number }>;
+      .get(userId, userId, userId, userId, userId, userId) as {
+      totalPlays: number;
+      totalMs: number;
+      lastPlayedAt: string | null;
+    };
+    const topArtists = topHistoryArtists(getDb(), userId, 5);
     return {
       totalPlays: row.totalPlays,
       totalMs: row.totalMs,
-      lastPlayedAt: row.lastPlayedAt,
+      lastPlayedAt: row.lastPlayedAt || null,
       topArtists,
     };
   });

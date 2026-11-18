@@ -25,7 +25,7 @@ import { warmTrack } from '../lib/media';
 import type { Track, YouTubeResult, SpotifyResolved, SpotifyCatalogSearch, UserSearchResult } from '../types';
 import { useNavigate } from 'react-router-dom';
 
-type SearchTab = 'all' | 'tracks' | 'albums' | 'artists';
+type SearchTab = 'all' | 'tracks' | 'albums' | 'artists' | 'playlists';
 const TABS: Array<{ id: SearchTab; label: string }> = [
   { id: 'all', label: 'Tümü' },
   { id: 'tracks', label: 'Şarkılar' },
@@ -140,7 +140,7 @@ export function SearchPage() {
   const [ytPlaylistLoading, setYtPlaylistLoading] = useState(false);
   const [ytPlaylistError, setYtPlaylistError] = useState<string | null>(null);
   const [ytPlaylistImporting, setYtPlaylistImporting] = useState(false);
-  const [catalogResults, setCatalogResults] = useState<{ tracks: import('../types').Track[]; albums: import('../types').Album[]; artists: import('../types').Artist[] } | null>(null);
+  const [catalogResults, setCatalogResults] = useState<{ tracks: import('../types').Track[]; albums: import('../types').Album[]; artists: import('../types').Artist[]; playlists: import('../types').PlaylistSummary[] } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [spotifyCatalog, setSpotifyCatalog] = useState<import('../types').SpotifyCatalogSearch | null>(null);
   const [spotifyCatalogLoading, setSpotifyCatalogLoading] = useState(false);
@@ -256,7 +256,7 @@ export function SearchPage() {
   const localResults = useMemo(() => {
     const needle = normalize(deferredQuery);
     if (!needle) {
-      return { tracks: [], albums: [], artists: [] };
+      return { tracks: [], albums: [], artists: [], playlists: [] };
     }
     return {
       tracks: library.tracks.filter((track) =>
@@ -268,12 +268,15 @@ export function SearchPage() {
         [album.name, album.artist].some((value) => normalize(value).includes(needle)),
       ),
       artists: library.artists.filter((artist) => normalize(artist.name).includes(needle)),
+      playlists: playlists.filter((playlist) =>
+        [playlist.name, playlist.description].some((value) => normalize(value).includes(needle)),
+      ),
     };
-  }, [deferredQuery, library]);
+  }, [deferredQuery, library, playlists]);
 
   const results = catalogResults ?? localResults;
 
-  const total = results.tracks.length + results.albums.length + results.artists.length;
+  const total = results.tracks.length + results.albums.length + results.artists.length + (results.playlists?.length ?? 0);
 
   useEffect(() => {
     const needle = deferredQuery;
@@ -773,6 +776,7 @@ export function SearchPage() {
     tracks: results.tracks.length,
     albums: results.albums.length,
     artists: results.artists.length,
+    playlists: results.playlists?.length ?? 0,
   };
 
   // The empty state is only honest once every provider has answered: Spotify
@@ -1302,6 +1306,35 @@ export function SearchPage() {
                     {results.artists.map((artist) => (
                       <ArtistCard key={artist.id} artist={artist} />
                     ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {results.playlists.length > 0 && (tab === 'all' || tab === 'playlists') ? (
+                <section className="content-section">
+                  <div className="section-heading">
+                    <div>
+                      <h2>Çalma listeleri</h2>
+                      <p>{results.playlists.length} eşleşme</p>
+                    </div>
+                  </div>
+                  <div className="surface-panel">
+                    <ul className="playlist-result-list">
+                      {results.playlists.map((playlist) => (
+                        <li key={playlist.id}>
+                          <Link to={`/playlist/${playlist.id}`} className="playlist-result">
+                            <Cover src={playlist.coverUrl} alt="" seed={playlist.id} className="playlist-result-cover" iconSize={16} />
+                            <span className="playlist-result-copy">
+                              <strong>{playlist.name}</strong>
+                              <small>
+                                {playlist.trackCount} parça
+                                {playlist.isOwner ? ' · senin listen' : ''}
+                              </small>
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </section>
               ) : null}

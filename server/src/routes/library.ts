@@ -84,7 +84,7 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
     if (query.length < 1 || query.length > 120) {
       return reply.code(400).send({ error: { code: 'invalid_query', message: 'Arama sorgusu 1-120 karakter olmalı.' } });
     }
-    return searchCatalog(query, limit);
+    return searchCatalog(query, limit, request.user);
   });
 
   app.post(

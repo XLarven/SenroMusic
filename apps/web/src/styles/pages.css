@@ -7501,3 +7501,243 @@ body.room-mode .room-page {
   font-size: 12.5px;
   line-height: 1.5;
 }
+
+/* Home: daily/artist mixes and recent searches. */
+.mix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.mix-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(22, 27, 36, 0.92);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.mix-card:hover {
+  border-color: rgba(255, 178, 36, 0.45);
+  transform: translateY(-1px);
+}
+
+.mix-card.is-daily {
+  border-color: rgba(255, 178, 36, 0.35);
+  background: linear-gradient(135deg, rgba(255, 178, 36, 0.12), rgba(22, 27, 36, 0.95));
+}
+
+.mix-art {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.mix-art .cover,
+.mix-art img {
+  width: 100%;
+  height: 100%;
+}
+
+.mix-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mix-card:hover .mix-play {
+  opacity: 1;
+}
+
+.mix-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.mix-copy strong {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mix-copy small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.home-recent-searches {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Search: playlist result rows. */
+.playlist-result-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.playlist-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: inherit;
+  text-decoration: none;
+}
+
+.playlist-result:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.playlist-result-cover {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+
+.playlist-result-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.playlist-result-copy small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* Listening history page. */
+.history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.history-row:last-child {
+  border-bottom: 0;
+}
+
+.history-play {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+}
+
+.history-cover {
+  width: 44px;
+  height: 44px;
+}
+
+.history-play-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.history-play:hover .history-play-icon {
+  opacity: 1;
+}
+
+.history-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.history-copy strong {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-copy small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.history-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 178, 36, 0.3);
+  color: var(--amber);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  flex: 0 0 auto;
+}
+
+.history-badge.is-library {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--muted);
+}
+
+.history-time {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .history-badge {
+    display: none;
+  }
+}

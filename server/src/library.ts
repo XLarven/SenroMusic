@@ -244,10 +244,12 @@ export function playlistExists(id: string): boolean {
 export function searchCatalog(
   query: string,
   limit = 20,
-): { tracks: Track[]; albums: Album[]; artists: Artist[] } {
+  user?: UserRow | null,
+): { tracks: Track[]; albums: Album[]; artists: Artist[]; playlists: PlaylistSummary[] } {
   const escaped = query.replace(/[%_\\]/g, (match) => `\\${match}`);
   const pattern = `%${escaped}%`;
-  const rows = getDb()
+  const db = getDb();
+  const rows = db
     .prepare(
       `SELECT * FROM tracks
         WHERE lower(title) LIKE lower(?) ESCAPE '\\'
@@ -262,6 +264,23 @@ export function searchCatalog(
   const tracks = rows.map(trackToDto).slice(0, limit);
   const library = getLibrary();
   const needle = query.toLocaleLowerCase('tr');
+
+  // Playlists are searchable too; only what this account may already open is
+  // returned (own lists first, then public ones).
+  const playlistRows = user
+    ? (db
+        .prepare(
+          `${PLAYLIST_AGGREGATE}
+           WHERE (p.owner_id = ? OR p.visibility = 'public' OR p.owner_id IS NULL)
+             AND (lower(p.name) LIKE lower(?) ESCAPE '\\'
+                  OR lower(COALESCE(p.description, '')) LIKE lower(?) ESCAPE '\\')
+           GROUP BY p.id
+           ORDER BY CASE WHEN p.owner_id = ? THEN 0 ELSE 1 END, p.updated_at DESC
+           LIMIT ?`,
+        )
+        .all(user.id, pattern, pattern, user.id, limit) as PlaylistAggregateRow[])
+    : [];
+
   return {
     tracks,
     albums: library.albums
@@ -270,5 +289,6 @@ export function searchCatalog(
     artists: library.artists
       .filter((artist) => artist.name.toLocaleLowerCase('tr').includes(needle))
       .slice(0, limit),
+    playlists: playlistRows.map((row) => playlistSummary(row, user)),
   };
 }

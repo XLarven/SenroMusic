@@ -24,6 +24,12 @@ function makeDb() {
       user_id TEXT NOT NULL, kind TEXT NOT NULL, value TEXT NOT NULL,
       created_at TEXT NOT NULL, PRIMARY KEY (user_id, kind, value)
     );
+    CREATE TABLE remote_plays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, track_id TEXT NOT NULL,
+      provider TEXT, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT, cover_url TEXT,
+      duration REAL, stream_url TEXT, played_at TEXT NOT NULL,
+      ms_played INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL DEFAULT 'stream'
+    );
   `);
   db.prepare("INSERT INTO users (id, display_name, username) VALUES (?, 'Ada', 'ada')").run(USER);
   const insertTrack = db.prepare('INSERT INTO tracks (id, title, artist) VALUES (?, ?, ?)');

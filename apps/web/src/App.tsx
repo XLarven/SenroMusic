@@ -22,6 +22,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { PlaylistPage } from './pages/PlaylistPage';
 import { SearchPage } from './pages/SearchPage';
 import { FavoritesPage } from './pages/FavoritesPage';
+import { HistoryPage } from './pages/HistoryPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -76,6 +77,7 @@ export function App() {
         <Route path="p/:slug" element={<SharedPlaylistPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="history" element={<HistoryPage />} />
         <Route path="downloads" element={<DownloadsPage />} />
         <Route path="community" element={<CommunityPage />} />
         <Route path="community/taste" element={<TasteMatchPage />} />

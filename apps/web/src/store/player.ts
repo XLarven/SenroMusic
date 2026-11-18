@@ -209,7 +209,7 @@ function attachAudioListeners(): void {
           ? 'download'
           : 'stream';
       void api
-        .recordPlay(state.current.id, Math.round(element.currentTime * 1000), source)
+        .recordPlay(state.current.id, Math.round(element.currentTime * 1000), source, state.current)
         .catch(() => undefined);
     }
     // Rolling autoplay: queue the next related track before this one ends.

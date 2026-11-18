@@ -10,6 +10,7 @@
 import type { Database } from 'better-sqlite3';
 import { normalizeText } from './searchQuality.js';
 import { findSimilarTracks, type SimilarSeed, type SimilarTrack } from './audio/similar.js';
+import { recentPlaySeeds, topHistoryArtists } from './history.js';
 
 export type DiscoveryItem = SimilarTrack & { reason: string };
 export type DiscoverySection = {
@@ -53,24 +54,11 @@ export function trackIdentity(track: { title: string; artist: string }): string 
 
 /** Weighted seeds: recent listening first, then frequency, then favorites. */
 function collectSeeds(db: Database, userId: string, limit = 3): { seeds: Seed[]; personalized: boolean } {
-  const recent = db
-    .prepare(
-      `SELECT t.id, t.title, t.artist, h.played_at
-       FROM listening_history h JOIN tracks t ON t.id = h.track_id
-       WHERE h.user_id = ? AND h.ms_played >= 3000
-       ORDER BY h.played_at DESC LIMIT 20`,
-    )
-    .all(userId) as Array<{ id: string; title: string; artist: string; played_at: string }>;
+  // Local library plays and search-streamed plays both count; without the second
+  // source an account that only listens from search looked brand new.
+  const recent = recentPlaySeeds(db, userId, 20);
 
-  const topArtists = db
-    .prepare(
-      `SELECT t.artist, COUNT(*) AS plays
-       FROM listening_history h JOIN tracks t ON t.id = h.track_id
-       WHERE h.user_id = ? AND h.ms_played >= 3000
-       GROUP BY lower(t.artist)
-       ORDER BY plays DESC LIMIT 5`,
-    )
-    .all(userId) as Array<{ artist: string; plays: number }>;
+  const topArtists = topHistoryArtists(db, userId, 5);
 
   const favoriteArtists = db
     .prepare(

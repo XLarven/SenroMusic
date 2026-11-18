@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowRight, Camera, HeartHandshake, Image as ImageIcon, LogOut, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
+import { ArrowRight, Camera, Clock3, HeartHandshake, Image as ImageIcon, LogOut, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from 'lucide-react';
 import { api } from '../api';
 import { FriendButton } from '../features/community/FriendButton';
 import { BlockButton } from '../features/community/BlockButton';
@@ -328,6 +328,7 @@ export function ProfilePage() {
             <Pencil size={16} /> Profili düzenle
           </button>
           <Link to="/settings" className="button secondary"><Settings2 size={16} /> Ayarlar</Link>
+          <Link to="/history" className="button secondary"><Clock3 size={16} /> {t('Dinleme geçmişi', 'Listening history')}</Link>
           <Link to="/community/taste" className="button ghost">
             <HeartHandshake size={16} /> {t('Zevk Uyumum', 'My taste match')}
           </Link>

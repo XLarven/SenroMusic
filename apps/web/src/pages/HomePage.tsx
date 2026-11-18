@@ -35,7 +35,12 @@ export function HomePage() {
   const historyQuery = useQuery({
     queryKey: ['history', 12],
     queryFn: () => api.history(12),
-    staleTime: 30_000,
+    staleTime: 0,
+  });
+  const searchHistoryQuery = useQuery({
+    queryKey: ['search-history', 6],
+    queryFn: () => api.searchHistory(6),
+    staleTime: 0,
   });
 
   const albums = recentAlbums(library, 10);
@@ -125,6 +130,47 @@ export function HomePage() {
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count }));
   }, [library.tracks]);
+
+  // One pool for the daily mix: what was played, what is loved, then the newest
+  // library additions. Remote plays are included, so a search-only listener still
+  // gets a real mix.
+  const mixPool = useMemo(() => {
+    const seen = new Set<string>();
+    const pool: Track[] = [];
+    for (const track of [...historyTracks, ...favoriteTracks, ...recentTracks]) {
+      if (seen.has(track.id)) continue;
+      seen.add(track.id);
+      pool.push(track);
+    }
+    return pool.slice(0, 60);
+  }, [favoriteTracks, historyTracks, recentTracks]);
+
+  const dailyMix = useMemo(() => {
+    if (mixPool.length === 0) return [];
+    // Stable within a day: the same card does not reshuffle on every keystroke.
+    const seed = Number(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
+    const ordered = [...mixPool];
+    for (let index = ordered.length - 1; index > 0; index -= 1) {
+      const swap = (seed * (index + 7)) % (index + 1);
+      [ordered[index], ordered[swap]] = [ordered[swap]!, ordered[index]!];
+    }
+    return ordered.slice(0, 25);
+  }, [mixPool]);
+
+  const artistMixes = useMemo(() => {
+    const artists = new Map<string, Track[]>();
+    for (const track of mixPool) {
+      const key = track.artist;
+      const bucket = artists.get(key) ?? [];
+      bucket.push(track);
+      artists.set(key, bucket);
+    }
+    return [...artists.entries()]
+      .filter(([, tracks]) => tracks.length >= 2)
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 4)
+      .map(([artist, tracks]) => ({ artist, tracks }));
+  }, [mixPool]);
 
   const today = new Intl.DateTimeFormat(localeForLanguage(getAppLanguage()), {
     weekday: 'long',
@@ -216,6 +262,63 @@ export function HomePage() {
 
           <DiscoveryFeed />
 
+          {dailyMix.length > 0 || artistMixes.length > 0 || (searchHistoryQuery.data?.items?.length ?? 0) > 0 ? (
+            <section className="content-section home-mixes" aria-label="Karışıklar">
+              <div className="section-heading">
+                <div>
+                  <h2>Karışıklar</h2>
+                  <p>Dinlediklerinden ve favorilerinden hazırlandı.</p>
+                </div>
+              </div>
+
+              <div className="mix-grid">
+                {dailyMix.length > 0 ? (
+                  <button type="button" className="mix-card is-daily" onClick={() => playQueue(dailyMix, 0)}>
+                    <span className="mix-art">
+                      <Cover src={dailyMix[0]?.coverUrl ?? null} alt="" seed="daily-mix" iconSize={22} />
+                      <span className="mix-play"><Play size={18} fill="currentColor" /></span>
+                    </span>
+                    <span className="mix-copy">
+                      <strong>Günlük Karışık</strong>
+                      <small>{dailyMix.length} parça · her gün yenilenir</small>
+                    </span>
+                  </button>
+                ) : null}
+
+                {artistMixes.map((mix) => (
+                  <button
+                    type="button"
+                    key={mix.artist}
+                    className="mix-card"
+                    onClick={() => playQueue(shuffle(mix.tracks), 0)}
+                  >
+                    <span className="mix-art">
+                      <Cover src={mix.tracks[0]?.coverUrl ?? null} alt="" seed={`mix-${mix.artist}`} iconSize={22} />
+                      <span className="mix-play"><Play size={18} fill="currentColor" /></span>
+                    </span>
+                    <span className="mix-copy">
+                      <strong>{mix.artist} karışığı</strong>
+                      <small>{mix.tracks.length} parça</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {(searchHistoryQuery.data?.items?.length ?? 0) > 0 ? (
+                <div className="home-recent-searches" aria-label="Son aramalar">
+                  <span className="eyebrow">Son aramalar</span>
+                  <div className="chip-row">
+                    {(searchHistoryQuery.data?.items ?? []).map((entry) => (
+                      <Link key={entry.id} to={`/search?q=${encodeURIComponent(entry.query)}`} className="filter-pill">
+                        <Search size={13} /> {entry.query}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
           <section className="content-section home-quick" aria-label="Hızlı erişim">
             <div className="section-heading">
               <div>
@@ -284,6 +387,9 @@ export function HomePage() {
           <section className="content-section">
             <div className="section-heading">
               <div><h2>Senin için</h2><p>{historyTracks.length > 0 ? 'Dinleme geçmişine göre sıralandı.' : 'Kişiselleştirilmiş öneriler yerine keşif listeleri gösteriliyor.'}</p></div>
+              <Link to="/history" className="section-link">
+                Dinleme geçmişi <ArrowRight size={15} />
+              </Link>
             </div>
             {jumpBackIn.length > 0 ? (
               <div className="carousel-row">

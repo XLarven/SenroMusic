@@ -741,6 +741,8 @@ export type HistoryItem = {
   playedAt: string;
   msPlayed: number;
   source: string;
+  /** True when the song came from search and is not in the library. */
+  remote?: boolean;
 };
 
 export type SearchHistoryItem = {

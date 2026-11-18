@@ -197,10 +197,13 @@ export const api = {
     ),
   history: (limit = 50) =>
     request<{ items: HistoryItem[] }>(`/api/me/history?limit=${limit}`),
-  recordPlay: (trackId: string, msPlayed: number, source = 'player') =>
+  clearHistory: () =>
+    request<{ ok: boolean; removed: number }>('/api/me/history', { method: 'DELETE' }),
+  recordPlay: (trackId: string, msPlayed: number, source = 'player', track?: Track) =>
     request<{ ok: boolean; recorded?: boolean }>('/api/me/history', {
       method: 'POST',
-      body: { trackId, msPlayed, source },
+      // Remote tracks are not in the library; their metadata is stored with the play.
+      body: track ? { trackId, msPlayed, source, track } : { trackId, msPlayed, source },
     }),
   historyStats: () =>
     request<{
@@ -248,7 +251,7 @@ export const api = {
     request<SpotifyResolved>(`/api/spotify/playlists/${encodeURIComponent(id)}`),
   library: () => request<Library>('/api/library'),
   search: (q: string, limit = 20) =>
-    request<{ tracks: Track[]; albums: Album[]; artists: Artist[] }>(
+    request<{ tracks: Track[]; albums: Album[]; artists: Artist[]; playlists: PlaylistSummary[] }>(
       `/api/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
   youtubeSearch: (q: string, limit?: number) =>

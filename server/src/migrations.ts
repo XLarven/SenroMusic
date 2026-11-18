@@ -608,6 +608,36 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    id: 15,
+    name: 'remote play history',
+    up(db) {
+      // Tracked songs from YouTube/Spotify are not in `tracks`, so they need their
+      // own history table; without it the player recorded nothing and the home
+      // feed had no seeds for anyone who listens from search.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS remote_plays (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          track_id TEXT NOT NULL,
+          provider TEXT,
+          title TEXT NOT NULL,
+          artist TEXT NOT NULL,
+          album TEXT,
+          cover_url TEXT,
+          duration REAL,
+          stream_url TEXT,
+          played_at TEXT NOT NULL,
+          ms_played INTEGER NOT NULL DEFAULT 0,
+          source TEXT NOT NULL DEFAULT 'stream'
+        );
+        CREATE INDEX IF NOT EXISTS idx_remote_plays_user
+          ON remote_plays(user_id, played_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_remote_plays_track
+          ON remote_plays(user_id, track_id);
+      `);
+    },
+  },
 ];
 
 export function applyMigrations(db: Database): void {
